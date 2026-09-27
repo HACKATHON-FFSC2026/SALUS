@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "755877285966",
+    "project_id": "salus-bd055",
+    "storage_bucket": "salus-bd055.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:755877285966:android:1ee4da9b2b5f9f4653f31f",
+        "android_client_info": {
+          "package_name": "com.example.salus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAk9I6mpJpxl8roD_4u51kVnYJe8AHecFQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
