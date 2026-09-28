@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/routes/app_router.dart';
+import 'package:salus/core/themes/app_theme.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -16,7 +17,9 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return ProviderScope(
       child: MaterialApp.router(
+        debugShowCheckedModeBanner: false,
         title: 'Salus',
+        theme: buildAppTheme(),
         routerConfig: _appRouter.config(),
       ),
     );
