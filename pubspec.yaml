@@ -48,15 +48,15 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/images/salus_logo.png"
   adaptive_icon_background: "#F5F5F0"
-  adaptive_icon_foreground: "assets/images/salus_logo.png"
+  adaptive_icon_foreground: "assets/images/salus_logo_splash.png"
   min_sdk_android: 21
   remove_alpha_ios: true
 
 flutter_native_splash:
   color: "#F5F5F0"
-  image: assets/images/salus_logo.png
+  image: assets/images/salus_logo_splash.png
   android: true
   ios: true
   android_12:
     color: "#F5F5F0"
-    image: assets/images/salus_logo.png
+    image: assets/images/salus_logo_splash.png

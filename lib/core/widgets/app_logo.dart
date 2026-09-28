@@ -7,10 +7,11 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ponytail: width only -> intrinsic 3:2 ratio preserved; forcing a square
+    // box letterboxed the 816px-wide mark inside the 1536px canvas.
     return Image.asset(
       'assets/images/salus_logo.png',
       width: size,
-      height: size,
     );
   }
 }

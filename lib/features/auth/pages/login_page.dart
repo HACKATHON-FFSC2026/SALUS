@@ -1,34 +1,59 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/core/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/core/utils/auth_state.dart';
+import 'package:salus/core/utils/log.dart';
 import 'package:salus/core/widgets/app_logo.dart';
 import 'package:salus/core/widgets/google_logo.dart';
-import 'package:salus/core/utils/guest_session.dart';
 
 @RoutePage()
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
-  void _showComingSoon(BuildContext context, String provider) {
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  bool _busy = false;
+
+  void _notify(String message) {
     toastification.show(
       context: context,
-      title: Text('$provider bientôt disponible'),
+      title: Text(message),
       type: ToastificationType.info,
       autoCloseDuration: const Duration(seconds: 3),
     );
   }
 
-  // ponytail: no auth logic yet — buttons route straight to MainRoute.
-  void _enter(BuildContext context) {
+  void _enter() {
     context.router.replace(const MainRoute());
   }
 
-  Future<void> _enterAsGuest(BuildContext context) async {
+  Future<void> _signInWithGoogle() async {
+    setState(() => _busy = true);
+    try {
+      final account = await GoogleSignIn.instance.authenticate();
+      await FirebaseAuth.instance.signInWithCredential(
+        GoogleAuthProvider.credential(idToken: account.authentication.idToken),
+      );
+      _enter();
+    } catch (e, s) {
+      Log.error('Connexion Google impossible', e, s);
+      if (mounted) _notify('Connexion Google impossible');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _enterAsGuest() async {
     await setGuestMode();
-    if (!context.mounted) return;
-    context.router.replace(const MainRoute());
+    if (!mounted) return;
+    _enter();
   }
 
   @override
@@ -63,10 +88,7 @@ class LoginPage extends StatelessWidget {
               ),
               const Spacer(),
               ElevatedButton(
-                onPressed: () {
-                  _showComingSoon(context, 'Google');
-                  _enter(context);
-                },
+                onPressed: _busy ? null : _signInWithGoogle,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.surface,
                   foregroundColor: AppColors.primary,
@@ -82,7 +104,7 @@ class LoginPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () => _enterAsGuest(context),
+                onPressed: _busy ? null : _enterAsGuest,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.sos,
                   foregroundColor: Colors.white,
