@@ -10,10 +10,10 @@ class HomeTabPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        actions: [
-          Icon(Icons.person_2_outlined, color: AppColors.primary),
-        ],
-        backgroundColor: AppColors.primary.withValues(alpha: 0.9).withOpacity(0.01),
+        actions: [Icon(Icons.person_2_outlined, color: AppColors.primary)],
+        // withOpacity(0.01) remplacait l'alpha, pas multiplication : rendu
+        // quasi transparent. Equivalence exacte conservee, cf. livraison.
+        backgroundColor: AppColors.primary.withValues(alpha: 0.01),
       ),
       body: Stack(
         children: [
@@ -54,10 +54,7 @@ class HomeTabPage extends StatelessWidget {
                           ),
                           const Text(
                             'Aucune alerte à proximité',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                            ),
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
                           ),
                         ],
                       ),
