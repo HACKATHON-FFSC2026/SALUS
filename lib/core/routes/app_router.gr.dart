@@ -59,6 +59,74 @@ class MainRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [ShelterLocationPickerPage]
+class ShelterLocationPickerRoute
+    extends PageRouteInfo<ShelterLocationPickerRouteArgs> {
+  ShelterLocationPickerRoute({
+    Key? key,
+    GeoPoint? initialLocation,
+    String? initialAddress,
+    List<PageRouteInfo>? children,
+  }) : super(
+         ShelterLocationPickerRoute.name,
+         args: ShelterLocationPickerRouteArgs(
+           key: key,
+           initialLocation: initialLocation,
+           initialAddress: initialAddress,
+         ),
+         initialChildren: children,
+       );
+
+  static const String name = 'ShelterLocationPickerRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      final args = data.argsAs<ShelterLocationPickerRouteArgs>(
+        orElse: () => const ShelterLocationPickerRouteArgs(),
+      );
+      return ShelterLocationPickerPage(
+        key: args.key,
+        initialLocation: args.initialLocation,
+        initialAddress: args.initialAddress,
+      );
+    },
+  );
+}
+
+class ShelterLocationPickerRouteArgs {
+  const ShelterLocationPickerRouteArgs({
+    this.key,
+    this.initialLocation,
+    this.initialAddress,
+  });
+
+  final Key? key;
+
+  final GeoPoint? initialLocation;
+
+  final String? initialAddress;
+
+  @override
+  String toString() {
+    return 'ShelterLocationPickerRouteArgs{key: $key, initialLocation: $initialLocation, initialAddress: $initialAddress}';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! ShelterLocationPickerRouteArgs) return false;
+    return key == other.key &&
+        initialLocation == other.initialLocation &&
+        initialAddress == other.initialAddress;
+  }
+
+  @override
+  int get hashCode =>
+      key.hashCode ^ initialLocation.hashCode ^ initialAddress.hashCode;
+}
+
+/// generated route for
 /// [SplashPage]
 class SplashRoute extends PageRouteInfo<void> {
   const SplashRoute({List<PageRouteInfo>? children})

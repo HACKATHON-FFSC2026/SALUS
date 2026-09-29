@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/core/entities/entities.dart';
+import 'package:salus/core/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
-import 'package:salus/features/map/services/location_service.dart';
 import 'package:salus/features/shelters/domain/models/shelter_creation_state.dart';
+import 'package:salus/features/shelters/domain/models/shelter_location_selection.dart';
 import 'package:salus/features/shelters/presentation/controllers/shelter_creation_controller.dart';
 
 /// Formulaire de création d'une fiche refuge (Secouriste / Organisation).
@@ -31,7 +32,7 @@ class _CreateShelterPageState extends ConsumerState<CreateShelterPage> {
   bool _medicalKit = false;
 
   GeoPoint? _location;
-  bool _isLocating = false;
+  String? _locationAddress;
   String? _locationError;
 
   @override
@@ -60,27 +61,31 @@ class _CreateShelterPageState extends ConsumerState<CreateShelterPage> {
     );
   }
 
-  /// Récupère la position du refuge via le service de localisation existant.
-  Future<void> _useCurrentLocation() async {
-    setState(() => _isLocating = true);
-    try {
-      final position = await LocationService.getCurrentPosition();
-      if (!mounted) return;
-      setState(() {
-        _location = GeoPoint(position.latitude, position.longitude);
-        _locationError = null;
-      });
-      _notify('Position du refuge enregistrée.', ToastificationType.success);
-    } catch (e) {
-      if (!mounted) return;
-      // LocationService remonte déjà des messages compréhensibles.
-      final message = e is String
-          ? e
-          : 'Impossible de récupérer la position GPS.';
-      setState(() => _locationError = message);
-      _notify(message, ToastificationType.error);
-    } finally {
-      if (mounted) setState(() => _isLocating = false);
+  /// Ouvre la carte de sélection : recherche de lieu, GPS et ajustement du pin.
+  Future<void> _pickLocation() async {
+    FocusScope.of(context).unfocus();
+
+    final selection = await context.router.push<ShelterLocationSelection>(
+      ShelterLocationPickerRoute(
+        initialLocation: _location,
+        initialAddress: _locationAddress,
+      ),
+    );
+    if (!mounted || selection == null) return;
+
+    final address = selection.address;
+    setState(() {
+      _location = selection.location;
+      _locationAddress = address;
+      _locationError = null;
+    });
+
+    // L'adresse reste modifiable : on ne la pré-remplit que si elle est vide.
+    if (address != null && _addressController.text.trim().isEmpty) {
+      _addressController.value = TextEditingValue(
+        text: address,
+        selection: TextSelection.collapsed(offset: address.length),
+      );
     }
   }
 
@@ -92,7 +97,7 @@ class _CreateShelterPageState extends ConsumerState<CreateShelterPage> {
 
     setState(() {
       _locationError = location == null
-          ? 'Veuillez définir la position du refuge.'
+          ? 'Veuillez sélectionner la localisation du refuge.'
           : null;
     });
 
@@ -278,30 +283,64 @@ class _CreateShelterPageState extends ConsumerState<CreateShelterPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              location == null
-                  ? Icons.location_searching
-                  : Icons.check_circle_outline,
-              color: location == null ? AppColors.inactive : Colors.green,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                location == null
-                    ? 'Aucune position définie.'
-                    : 'Latitude ${location.latitude.toStringAsFixed(5)}, '
-                          'longitude ${location.longitude.toStringAsFixed(5)}',
-                style: TextStyle(
+        InkWell(
+          onTap: isSubmitting ? null : _pickLocation,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  location == null ? Icons.location_searching : Icons.place,
                   color: location == null
                       ? AppColors.inactive
                       : AppColors.primary,
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        location == null
+                            ? 'Aucune localisation sélectionnée.'
+                            : _locationAddress ??
+                                  'Localisation sélectionnée sur la carte',
+                        style: TextStyle(
+                          color: location == null
+                              ? AppColors.inactive
+                              : AppColors.primary,
+                          fontWeight: location == null
+                              ? FontWeight.normal
+                              : FontWeight.bold,
+                        ),
+                      ),
+                      if (location != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Latitude ${location.latitude.toStringAsFixed(5)}, '
+                          'longitude ${location.longitude.toStringAsFixed(5)}',
+                          style: const TextStyle(
+                            color: AppColors.inactive,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  location == null ? 'Sélectionner' : 'Modifier',
+                  style: const TextStyle(
+                    color: AppColors.secondary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
         if (_locationError != null) ...[
           const SizedBox(height: 8),
@@ -313,22 +352,6 @@ class _CreateShelterPageState extends ConsumerState<CreateShelterPage> {
             ),
           ),
         ],
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: _isLocating || isSubmitting ? null : _useCurrentLocation,
-          icon: _isLocating
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.my_location),
-          label: Text(
-            location == null
-                ? 'Utiliser ma position actuelle'
-                : 'Actualiser ma position',
-          ),
-        ),
       ],
     );
   }
