@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Salus a besoin de votre position pour afficher la carte et vous alerter en cas de zone à risque proche.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>Salus utilise votre position pour vous informer en temps réel des zones sûres et des risques.</string>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
