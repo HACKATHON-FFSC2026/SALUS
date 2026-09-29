@@ -9,6 +9,17 @@ const _storage = FlutterSecureStorage();
 
 Future<void> setGuestMode() => _storage.write(key: _guestKey, value: 'true');
 
+/// Uid de l'utilisateur connecté, `null` si personne (ou un invité) n'est
+/// connecté. Même garde que [hasAccount] : Firebase peut être indisponible.
+String? currentUserId() {
+  try {
+    return FirebaseAuth.instance.currentUser?.uid;
+  } catch (e) {
+    Log.warning('FirebaseAuth indisponible: $e');
+    return null;
+  }
+}
+
 /// True when the app can go straight to the main tabs.
 Future<bool> hasAccount() async {
   if (await _storage.read(key: _guestKey) == 'true') return true;

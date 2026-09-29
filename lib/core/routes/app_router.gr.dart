@@ -11,6 +11,22 @@
 part of 'app_router.dart';
 
 /// generated route for
+/// [CreateShelterPage]
+class CreateShelterRoute extends PageRouteInfo<void> {
+  const CreateShelterRoute({List<PageRouteInfo>? children})
+    : super(CreateShelterRoute.name, initialChildren: children);
+
+  static const String name = 'CreateShelterRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const CreateShelterPage();
+    },
+  );
+}
+
+/// generated route for
 /// [LoginPage]
 class LoginRoute extends PageRouteInfo<void> {
   const LoginRoute({List<PageRouteInfo>? children})
