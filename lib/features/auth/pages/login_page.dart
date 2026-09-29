@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/core/routes/app_router.dart';
+import 'package:salus/core/sources/user_registration.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/core/utils/auth_state.dart';
 import 'package:salus/core/utils/log.dart';
@@ -20,12 +21,16 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _busy = false;
+  bool _registering = false;
 
-  void _notify(String message) {
+  void _notify(
+    String message, {
+    ToastificationType type = ToastificationType.info,
+  }) {
     toastification.show(
       context: context,
       title: Text(message),
-      type: ToastificationType.info,
+      type: type,
       autoCloseDuration: const Duration(seconds: 3),
     );
   }
@@ -38,16 +43,50 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _busy = true);
     try {
       final account = await GoogleSignIn.instance.authenticate();
-      await FirebaseAuth.instance.signInWithCredential(
+      final credential = await FirebaseAuth.instance.signInWithCredential(
         GoogleAuthProvider.credential(idToken: account.authentication.idToken),
       );
-      _enter();
+      await _register(credential.user);
     } catch (e, s) {
       Log.error('Connexion Google impossible', e, s);
-      if (mounted) _notify('Connexion Google impossible');
+      if (mounted) {
+        _notify('Connexion Google impossible', type: ToastificationType.error);
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _registering = false;
+        });
+      }
     }
+  }
+
+  /// Writes the Firestore profile, then enters the app.
+  ///
+  /// A Firestore failure is deliberately non-fatal: this is an emergency app,
+  /// the user must reach the SOS button even with no network. The write is
+  /// retried by the Firestore local cache on the next successful sync.
+  Future<void> _register(User? user) async {
+    if (user == null) {
+      _notify('Connexion Google incomplète', type: ToastificationType.error);
+      return;
+    }
+    setState(() => _registering = true);
+    try {
+      await ensureUserDocument(
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+      );
+    } catch (e, s) {
+      Log.error('Enregistrement du profil impossible', e, s);
+      _notify(
+        'Profil non synchronisé, réessaie plus tard',
+        type: ToastificationType.warning,
+      );
+    }
+    if (mounted) _enter();
   }
 
   Future<void> _enterAsGuest() async {
@@ -80,13 +119,31 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Aide d\u2019urgence, refuges et alertes.',
+                'Aide d’urgence, refuges et alertes.',
                 textAlign: TextAlign.center,
                 style: textTheme.bodyMedium?.copyWith(
                   color: AppColors.primary.withValues(alpha: 0.7),
                 ),
               ),
               const Spacer(),
+              if (_registering) ...[
+                const Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Finalisation de votre compte…',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.primary.withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               ElevatedButton(
                 onPressed: _busy ? null : _signInWithGoogle,
                 style: ElevatedButton.styleFrom(
