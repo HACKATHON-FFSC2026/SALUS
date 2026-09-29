@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// A user owns their profile and may edit only the fields listed in
+// `_selfWritable`. roles / organizationId / isActive are administrative:
+// leaving them out of the whitelist stops a client from self-promoting to
+// admin. createdAt is pinned on first write.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      function isSelf() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isAdmin() {
+        return isSelf() && resource.data.roles.hasAny(['admin']);
+      }
+
+      function onlySelfWritable() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            'displayName',
+            'email',
+            'phoneNumber',
+            'lastActiveAt',
+            'safetyStatus',
+            'safetyStatusUpdatedAt',
+            'competencyTag'
+          ]);
+      }
+
+      function validCreate() {
+        return request.resource.data.keys().hasAll([
+            'displayName',
+            'email',
+            'authProvider',
+            'roles',
+            'safetyStatus',
+            'safetyStatusUpdatedAt',
+            'lastActiveAt',
+            'createdAt'
+          ])
+          && request.resource.data.roles == ['citizen'];
+      }
+
+      allow read: if isSelf() || isAdmin();
+      allow create: if isSelf() && validCreate();
+      allow update: if isAdmin() || (isSelf() && onlySelfWritable());
+      allow delete: if isAdmin();
+    }
+
+    // Nothing else is readable or writable from a client yet.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
