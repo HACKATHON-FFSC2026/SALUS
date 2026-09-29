@@ -4,19 +4,29 @@ rules_version = '2';
 // `_selfWritable`. roles / organizationId / isActive are administrative:
 // leaving them out of the whitelist stops a client from self-promoting to
 // admin. createdAt is pinned on first write.
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // =========================
+    // USERS
+    // =========================
     match /users/{userId} {
+
       function isSelf() {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth != null
+          && request.auth.uid == userId;
       }
 
       function isAdmin() {
-        return isSelf() && resource.data.roles.hasAny(['admin']);
+        return isSelf()
+          && resource.data.roles.hasAny(['admin']);
       }
 
       function onlySelfWritable() {
-        return request.resource.data.diff(resource.data).affectedKeys()
+        return request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
           .hasOnly([
             'displayName',
             'email',
@@ -43,11 +53,42 @@ service cloud.firestore {
       }
 
       allow read: if isSelf() || isAdmin();
+
       allow create: if isSelf() && validCreate();
-      allow update: if isAdmin() || (isSelf() && onlySelfWritable());
+
+      allow update: if isAdmin()
+        || (isSelf() && onlySelfWritable());
+
       allow delete: if isAdmin();
     }
 
+
+    // =========================
+    // SHELTERS
+    // =========================
+    match /shelters/{shelterId} {
+
+      // Authenticated users can see shelters.
+      allow read: if request.auth != null;
+
+      // An authenticated user can create a shelter
+      // only if they are recorded as its creator.
+      allow create: if request.auth != null
+        && request.resource.data.createdBy == request.auth.uid;
+
+      // The creator can update their own shelter.
+      allow update: if request.auth != null
+        && resource.data.createdBy == request.auth.uid;
+
+      // The creator can delete their own shelter.
+      allow delete: if request.auth != null
+        && resource.data.createdBy == request.auth.uid;
+    }
+
+
+    // =========================
+    // DEFAULT DENY
+    // =========================
     // Nothing else is readable or writable from a client yet.
     match /{document=**} {
       allow read, write: if false;
