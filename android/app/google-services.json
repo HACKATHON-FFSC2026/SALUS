@@ -1,42 +1,57 @@
 {
   "project_info": {
-    "project_number": "827127970650",
-    "project_id": "salus-d34bb",
-    "storage_bucket": "salus-d34bb.firebasestorage.app"
+    "project_number": "755877285966",
+    "project_id": "salus-bd055",
+    "storage_bucket": "salus-bd055.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:827127970650:android:aad025a216af3542425163",
+        "mobilesdk_app_id": "1:755877285966:android:1ee4da9b2b5f9f4653f31f",
         "android_client_info": {
           "package_name": "com.example.salus"
         }
       },
       "oauth_client": [
         {
-          "client_id": "827127970650-53g1kg2p26fiv76tta58tco8mkhl0rqe.apps.googleusercontent.com",
+          "client_id": "755877285966-f0d7juqk3i6tc63ni9pvml84fs76suj6.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.salus",
-            "certificate_hash": "7adeacdf789f93f2cdc6d8cc57051e7f59c364ce"
+            "certificate_hash": "ff459b412b6f0232ab152ca9865c557f79825f41"
           }
         },
         {
-          "client_id": "827127970650-q93qmjbc7tneik7m930o98uc4uoa4746.apps.googleusercontent.com",
+          "client_id": "755877285966-qrgehf2d61dmmg22remar2llb9o8tct5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.salus",
+            "certificate_hash": "5c88ce9392a0a49af1b33e9c6d5ea35f5feb1963"
+          }
+        },
+        {
+          "client_id": "755877285966-gau26sei9rhj9f87r050qn7tqobv60at.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCsOI4jTPR9LZadblyxn8wL1qDES6iE9Fk"
+          "current_key": "AIzaSyAk9I6mpJpxl8roD_4u51kVnYJe8AHecFQ"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "827127970650-q93qmjbc7tneik7m930o98uc4uoa4746.apps.googleusercontent.com",
+              "client_id": "755877285966-gau26sei9rhj9f87r050qn7tqobv60at.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "755877285966-mvj68akqmjkn3cqfgdb9l90pldvec1hu.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.salus"
+              }
             }
           ]
         }

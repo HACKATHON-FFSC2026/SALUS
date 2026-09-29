@@ -10,7 +10,7 @@ Map<String, dynamic> _document({
   String validationStatus = 'validated',
 }) {
   return <String, dynamic>{
-    if (id != null) 'id': id,
+    'id': ?id,
     'name': 'Refuge Mahamasina',
     'location': const GeoPoint(-18.8792, 47.5079),
     'address': 'Mahamasina, Antananarivo',
