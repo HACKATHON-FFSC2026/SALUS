@@ -19,6 +19,10 @@ class _FakeShelterRepository implements ShelterRepository {
     created.add(saved);
     return saved;
   }
+
+  @override
+  Stream<List<Shelter>> watchValidatedShelters() =>
+      Stream<List<Shelter>>.empty();
 }
 
 void main() {

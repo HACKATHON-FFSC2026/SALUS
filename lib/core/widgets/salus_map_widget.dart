@@ -3,10 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:salus/core/entities/entities.dart';
+import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/core/utils/map_animation_helper.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/features/map/presentation/controllers/location_controller.dart';
 import 'package:salus/features/map/domain/models/location_state.dart';
+import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
+import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
+import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 
 class SalusMapWidget extends ConsumerStatefulWidget {
   const SalusMapWidget({super.key});
@@ -59,6 +64,9 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
   @override
   Widget build(BuildContext context) {
     final locationState = ref.watch(locationControllerProvider);
+    final sheltersAsync = ref.watch(validatedSheltersProvider);
+    // Un seul flux pour tous les markers : aucune requête Firestore par refuge.
+    final shelters = sheltersAsync.value ?? const <Shelter>[];
 
     return Scaffold(
       body: Stack(
@@ -94,10 +102,39 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                     headingSectorColor: Color(0x442196F3),
                   ),
                 ),
+
+              // 2. Refuges validés, positionnés sur Shelter.location.
+              MarkerLayer(
+                markers: [
+                  for (final shelter in shelters)
+                    Marker(
+                      key: ValueKey('shelter-marker-${shelter.id}'),
+                      point: LatLng(
+                        shelter.location.latitude,
+                        shelter.location.longitude,
+                      ),
+                      width: 44,
+                      height: 44,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => showShelterBottomSheet(context, shelter),
+                        child: ShelterMarkerPin(status: shelter.status),
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
 
-          // 3. Bouton Flottant (FAB) de recentrage
+          // 3. État du chargement des refuges (la carte reste utilisable).
+          Positioned(
+            bottom: 100,
+            left: 16,
+            right: 16,
+            child: _buildShelterBanner(sheltersAsync),
+          ),
+
+          // 4. Bouton Flottant (FAB) de recentrage
           Positioned(
             bottom: 24,
             right: 16,
@@ -118,6 +155,90 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Bandeau discret sur l'état des refuges : chargement, erreur Firestore ou
+  /// absence de refuge validé. La carte reste utilisable dans tous les cas.
+  Widget _buildShelterBanner(AsyncValue<List<Shelter>> sheltersAsync) {
+    if (sheltersAsync.hasError) {
+      return _MapBanner(
+        icon: Icons.cloud_off,
+        message: 'Impossible de charger les refuges.',
+        actionLabel: 'Réessayer',
+        onAction: () => ref.invalidate(validatedSheltersProvider),
+      );
+    }
+
+    if (sheltersAsync.isLoading && !sheltersAsync.hasValue) {
+      return const _MapBanner(
+        icon: Icons.home_work_outlined,
+        message: 'Chargement des refuges…',
+        showProgress: true,
+      );
+    }
+
+    if ((sheltersAsync.value ?? const <Shelter>[]).isEmpty) {
+      return const _MapBanner(
+        icon: Icons.home_work_outlined,
+        message: 'Aucun refuge disponible à proximité.',
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+}
+
+/// Bandeau aligné sur le style des overlays existants de la carte.
+class _MapBanner extends StatelessWidget {
+  const _MapBanner({
+    required this.icon,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+    this.showProgress = false,
+  });
+
+  final IconData icon;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final bool showProgress;
+
+  @override
+  Widget build(BuildContext context) {
+    final actionLabel = this.actionLabel;
+    final onAction = this.onAction;
+
+    return Card(
+      color: AppColors.surface.withValues(alpha: 0.9),
+      elevation: 4,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            if (showProgress)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Icon(icon, size: 18, color: AppColors.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: AppColors.primary, fontSize: 13),
+              ),
+            ),
+            if (actionLabel != null && onAction != null)
+              TextButton(onPressed: onAction, child: Text(actionLabel)),
+          ],
+        ),
       ),
     );
   }
