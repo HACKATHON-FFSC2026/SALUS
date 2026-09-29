@@ -9,6 +9,12 @@ import 'package:salus/features/shelters/presentation/controllers/shelter_creatio
 class _FakeShelterRepository implements ShelterRepository {
   @override
   Future<Shelter> createShelter(Shelter shelter) async => shelter;
+
+  // Non utilisé par [CreateShelterPage] : sert uniquement à satisfaire
+  // l'interface [ShelterRepository].
+  @override
+  Stream<List<Shelter>> watchValidatedShelters() =>
+      const Stream<List<Shelter>>.empty();
 }
 
 void main() {
