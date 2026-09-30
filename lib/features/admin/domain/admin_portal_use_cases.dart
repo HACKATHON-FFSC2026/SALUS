@@ -1,0 +1,90 @@
+import 'package:salus/features/admin/domain/admin_portal_repository.dart';
+import 'package:salus/features/admin/domain/models/admin_collection.dart';
+import 'package:salus/features/admin/domain/models/admin_dashboard_metrics.dart';
+import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
+import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
+
+/// Cas d'utilisation du portail. Les widgets ne portent aucune règle métier
+/// et ne dépendent que de cette couche applicative.
+class AdminPortalUseCases {
+  const AdminPortalUseCases(this._repository);
+
+  final AdminPortalRepository _repository;
+
+  Stream<AdminPortalUser?> watchUser(String uid) => _repository.watchUser(uid);
+
+  Stream<List<AdminPortalRecord>> watchCollection(
+    AdminCollection collection, {
+    required bool admin,
+    String? organizationId,
+  }) => _repository.watchCollection(collection).map((records) {
+    if (collection == AdminCollection.sosAlerts &&
+        !admin &&
+        organizationId != null &&
+        organizationId.isNotEmpty) {
+      return records
+          .where(
+            (record) =>
+                record.assignedOrganizationId == organizationId ||
+                record.status == 'waiting',
+          )
+          .toList();
+    }
+    if (collection == AdminCollection.shelters &&
+        !admin &&
+        organizationId != null) {
+      return records
+          .where((record) => record.organizationId == organizationId)
+          .toList();
+    }
+    return records;
+  });
+
+  Future<AdminDashboardMetrics> loadMetrics({required bool admin}) async {
+    final records = await _repository.loadDashboardRecords(admin: admin);
+    final sos = records[AdminCollection.sosAlerts] ?? const [];
+    final reports = records[AdminCollection.reports] ?? const [];
+    final organizations = records[AdminCollection.organizations] ?? const [];
+    final zones = records[AdminCollection.zones] ?? const [];
+    return AdminDashboardMetrics(
+      activeSos: sos
+          .where((record) => !['resolved', 'cancelled'].contains(record.status))
+          .length,
+      organizations: organizations.where((record) => record.verified).length,
+      shelters: records[AdminCollection.shelters]?.length ?? 0,
+      users: records[AdminCollection.users]?.length ?? 0,
+      openReports: reports.where((record) => record.status == 'open').length,
+      activeZones: zones.where((record) => record.isActive == true).length,
+    );
+  }
+
+  Future<void> verifyOrganization(String id, String uid) =>
+      _repository.verifyOrganization(id, uid);
+
+  Future<void> updateSos({
+    required String id,
+    required String? currentStatus,
+    required String? assignedOrganizationId,
+    required String uid,
+  }) => _repository.updateSos(
+    id: id,
+    status: currentStatus == 'waiting' ? 'inProgress' : 'resolved',
+    assignedOrganizationId: assignedOrganizationId,
+    uid: uid,
+  );
+
+  Future<void> validateShelter(String id, String uid) =>
+      _repository.validateShelter(id, uid);
+
+  Future<void> toggleZone(String id, {required bool isActive}) =>
+      _repository.toggleZone(id, isActive: isActive);
+
+  Future<void> setUserActive(String id, {required bool isActive}) =>
+      _repository.setUserActive(id, isActive: isActive);
+
+  Future<void> createOrganization({
+    required String name,
+    required String email,
+    required String phone,
+  }) => _repository.createOrganization(name: name, email: email, phone: phone);
+}

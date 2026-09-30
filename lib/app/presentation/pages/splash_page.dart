@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
@@ -20,7 +21,9 @@ class SplashPage extends ConsumerWidget {
         // bloqué sur le logo.
         error: (_, _) => context.router.replace(const LoginRoute()),
         data: (hasAccount) => context.router.replace(
-          hasAccount ? const MainRoute() : const LoginRoute(),
+          hasAccount
+              ? (kIsWeb ? const OperationsPortalRoute() : const MainRoute())
+              : const LoginRoute(),
         ),
         loading: () {},
       );
