@@ -78,8 +78,7 @@ class ShelterBottomSheet extends StatelessWidget {
             _InfoLine(
               icon: Icons.groups_outlined,
               text:
-                  '${shelter.capacityOccupied} / ${shelter.capacityTotal} '
-                  'personnes',
+                  '${(shelter.capacityTotal - shelter.capacityOccupied).clamp(0, shelter.capacityTotal)} places disponibles',
             ),
             const SizedBox(height: 16),
             const Divider(height: 1),
@@ -97,7 +96,7 @@ class ShelterBottomSheet extends StatelessWidget {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: onSeeDetails,
-              child: const Text('Voir les détails'),
+              child: const Text('Voir le refuge'),
             ),
           ],
         ),
@@ -180,7 +179,10 @@ class ShelterResourcesWrap extends StatelessWidget {
       if (resources.water)
         const _ResourceChip(icon: Icons.water_drop_outlined, label: 'Eau'),
       if (resources.food)
-        const _ResourceChip(icon: Icons.restaurant_outlined, label: 'Nourriture'),
+        const _ResourceChip(
+          icon: Icons.restaurant_outlined,
+          label: 'Nourriture',
+        ),
       if (resources.electricity)
         const _ResourceChip(icon: Icons.bolt_outlined, label: 'Électricité'),
       if (resources.medicalKit)
@@ -319,4 +321,3 @@ class _DetailRow extends StatelessWidget {
     );
   }
 }
-
