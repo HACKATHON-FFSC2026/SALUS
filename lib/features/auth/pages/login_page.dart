@@ -1,103 +1,37 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:toastification/toastification.dart';
-import 'package:salus/core/routes/app_router.dart';
-import 'package:salus/core/sources/user_registration.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
-import 'package:salus/core/utils/auth_state.dart';
-import 'package:salus/core/utils/log.dart';
 import 'package:salus/core/widgets/app_logo.dart';
 import 'package:salus/core/widgets/google_logo.dart';
+import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
+import 'package:salus/features/auth/presentation/state/auth_state.dart';
+import 'package:toastification/toastification.dart';
 
 @RoutePage()
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authProvider);
 
-class _LoginPageState extends State<LoginPage> {
-  bool _busy = false;
-  bool _registering = false;
-
-  void _notify(
-    String message, {
-    ToastificationType type = ToastificationType.info,
-  }) {
-    toastification.show(
-      context: context,
-      title: Text(message),
-      type: type,
-      autoCloseDuration: const Duration(seconds: 3),
-    );
-  }
-
-  void _enter() {
-    context.router.replace(const MainRoute());
-  }
-
-  Future<void> _signInWithGoogle() async {
-    setState(() => _busy = true);
-    try {
-      final account = await GoogleSignIn.instance.authenticate();
-      final credential = await FirebaseAuth.instance.signInWithCredential(
-        GoogleAuthProvider.credential(idToken: account.authentication.idToken),
-      );
-      await _register(credential.user);
-    } catch (e, s) {
-      Log.error('Connexion Google impossible', e, s);
-      if (mounted) {
-        _notify('Connexion Google impossible', type: ToastificationType.error);
+    // Un seul endroit réagit à l'état: message puis navigation. La page ne
+    // decisionne plus du sort de l'authentification.
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next.isAuthenticated) {
+        if (next.warningMessage != null) {
+          _notify(context, next.warningMessage!, ToastificationType.warning);
+        }
+        context.router.replace(const MainRoute());
+        return;
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _registering = false;
-        });
+      if (next.status == AuthStatus.failure && next.errorMessage != null) {
+        _notify(context, next.errorMessage!, ToastificationType.error);
       }
-    }
-  }
+    });
 
-  /// Writes the Firestore profile, then enters the app.
-  ///
-  /// A Firestore failure is deliberately non-fatal: this is an emergency app,
-  /// the user must reach the SOS button even with no network. The write is
-  /// retried by the Firestore local cache on the next successful sync.
-  Future<void> _register(User? user) async {
-    if (user == null) {
-      _notify('Connexion Google incomplète', type: ToastificationType.error);
-      return;
-    }
-    setState(() => _registering = true);
-    try {
-      await ensureUserDocument(
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-      );
-    } catch (e, s) {
-      Log.error('Enregistrement du profil impossible', e, s);
-      _notify(
-        'Profil non synchronisé, réessaie plus tard',
-        type: ToastificationType.warning,
-      );
-    }
-    if (mounted) _enter();
-  }
-
-  Future<void> _enterAsGuest() async {
-    await setGuestMode();
-    if (!mounted) return;
-    _enter();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -111,7 +45,7 @@ class _LoginPageState extends State<LoginPage> {
               Text(
                 'SALUS',
                 textAlign: TextAlign.center,
-                style: textTheme.headlineMedium?.copyWith(
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: AppColors.primary,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 4,
@@ -121,12 +55,12 @@ class _LoginPageState extends State<LoginPage> {
               Text(
                 'Aide d’urgence, refuges et alertes.',
                 textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.primary.withValues(alpha: 0.7),
                 ),
               ),
               const Spacer(),
-              if (_registering) ...[
+              if (auth.isRegistering) ...[
                 const Center(
                   child: SizedBox(
                     width: 22,
@@ -138,14 +72,18 @@ class _LoginPageState extends State<LoginPage> {
                 Text(
                   'Finalisation de votre compte…',
                   textAlign: TextAlign.center,
-                  style: textTheme.bodySmall?.copyWith(
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.primary.withValues(alpha: 0.7),
                   ),
                 ),
                 const SizedBox(height: 12),
               ],
               ElevatedButton(
-                onPressed: _busy ? null : _signInWithGoogle,
+                onPressed: auth.isBusy
+                    ? null
+                    : () => ref
+                          .read(authProvider.notifier)
+                          .signInWithGoogle(),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.surface,
                   foregroundColor: AppColors.primary,
@@ -161,7 +99,11 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: _busy ? null : _enterAsGuest,
+                onPressed: auth.isBusy
+                    ? null
+                    : () => ref
+                          .read(authProvider.notifier)
+                          .continueAsGuest(),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.sos,
                   foregroundColor: Colors.white,
@@ -173,6 +115,19 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
+    );
+  }
+
+  void _notify(
+    BuildContext context,
+    String message,
+    ToastificationType type,
+  ) {
+    toastification.show(
+      context: context,
+      title: Text(message),
+      type: type,
+      autoCloseDuration: const Duration(seconds: 3),
     );
   }
 }

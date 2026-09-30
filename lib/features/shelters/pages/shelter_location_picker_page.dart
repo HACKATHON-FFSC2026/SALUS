@@ -9,10 +9,10 @@ import 'package:latlong2/latlong.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/core/utils/log.dart';
-import 'package:salus/core/utils/map_animation_helper.dart';
+import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
+import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/map/domain/models/geocoding_result.dart';
 import 'package:salus/features/map/services/geocoding_service.dart';
-import 'package:salus/features/map/services/location_service.dart';
 import 'package:salus/features/shelters/domain/models/shelter_location_selection.dart';
 
 /// Sélection de la localisation d'un refuge : recherche de lieu, position GPS
@@ -186,7 +186,9 @@ class _ShelterLocationPickerPageState
     setState(() => _isLocating = true);
 
     try {
-      final position = await LocationService.getCurrentPosition();
+      final position = await ref
+          .read(locationRepositoryProvider)
+          .currentPosition();
       if (!mounted) return;
 
       final point = LatLng(position.latitude, position.longitude);

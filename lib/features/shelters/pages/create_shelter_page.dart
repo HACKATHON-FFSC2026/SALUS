@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/core/entities/entities.dart';
-import 'package:salus/core/routes/app_router.dart';
+import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/shelters/domain/models/shelter_creation_state.dart';
 import 'package:salus/features/shelters/domain/models/shelter_location_selection.dart';

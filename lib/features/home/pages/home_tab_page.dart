@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/core/widgets/app_logo.dart';
-import 'package:salus/core/widgets/salus_map_widget.dart';
+import 'package:salus/features/map/presentation/widgets/salus_map_widget.dart';
 
 class HomeTabPage extends StatelessWidget {
   const HomeTabPage({super.key});

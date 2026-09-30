@@ -1,11 +1,22 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
-import 'package:toastification/toastification.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/alerts/pages/alerts_page.dart';
 import 'package:salus/features/help/pages/help_page.dart';
 import 'package:salus/features/home/pages/home_tab_page.dart';
 import 'package:salus/features/shelters/pages/shelters_page.dart';
+import 'package:toastification/toastification.dart';
+
+/// Un onglet = un icône, un libellé, une page. Ajouter un onglet ne touche
+/// que cette liste.
+@immutable
+class _Tab {
+  const _Tab(this.icon, this.label, this.page);
+
+  final IconData icon;
+  final String label;
+  final Widget page;
+}
 
 @RoutePage()
 class MainPage extends StatefulWidget {
@@ -16,14 +27,19 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
+  static const _tabs = <_Tab>[
+    _Tab(Icons.home, 'ACCUEIL', HomeTabPage()),
+    _Tab(Icons.notifications, 'ALERTES', AlertsPage()),
+    _Tab(Icons.map, 'REFUGES', SheltersPage()),
+    _Tab(Icons.help, 'AIDE', HelpPage()),
+  ];
+
+  /// Nombre d'onglets avant le FAB SOS, qui creuse la BottomAppBar.
+  static const _notchAfter = 2;
+
   int _index = 0;
 
-  static const _tabs = [
-    HomeTabPage(),
-    AlertsPage(),
-    SheltersPage(),
-    HelpPage(),
-  ];
+  void _select(int index) => setState(() => _index = index);
 
   void _onSosPressed() {
     toastification.show(
@@ -37,7 +53,9 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: _tabs),
+      body: IndexedStack(index: _index, children: [
+        for (final tab in _tabs) tab.page,
+      ]),
       floatingActionButton: GestureDetector(
         onTap: _onSosPressed,
         child: Container(
@@ -75,31 +93,19 @@ class _MainPageState extends State<MainPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _NavItem(
-              icon: Icons.home,
-              label: 'ACCUEIL',
-              selected: _index == 0,
-              onTap: () => setState(() => _index = 0),
-            ),
-            _NavItem(
-              icon: Icons.notifications,
-              label: 'ALERTES',
-              selected: _index == 1,
-              onTap: () => setState(() => _index = 1),
-            ),
+            for (var i = 0; i < _notchAfter; i++)
+              _NavItem(
+                tab: _tabs[i],
+                selected: _index == i,
+                onTap: () => _select(i),
+              ),
             const SizedBox(width: 72),
-            _NavItem(
-              icon: Icons.map,
-              label: 'REFUGES',
-              selected: _index == 2,
-              onTap: () => setState(() => _index = 2),
-            ),
-            _NavItem(
-              icon: Icons.help,
-              label: 'AIDE',
-              selected: _index == 3,
-              onTap: () => setState(() => _index = 3),
-            ),
+            for (var i = _notchAfter; i < _tabs.length; i++)
+              _NavItem(
+                tab: _tabs[i],
+                selected: _index == i,
+                onTap: () => _select(i),
+              ),
           ],
         ),
       ),
@@ -109,14 +115,12 @@ class _MainPageState extends State<MainPage> {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
-    required this.icon,
-    required this.label,
+    required this.tab,
     required this.selected,
     required this.onTap,
   });
 
-  final IconData icon;
-  final String label;
+  final _Tab tab;
   final bool selected;
   final VoidCallback onTap;
 
@@ -134,10 +138,10 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 28),
+            Icon(tab.icon, color: color, size: 28),
             const SizedBox(height: 2),
             Text(
-              label,
+              tab.label,
               style: TextStyle(
                 color: color,
                 fontSize: 11,
