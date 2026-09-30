@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:salus/features/map/services/geocoding_service.dart';
+import 'package:salus/features/map/data/geocoding_service.dart';
 
 void main() {
   test('parseSearchResults ne garde que les entrées exploitables', () {
