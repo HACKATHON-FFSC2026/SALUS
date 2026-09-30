@@ -27,6 +27,7 @@ enum LocationFailure {
   serviceDisabled,
   permissionDenied,
   permissionDeniedForever,
+  timeout,
   unknown,
 }
 

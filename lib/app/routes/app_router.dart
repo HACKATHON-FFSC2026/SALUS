@@ -1,7 +1,7 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:salus/features/auth/pages/login_page.dart';
-import 'package:salus/features/home/pages/main_page.dart';
-import 'package:salus/features/splash/pages/splash_page.dart';
+import 'package:salus/app/presentation/pages/splash_page.dart';
+import 'package:salus/features/auth/presentation/pages/login_page.dart';
+import 'package:salus/features/home/presentation/pages/main_page.dart';
 
 part 'app_router.gr.dart';
 

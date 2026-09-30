@@ -6,6 +6,8 @@ import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/core/widgets/app_logo.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 
+/// Ecran d'entrée de l'application, pas une feature: il n'a ni domaine ni
+/// couche data, il ne fait que router vers login ou main.
 @RoutePage()
 class SplashPage extends ConsumerWidget {
   const SplashPage({super.key});
