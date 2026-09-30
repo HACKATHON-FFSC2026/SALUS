@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-extension MapAnimationController on MapController {
+extension MapAnimation on MapController {
   /// Anime la carte vers une nouvelle position avec un zoom spécifique
   void animatedMove({
     required TickerProvider vsync,

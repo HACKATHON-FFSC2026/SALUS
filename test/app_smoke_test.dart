@@ -7,7 +7,9 @@ import 'package:salus/features/home/pages/main_page.dart';
 
 void main() {
   testWidgets('login exposes both entry points', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: LoginPage())),
+    );
 
     expect(find.text('Continuer avec Google'), findsOneWidget);
     expect(find.text('Continuer sans connexion'), findsOneWidget);

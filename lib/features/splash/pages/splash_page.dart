@@ -1,32 +1,29 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
-import 'package:salus/core/routes/app_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/core/widgets/app_logo.dart';
-import 'package:salus/core/utils/auth_state.dart';
+import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 
 @RoutePage()
-class SplashPage extends StatefulWidget {
+class SplashPage extends ConsumerWidget {
   const SplashPage({super.key});
 
   @override
-  State<SplashPage> createState() => _SplashPageState();
-}
-
-class _SplashPageState extends State<SplashPage> {
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(const Duration(seconds: 2), () async {
-      if (!mounted) return;
-      final account = await hasAccount();
-      if (!mounted) return;
-      context.router.replace(account ? const MainRoute() : const LoginRoute());
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(hasAccountProvider, (previous, next) {
+      next.when(
+        // Un écran de login raté vaut absence de compte: on n'y reste pas
+        // bloqué sur le logo.
+        error: (_, _) => context.router.replace(const LoginRoute()),
+        data: (hasAccount) => context.router.replace(
+          hasAccount ? const MainRoute() : const LoginRoute(),
+        ),
+        loading: () {},
+      );
     });
-  }
 
-  @override
-  Widget build(BuildContext context) {
     return const Scaffold(
       backgroundColor: AppColors.background,
       body: Center(child: AppLogo(size: 200)),
