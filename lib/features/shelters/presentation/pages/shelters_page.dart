@@ -74,11 +74,18 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                         item.shelter.status == ShelterStatus.almostFull),
               )
               .toList();
-          final recommended = eligible.isEmpty ? null : eligible.first;
+          // Sans GPS, ne pas présenter l'ordre alphabétique comme une
+          // recommandation de proximité.
+          final recommended = position == null || eligible.isEmpty
+              ? null
+              : eligible.first;
           final others = ranked.where((item) => item != recommended).toList();
 
           return RefreshIndicator(
-            onRefresh: () => ref.read(locationProvider.notifier).refresh(),
+            onRefresh: () async {
+              ref.invalidate(allSheltersProvider);
+              await ref.read(locationProvider.notifier).refresh();
+            },
             child: ListView(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
               children: [
@@ -130,6 +137,8 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                   _InfoCard(
                     text: items.isEmpty
                         ? 'Aucun refuge enregistré pour le moment.'
+                        : position == null
+                        ? 'Activez la localisation pour obtenir une recommandation selon votre proximité.'
                         : 'Aucun refuge validé, ouvert avec des places disponibles n’a été trouvé.',
                   )
                 else
@@ -230,8 +239,7 @@ class _RankedShelter {
   final double? distanceKm;
 }
 
-bool _hasSpace(Shelter shelter) =>
-    shelter.availablePlaces > 0;
+bool _hasSpace(Shelter shelter) => shelter.availablePlaces > 0;
 
 String _distanceLabel(double? km) => km == null
     ? '—'
@@ -257,7 +265,7 @@ class _RecommendationCard extends StatelessWidget {
         ? 0.0
         : (available / shelter.capacityTotal).clamp(0.0, 1.0);
     final capacityColor = shelter.availabilityColor;
-    final capacityTextColor = progress > 0 && progress < 0.5
+    final capacityTextColor = capacityColor == AppColors.secondary
         ? AppColors.primary
         : capacityColor;
     return Card(
@@ -282,7 +290,11 @@ class _RecommendationCard extends StatelessWidget {
                 runSpacing: 6,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  const Icon(Icons.verified, size: 16, color: AppColors.primary),
+                  const Icon(
+                    Icons.verified,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
                   const Text(
                     'RECOMMANDÉ',
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
@@ -345,12 +357,9 @@ class _RecommendationCard extends StatelessWidget {
                         Text(
                           '$available / ${shelter.capacityTotal} places',
                           style: TextStyle(
+                            color: capacityTextColor,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
-                          ).copyWith(
-                            color: capacityColor == AppColors.primary
-                                ? AppColors.primary
-                                : capacityColor,
                           ),
                         ),
                       ],
@@ -388,20 +397,18 @@ class _RecommendationCard extends StatelessWidget {
 }
 
 class _ShelterTile extends StatelessWidget {
-  const _ShelterTile({
-    required this.item,
-    required this.onTap,
-  });
+  const _ShelterTile({required this.item, required this.onTap});
   final _RankedShelter item;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final shelter = item.shelter;
-    final free = (shelter.capacityTotal - shelter.capacityOccupied).clamp(
-      0,
-      shelter.capacityTotal,
-    );
+    final available = shelter.availablePlaces;
+    final progress = shelter.capacityTotal == 0
+        ? 0.0
+        : (available / shelter.capacityTotal).clamp(0.0, 1.0);
+    final capacityColor = shelter.availabilityColor;
     return Card(
       margin: EdgeInsets.zero,
       elevation: 1,
@@ -420,17 +427,6 @@ class _ShelterTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 21,
-                    backgroundColor: shelter.status.color.withValues(
-                      alpha: 0.12,
-                    ),
-                    child: Icon(
-                      shelter.status.icon,
-                      color: shelter.status.foregroundColor,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       shelter.name,
@@ -443,52 +439,87 @@ class _ShelterTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const Icon(Icons.chevron_right, color: AppColors.inactive),
+                  const SizedBox(width: 8),
+                  ShelterValidationChip(
+                    status: shelter.validationStatus,
+                    prominent: true,
+                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  ShelterStatusText(status: shelter.status),
-                  ShelterValidationChip(status: shelter.validationStatus),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.event_seat_outlined,
-                    size: 17,
-                    color: shelter.availabilityColor,
+              if (item.distanceKm != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '$free places libres',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  const Spacer(),
-                  if (item.distanceKm != null) ...[
-                    const Icon(
-                      Icons.near_me_outlined,
-                      size: 15,
-                      color: AppColors.inactive,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.near_me_outlined,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _distanceLabel(item.distanceKm),
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Capacité disponible',
+                            style: TextStyle(
+                              color: AppColors.inactive,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '$available / ${shelter.capacityTotal} places',
+                          style: TextStyle(
+                            color: capacityColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _distanceLabel(item.distanceKm),
-                      style: const TextStyle(
-                        color: AppColors.inactive,
-                        fontSize: 12,
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 5,
+                        color: capacityColor,
+                        backgroundColor: Colors.black.withValues(alpha: 0.08),
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
             ],
           ),

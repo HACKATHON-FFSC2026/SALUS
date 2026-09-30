@@ -185,24 +185,26 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           ),
         ),
 
-        // Bouton flottant de recentrage
+        // Contrôle secondaire de carte, sous le bandeau de situation.
         Positioned(
-          bottom: 24,
+          top: MediaQuery.paddingOf(context).top + 76,
           right: 16,
-          child: FloatingActionButton(
+          child: FloatingActionButton.small(
             heroTag: 'recenter_gps_fab',
-            backgroundColor: Theme.of(context).primaryColor,
+            backgroundColor: AppColors.surface,
+            foregroundColor: AppColors.primary,
+            elevation: 3,
             onPressed: () => _onRecenterPressed(locationState),
             child: locationState.status == LocationStatus.loading
                 ? const SizedBox(
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
-                      color: Colors.white,
+                      color: AppColors.primary,
                       strokeWidth: 2.5,
                     ),
                   )
-                : const Icon(Icons.my_location, color: Colors.white),
+                : const Icon(Icons.my_location),
           ),
         ),
       ],
