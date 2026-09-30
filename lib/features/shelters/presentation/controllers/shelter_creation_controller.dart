@@ -2,14 +2,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:salus/core/entities/entities.dart';
-import 'package:salus/core/utils/auth_state.dart';
 import 'package:salus/core/utils/log.dart';
+import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/shelters/data/shelter_repository.dart';
 import 'package:salus/features/shelters/domain/models/shelter_creation_state.dart';
 
 /// Uid de l'utilisateur connecté (`null` si personne ou un invité).
 /// Exposé en provider pour pouvoir être surchargé dans les tests.
-final currentUserIdProvider = Provider<String?>((ref) => currentUserId());
+final currentUserIdProvider = Provider<String?>(
+  (ref) => ref.watch(authRepositoryProvider).currentUserId,
+);
 
 final shelterCreationControllerProvider =
     StateNotifierProvider<ShelterCreationController, ShelterCreationState>((

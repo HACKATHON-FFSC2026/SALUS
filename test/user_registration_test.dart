@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salus/core/entities/entities.dart';
-import 'package:salus/core/sources/user_registration.dart';
+import 'package:salus/features/auth/data/user_registration.dart';
 
 void main() {
   final now = DateTime(2026, 9, 29, 10, 30);

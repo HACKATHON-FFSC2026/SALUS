@@ -9,6 +9,7 @@ import 'package:salus/features/splash/pages/splash_page.dart';
 
 part 'app_router.gr.dart';
 
+/// Racine de composition: le seul endroit autorisé à relier core et features.
 @AutoRouterConfig()
 class AppRouter extends RootStackRouter {
   @override
