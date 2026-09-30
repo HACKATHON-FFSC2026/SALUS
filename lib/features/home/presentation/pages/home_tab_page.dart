@@ -35,11 +35,13 @@ class HomeTabPage extends StatelessWidget {
                       size: 19,
                     ),
                     const SizedBox(width: 9),
-                    Text(
-                      'Aucune alerte à proximité',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: Text(
+                        'Aucune alerte à proximité',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
