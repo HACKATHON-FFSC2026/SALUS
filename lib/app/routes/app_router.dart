@@ -6,6 +6,7 @@ import 'package:salus/features/auth/presentation/pages/login_page.dart';
 import 'package:salus/features/home/presentation/pages/main_page.dart';
 import 'package:salus/features/shelters/presentation/pages/create_shelter_page.dart';
 import 'package:salus/features/shelters/presentation/pages/shelter_location_picker_page.dart';
+import 'package:salus/features/sos/presentation/pages/sos_page.dart';
 
 part 'app_router.gr.dart';
 
@@ -17,6 +18,7 @@ class AppRouter extends RootStackRouter {
     AutoRoute(page: SplashRoute.page, initial: true),
     AutoRoute(page: LoginRoute.page),
     AutoRoute(page: MainRoute.page),
+    AutoRoute(page: SosRoute.page),
     AutoRoute(page: CreateShelterRoute.page),
     AutoRoute(page: ShelterLocationPickerRoute.page),
   ];
