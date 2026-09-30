@@ -19,4 +19,7 @@ abstract class AuthRepository {
 
   /// true si l'app peut aller directement aux onglets.
   Future<bool> hasAccount();
+
+  /// Termine la session distante.
+  Future<void> signOut();
 }
