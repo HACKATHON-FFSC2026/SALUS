@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
@@ -27,6 +28,7 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
 
   // Position par défaut (Antananarivo) avant la première fixation GPS
   static const LatLng _defaultLocation = LatLng(-18.8792, 47.5079);
+  bool _showLegend = false;
 
   @override
   void initState() {
@@ -102,28 +104,51 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                     ),
                   ),
                   markerSize: Size(35, 35),
-                  accuracyCircleColor: Color.fromARGB(51, 80, 137, 184),
-                  headingSectorColor: Color(0x442196F3),
+                  accuracyCircleColor: Color(0x3314213D),
+                  headingSectorColor: Color(0x44FCA311),
                 ),
               ),
-            MarkerLayer(
-              markers: [
-                for (final shelter in shelters)
-                  Marker(
-                    key: ValueKey('shelter-marker-${shelter.id}'),
-                    point: LatLng(
-                      shelter.location.latitude,
-                      shelter.location.longitude,
+            MarkerClusterLayerWidget(
+              options: MarkerClusterLayerOptions(
+                maxClusterRadius: 48,
+                size: const Size(42, 42),
+                maxZoom: 15,
+                markers: [
+                  for (final shelter in shelters)
+                    Marker(
+                      key: ValueKey('shelter-marker-${shelter.id}'),
+                      point: LatLng(
+                        shelter.location.latitude,
+                        shelter.location.longitude,
+                      ),
+                      width: 44,
+                      height: 44,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => showShelterBottomSheet(context, shelter),
+                        child: ShelterMarkerPin(status: shelter.status),
+                      ),
                     ),
-                    width: 44,
-                    height: 44,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => showShelterBottomSheet(context, shelter),
-                      child: ShelterMarkerPin(status: shelter.status),
+                ],
+                builder: (context, markers) => Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.secondary, width: 3),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 5),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${markers.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-              ],
+                ),
+              ),
             ),
           ],
         ),
@@ -138,7 +163,27 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             child: _shelterBanner(sheltersAsync),
           ),
 
-        Positioned(left: 16, bottom: 24, child: _ShelterLegend()),
+        Positioned(
+          left: 16,
+          bottom: 24,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_showLegend) const _ShelterLegend(),
+              const SizedBox(width: 6),
+              FloatingActionButton.small(
+                heroTag: 'shelter_legend_fab',
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.primary,
+                tooltip: _showLegend
+                    ? 'Masquer la légende'
+                    : 'Légende des refuges',
+                onPressed: () => setState(() => _showLegend = !_showLegend),
+                child: Icon(_showLegend ? Icons.close : Icons.info_outline),
+              ),
+            ],
+          ),
+        ),
 
         // Bouton flottant de recentrage
         Positioned(
@@ -210,7 +255,7 @@ class _ShelterLegend extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(status.icon, size: 13, color: status.color),
+                  Icon(status.icon, size: 13, color: status.foregroundColor),
                   const SizedBox(width: 4),
                   Text(status.label, style: const TextStyle(fontSize: 11)),
                 ],

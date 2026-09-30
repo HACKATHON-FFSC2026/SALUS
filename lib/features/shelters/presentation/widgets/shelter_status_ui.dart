@@ -16,10 +16,14 @@ extension ShelterStatusUi on ShelterStatus {
 
   Color get color => switch (this) {
     ShelterStatus.open => const Color(0xFF2E7D32),
-    ShelterStatus.almostFull => const Color(0xFFEF6C00),
+    ShelterStatus.almostFull => AppColors.secondary,
     ShelterStatus.full => const Color(0xFFC62828),
     ShelterStatus.closed => AppColors.inactive,
   };
+
+  /// Texte et icône avec contraste suffisant sur un fond jaune.
+  Color get foregroundColor =>
+      this == ShelterStatus.almostFull ? AppColors.primary : color;
 
   IconData get icon => switch (this) {
     ShelterStatus.open => Icons.check_circle_outline,
@@ -27,6 +31,69 @@ extension ShelterStatusUi on ShelterStatus {
     ShelterStatus.full => Icons.block,
     ShelterStatus.closed => Icons.do_not_disturb_on_outlined,
   };
+}
+
+/// Couleurs de disponibilité utilisées dans les listes et fiches refuge.
+extension ShelterAvailabilityUi on Shelter {
+  int get availablePlaces =>
+      (capacityTotal - capacityOccupied).clamp(0, capacityTotal);
+
+  bool get canStartNavigation =>
+      validationStatus == ValidationStatus.validated &&
+      (status == ShelterStatus.open ||
+          status == ShelterStatus.almostFull) &&
+      availablePlaces > 0;
+
+  Color get availabilityColor {
+    if (validationStatus == ValidationStatus.rejected ||
+        status == ShelterStatus.closed ||
+        status == ShelterStatus.full ||
+        availablePlaces == 0) {
+      return const Color(0xFFC62828);
+    }
+    if (validationStatus == ValidationStatus.pending ||
+        status == ShelterStatus.almostFull ||
+        availablePlaces / capacityTotal < 0.5) {
+      return AppColors.primary;
+    }
+    return const Color(0xFF2E7D32);
+  }
+
+  Color get availabilityBackgroundColor {
+    if (availabilityColor == const Color(0xFFC62828)) {
+      return const Color(0xFFFFF0EE);
+    }
+    if (validationStatus == ValidationStatus.pending ||
+        status == ShelterStatus.almostFull ||
+        (capacityTotal > 0 && availablePlaces / capacityTotal < 0.5)) {
+      return const Color(0xFFFFF6E2);
+    }
+    return const Color(0xFFEDF6EE);
+  }
+}
+
+/// Statut opérationnel en texte simple, pour éviter d'empiler les badges.
+class ShelterStatusText extends StatelessWidget {
+  const ShelterStatusText({super.key, required this.status});
+
+  final ShelterStatus status;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(status.icon, size: 16, color: status.foregroundColor),
+      const SizedBox(width: 5),
+      Text(
+        status.label,
+        style: TextStyle(
+          color: status.foregroundColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ],
+  );
 }
 
 /// Pastille « statut » réutilisable (fiche refuge).
@@ -46,14 +113,68 @@ class ShelterStatusChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(status.icon, size: 16, color: status.color),
+          Icon(status.icon, size: 16, color: status.foregroundColor),
           const SizedBox(width: 6),
           Text(
             status.label,
             style: TextStyle(
-              color: status.color,
+              color: status.foregroundColor,
               fontSize: 13,
               fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Badge de validation, distinct du statut d'occupation du refuge.
+class ShelterValidationChip extends StatelessWidget {
+  const ShelterValidationChip({super.key, required this.status});
+
+  final ValidationStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, icon) = switch (status) {
+      ValidationStatus.validated => (
+        'Validé',
+        const Color(0xFF2E7D32),
+        Icons.verified_outlined,
+      ),
+      ValidationStatus.pending => (
+        'En attente',
+        AppColors.secondary,
+        Icons.schedule,
+      ),
+      ValidationStatus.rejected => (
+        'Refusé',
+        const Color(0xFFC62828),
+        Icons.cancel_outlined,
+      ),
+    };
+    final foreground = status == ValidationStatus.pending
+        ? AppColors.primary
+        : color;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: foreground),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

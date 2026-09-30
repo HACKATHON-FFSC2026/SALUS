@@ -1,23 +1,572 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/app/routes/app_router.dart';
+import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/features/map/domain/location.dart';
+import 'package:salus/features/map/presentation/providers/location_provider.dart';
+import 'package:salus/features/map/presentation/state/location_state.dart';
+import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
+import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
+import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class SheltersPage extends StatelessWidget {
+class SheltersPage extends ConsumerStatefulWidget {
   const SheltersPage({super.key});
 
   @override
+  ConsumerState<SheltersPage> createState() => _SheltersPageState();
+}
+
+class _SheltersPageState extends ConsumerState<SheltersPage> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(locationProvider.notifier).refresh());
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final shelters = ref.watch(allSheltersProvider);
+    final location = ref.watch(locationProvider);
+    final position = location.position;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Refuges')),
-      body: const Center(child: Text('Aucun refuge à proximité.')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.router.push(const CreateShelterRoute()),
-        backgroundColor: AppColors.secondary,
-        foregroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_home_work_outlined),
-        label: const Text('Créer un refuge'),
+      body: shelters.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) => _MessageState(
+          icon: Icons.cloud_off_outlined,
+          text: 'Impossible de charger les refuges.',
+          action: TextButton(
+            onPressed: () => ref.invalidate(allSheltersProvider),
+            child: const Text('Réessayer'),
+          ),
+        ),
+        data: (items) {
+          final ranked =
+              items
+                  .map(
+                    (shelter) => _RankedShelter(
+                      shelter,
+                      position?.distanceTo(
+                        GeoPoint(
+                          latitude: shelter.location.latitude,
+                          longitude: shelter.location.longitude,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList()
+                ..sort((a, b) {
+                  final aDistance = a.distanceKm ?? double.infinity;
+                  final bDistance = b.distanceKm ?? double.infinity;
+                  return aDistance.compareTo(bDistance);
+                });
+          final eligible = ranked
+              .where(
+                (item) =>
+                    item.shelter.validationStatus ==
+                        ValidationStatus.validated &&
+                    _hasSpace(item.shelter) &&
+                    (item.shelter.status == ShelterStatus.open ||
+                        item.shelter.status == ShelterStatus.almostFull),
+              )
+              .toList();
+          final recommended = eligible.isEmpty ? null : eligible.first;
+          final others = ranked.where((item) => item != recommended).toList();
+
+          return RefreshIndicator(
+            onRefresh: () => ref.read(locationProvider.notifier).refresh(),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Trouvez un endroit sûr près de vous.',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: () =>
+                          context.router.push(const CreateShelterRoute()),
+                      icon: const Icon(Icons.add_home_work_outlined, size: 17),
+                      label: const Text('Créer'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.secondary,
+                        foregroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                if (location.status == LocationStatus.loading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: LinearProgressIndicator(),
+                  )
+                else if (position == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _LocationNotice(
+                      message:
+                          location.errorMessage ??
+                          'Activez la localisation pour calculer les distances.',
+                      onRetry: () =>
+                          ref.read(locationProvider.notifier).refresh(),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                const _SectionLabel('REFUGE RECOMMANDÉ'),
+                const SizedBox(height: 10),
+                if (recommended == null)
+                  _InfoCard(
+                    text: items.isEmpty
+                        ? 'Aucun refuge enregistré pour le moment.'
+                        : 'Aucun refuge validé, ouvert avec des places disponibles n’a été trouvé.',
+                  )
+                else
+                  _RecommendationCard(
+                    item: recommended,
+                    onTap: () => _openDirections(context, recommended.shelter),
+                    onDetails: () => showShelterDetailSheet(
+                      context,
+                      recommended.shelter,
+                      onStartRoute: () =>
+                          _openDirections(context, recommended.shelter),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                const _SectionLabel('AUTRES REFUGES'),
+                const SizedBox(height: 10),
+                if (others.isEmpty)
+                  const _InfoCard(text: 'Aucun autre refuge à afficher.')
+                else
+                  ...others.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _ShelterTile(
+                        item: item,
+                        onTap: () => showShelterDetailSheet(
+                          context,
+                          item.shelter,
+                          onStartRoute: () =>
+                              _openDirections(context, item.shelter),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
+}
+
+Future<void> _openDirections(BuildContext context, Shelter shelter) async {
+  final destination =
+      '${shelter.location.latitude},${shelter.location.longitude}';
+  final uri = Uri.https('www.google.com', '/maps/dir/', {
+    'api': '1',
+    'destination': destination,
+    'travelmode': 'walking',
+  });
+  final nativeMapUris = [
+    Uri(
+      scheme: 'google.navigation',
+      queryParameters: {'q': destination, 'mode': 'w'},
+    ),
+    Uri(
+      scheme: 'geo',
+      path: destination,
+      queryParameters: {'q': '$destination(${shelter.name})'},
+    ),
+  ];
+  var opened = false;
+  for (final mapUri in nativeMapUris) {
+    if (await _tryLaunch(mapUri, LaunchMode.externalApplication)) {
+      opened = true;
+      break;
+    }
+  }
+  if (!opened) {
+    opened =
+        await _tryLaunch(uri, LaunchMode.externalApplication) ||
+        await _tryLaunch(uri, LaunchMode.platformDefault) ||
+        await _tryLaunch(uri, LaunchMode.inAppBrowserView);
+  }
+  if (!opened && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Aucune application de cartes ou aucun navigateur ne peut ouvrir cet itinéraire.",
+        ),
+      ),
+    );
+  }
+}
+
+Future<bool> _tryLaunch(Uri uri, LaunchMode mode) async {
+  try {
+    return await launchUrl(uri, mode: mode);
+  } catch (error) {
+    debugPrint('Échec ouverture navigation ($mode, $uri): $error');
+    return false;
+  }
+}
+
+class _RankedShelter {
+  const _RankedShelter(this.shelter, this.distanceKm);
+  final Shelter shelter;
+  final double? distanceKm;
+}
+
+bool _hasSpace(Shelter shelter) =>
+    shelter.availablePlaces > 0;
+
+String _distanceLabel(double? km) => km == null
+    ? '—'
+    : km < 1
+    ? '${(km * 1000).round()} m'
+    : '${km.toStringAsFixed(1)} km';
+
+class _RecommendationCard extends StatelessWidget {
+  const _RecommendationCard({
+    required this.item,
+    required this.onTap,
+    required this.onDetails,
+  });
+  final _RankedShelter item;
+  final VoidCallback onTap;
+  final VoidCallback onDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    final shelter = item.shelter;
+    final available = shelter.availablePlaces;
+    final progress = shelter.capacityTotal == 0
+        ? 0.0
+        : (available / shelter.capacityTotal).clamp(0.0, 1.0);
+    final capacityColor = shelter.availabilityColor;
+    final capacityTextColor = progress > 0 && progress < 0.5
+        ? AppColors.primary
+        : capacityColor;
+    return Card(
+      margin: EdgeInsets.zero,
+      color: shelter.availabilityBackgroundColor,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: shelter.availabilityColor.withValues(alpha: 0.2),
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: InkWell(
+        onTap: onDetails,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Icon(Icons.verified, size: 16, color: AppColors.primary),
+                  const Text(
+                    'RECOMMANDÉ',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                  ShelterStatusText(status: shelter.status),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      shelter.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: AppColors.inactive),
+                ],
+              ),
+              const SizedBox(height: 4),
+              if (item.distanceKm != null)
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.near_me_outlined,
+                      size: 16,
+                      color: AppColors.inactive,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      _distanceLabel(item.distanceKm),
+                      style: const TextStyle(
+                        color: AppColors.inactive,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Capacité disponible',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        Text(
+                          '$available / ${shelter.capacityTotal} places',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ).copyWith(
+                            color: capacityColor == AppColors.primary
+                                ? AppColors.primary
+                                : capacityColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 5,
+                      borderRadius: BorderRadius.circular(5),
+                      color: capacityColor,
+                      backgroundColor: Colors.black12,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onTap,
+                  icon: const Icon(Icons.directions_outlined, size: 18),
+                  label: const Text('Démarrer l’itinéraire'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShelterTile extends StatelessWidget {
+  const _ShelterTile({
+    required this.item,
+    required this.onTap,
+  });
+  final _RankedShelter item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final shelter = item.shelter;
+    final free = (shelter.capacityTotal - shelter.capacityOccupied).clamp(
+      0,
+      shelter.capacityTotal,
+    );
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1,
+      color: shelter.availabilityBackgroundColor,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.primary.withValues(alpha: 0.08)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 21,
+                    backgroundColor: shelter.status.color.withValues(
+                      alpha: 0.12,
+                    ),
+                    child: Icon(
+                      shelter.status.icon,
+                      color: shelter.status.foregroundColor,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      shelter.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: AppColors.inactive),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  ShelterStatusText(status: shelter.status),
+                  ShelterValidationChip(status: shelter.validationStatus),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.event_seat_outlined,
+                    size: 17,
+                    color: shelter.availabilityColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$free places libres',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (item.distanceKm != null) ...[
+                    const Icon(
+                      Icons.near_me_outlined,
+                      size: 15,
+                      color: AppColors.inactive,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _distanceLabel(item.distanceKm),
+                      style: const TextStyle(
+                        color: AppColors.inactive,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: const TextStyle(
+      fontSize: 10,
+      letterSpacing: .7,
+      color: AppColors.inactive,
+      fontWeight: FontWeight.bold,
+    ),
+  );
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Text(text, style: const TextStyle(color: AppColors.inactive)),
+    ),
+  );
+}
+
+class _MessageState extends StatelessWidget {
+  const _MessageState({required this.icon, required this.text, this.action});
+  final IconData icon;
+  final String text;
+  final Widget? action;
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 42, color: AppColors.inactive),
+          const SizedBox(height: 12),
+          Text(text, textAlign: TextAlign.center),
+          ?action,
+        ],
+      ),
+    ),
+  );
+}
+
+class _LocationNotice extends StatelessWidget {
+  const _LocationNotice({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: AppColors.secondary.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Row(
+      children: [
+        Expanded(child: Text(message, style: const TextStyle(fontSize: 12))),
+        IconButton(
+          onPressed: onRetry,
+          icon: const Icon(Icons.my_location),
+          tooltip: 'Réessayer la localisation',
+        ),
+      ],
+    ),
+  );
 }

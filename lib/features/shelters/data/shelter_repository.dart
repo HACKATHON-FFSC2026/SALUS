@@ -3,19 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/sources/firestore_client.dart';
 import 'package:salus/core/utils/log.dart';
+import 'package:salus/features/shelters/domain/shelter_repository.dart';
 
-/// Persistance des fiches refuge (collection Firestore `shelters`).
-abstract class ShelterRepository {
-  /// Enregistre [shelter] et renvoie la fiche telle qu'écrite, identifiant
-  /// Firestore compris.
-  Future<Shelter> createShelter(Shelter shelter);
+export 'package:salus/features/shelters/domain/shelter_repository.dart';
 
-  /// Refuges validés visibles publiquement, en temps réel.
-  ///
-  /// Les refuges `pending` et `rejected` ne quittent jamais la base : le
-  /// filtrage se fait dans la requête, une seule fois pour toute la carte.
-  Stream<List<Shelter>> watchValidatedShelters();
-}
+/// Implémentation Firestore de l'accès aux refuges.
 
 class FirestoreShelterRepository implements ShelterRepository {
   FirestoreShelterRepository(this._firestore);
@@ -45,6 +37,10 @@ class FirestoreShelterRepository implements ShelterRepository {
         .snapshots()
         .map(decodeSnapshot);
   }
+
+  @override
+  Stream<List<Shelter>> watchAllShelters() =>
+      _firestore.collection(collection).snapshots().map(decodeSnapshot);
 
   /// Convertit un document Firestore en [Shelter].
   ///

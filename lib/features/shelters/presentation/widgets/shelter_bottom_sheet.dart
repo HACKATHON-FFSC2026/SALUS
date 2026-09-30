@@ -11,7 +11,7 @@ Future<void> showShelterBottomSheet(BuildContext context, Shelter shelter) {
     isScrollControlled: true,
     backgroundColor: AppColors.surface,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
     ),
     builder: (sheetContext) => ShelterBottomSheet(
       shelter: shelter,
@@ -27,14 +27,18 @@ Future<void> showShelterBottomSheet(BuildContext context, Shelter shelter) {
 ///
 /// Aucune page détail n'existe dans le projet : on affiche ici les informations
 /// déjà portées par l'Entity [Shelter], sans nouvelle navigation.
-Future<void> showShelterDetailSheet(BuildContext context, Shelter shelter) {
+Future<void> showShelterDetailSheet(
+  BuildContext context,
+  Shelter shelter, {
+  VoidCallback? onStartRoute,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
     backgroundColor: AppColors.surface,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
     ),
     builder: (sheetContext) => ConstrainedBox(
       constraints: BoxConstraints(
@@ -42,7 +46,10 @@ Future<void> showShelterDetailSheet(BuildContext context, Shelter shelter) {
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: ShelterDetailSheet(shelter: shelter),
+        child: ShelterDetailSheet(
+          shelter: shelter,
+          onStartRoute: onStartRoute,
+        ),
       ),
     ),
   );
@@ -107,62 +114,183 @@ class ShelterBottomSheet extends StatelessWidget {
 
 /// Fiche complète du refuge (toutes les informations disponibles).
 class ShelterDetailSheet extends StatelessWidget {
-  const ShelterDetailSheet({super.key, required this.shelter});
+  const ShelterDetailSheet({
+    super.key,
+    required this.shelter,
+    this.onStartRoute,
+  });
 
   final Shelter shelter;
+  final VoidCallback? onStartRoute;
 
   @override
   Widget build(BuildContext context) {
-    final location = shelter.location;
+    final available = shelter.availablePlaces;
+    final progress = shelter.capacityTotal == 0
+        ? 0.0
+        : available / shelter.capacityTotal;
+    final canNavigate = shelter.canStartNavigation && onStartRoute != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SheetTitle(title: shelter.name),
-        const SizedBox(height: 8),
-        ShelterStatusChip(status: shelter.status),
-        const SizedBox(height: 16),
-        _DetailRow(label: 'Adresse', value: shelter.address),
-        _DetailRow(
-          label: 'Capacité',
-          value:
-              '${shelter.capacityOccupied} / ${shelter.capacityTotal} '
-              'personnes',
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: shelter.availabilityColor.withValues(
+                alpha: 0.12,
+              ),
+              child: Icon(
+                Icons.home_work_outlined,
+                color: shelter.availabilityColor,
+                size: 23,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      shelter.name,
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      shelter.address,
+                      style: const TextStyle(
+                        color: AppColors.inactive,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              tooltip: 'Fermer',
+              icon: const Icon(Icons.close, color: AppColors.inactive),
+            ),
+          ],
         ),
-        _DetailRow(
-          label: 'Localisation',
-          value:
-              '${location.latitude.toStringAsFixed(5)}, '
-              '${location.longitude.toStringAsFixed(5)}',
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+          ShelterStatusText(status: shelter.status),
+            ShelterValidationChip(status: shelter.validationStatus),
+          ],
         ),
-        if (shelter.organizationId != null)
-          _DetailRow(label: 'Organisation', value: shelter.organizationId!),
-        _DetailRow(label: 'Créé le', value: _formatDate(shelter.createdAt)),
-        _DetailRow(
-          label: 'Mis à jour le',
-          value: _formatDate(shelter.updatedAt),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'Ressources disponibles',
-          style: TextStyle(
-            color: AppColors.primary,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+        const SizedBox(height: 18),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: shelter.availabilityBackgroundColor,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'PLACES DISPONIBLES',
+                style: TextStyle(
+                  color: AppColors.inactive,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: .6,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '$available',
+                    style: TextStyle(
+                      color: shelter.availabilityColor,
+                      fontSize: 28,
+                      height: 1,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6, bottom: 2),
+                    child: Text(
+                      'sur ${shelter.capacityTotal} places',
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 7,
+                  color: shelter.availabilityColor,
+                  backgroundColor: Colors.white.withValues(alpha: .8),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
+        const Text(
+          'ÉQUIPEMENTS',
+          style: TextStyle(
+            color: AppColors.inactive,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: .6,
+          ),
+        ),
+        const SizedBox(height: 10),
         ShelterResourcesWrap(resources: shelter.resources),
+        if (onStartRoute != null) ...[
+          const SizedBox(height: 20),
+          if (canNavigate)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onStartRoute,
+                icon: const Icon(Icons.directions_outlined),
+                label: const Text('Démarrer l’itinéraire'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                ),
+              ),
+            )
+          else
+            Text(
+              shelter.validationStatus != ValidationStatus.validated
+                  ? 'Itinéraire disponible après validation du refuge.'
+                  : 'Ce refuge ne dispose pas actuellement de places ouvertes.',
+              style: const TextStyle(
+                color: AppColors.inactive,
+                fontSize: 12,
+              ),
+            ),
+        ],
       ],
     );
   }
-}
-
-/// Date lisible sans dépendance supplémentaire (`intl` n'est pas au projet).
-String _formatDate(DateTime date) {
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${two(date.day)}/${two(date.month)}/${date.year} '
-      '${two(date.hour)}:${two(date.minute)}';
 }
 
 /// Ressources activées uniquement : les ressources désactivées ne sont pas
@@ -212,10 +340,10 @@ class _ResourceChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -282,42 +410,6 @@ class _InfoLine extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(color: AppColors.inactive, fontSize: 13),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

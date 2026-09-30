@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 /// Point géographique du domaine, sans aucun type de plugin.
 ///
 /// Un `Position` geolocator ici rendrait l'état de localisation
@@ -7,6 +9,21 @@ class GeoPoint {
 
   final double latitude;
   final double longitude;
+
+  /// Distance en kilomètres jusqu'à [other], calculée à vol d'oiseau.
+  double distanceTo(GeoPoint other) {
+    const earthRadiusKm = 6371.0;
+    final lat1 = latitude * math.pi / 180;
+    final lat2 = other.latitude * math.pi / 180;
+    final deltaLat = lat2 - lat1;
+    final deltaLon = (other.longitude - longitude) * math.pi / 180;
+    final haversine =
+        math.pow(math.sin(deltaLat / 2), 2) +
+        math.cos(lat1) * math.cos(lat2) * math.pow(math.sin(deltaLon / 2), 2);
+    return earthRadiusKm *
+        2 *
+        math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
+  }
 
   @override
   bool operator ==(Object other) =>

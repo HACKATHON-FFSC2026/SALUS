@@ -16,3 +16,16 @@ final validatedSheltersProvider = StreamProvider<List<Shelter>>(
         throw error;
       }),
 );
+
+/// Tous les statuts de validation pour la liste de refuges. La carte utilise
+/// toujours [validatedSheltersProvider] afin de ne montrer que les refuges
+/// validés.
+final allSheltersProvider = StreamProvider<List<Shelter>>(
+  (ref) => ref.watch(shelterRepositoryProvider).watchAllShelters().handleError((
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    Log.error('Échec du chargement de la liste des refuges', error, stackTrace);
+    throw error;
+  }),
+);
