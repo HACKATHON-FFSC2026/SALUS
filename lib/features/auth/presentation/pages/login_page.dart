@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
@@ -24,7 +25,9 @@ class LoginPage extends ConsumerWidget {
         if (next.warningMessage != null) {
           _notify(context, next.warningMessage!, ToastificationType.warning);
         }
-        context.router.replace(const MainRoute());
+        context.router.replace(
+          kIsWeb ? const OperationsPortalRoute() : const MainRoute(),
+        );
         return;
       }
       if (next.status == AuthStatus.failure && next.errorMessage != null) {
@@ -87,7 +90,9 @@ class LoginPage extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Google synchronise votre profil. Le mode invité donne accès à l’application sans compte.',
+                kIsWeb
+                    ? 'Connectez-vous avec votre compte d’équipe pour accéder au portail web.'
+                    : 'Google synchronise votre profil. Le mode invité donne accès à l’application sans compte.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.primary.withValues(alpha: 0.7),
                 ),
@@ -114,16 +119,17 @@ class LoginPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: auth.isBusy
-                    ? null
-                    : () => ref.read(authProvider.notifier).continueAsGuest(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+              if (!kIsWeb)
+                ElevatedButton(
+                  onPressed: auth.isBusy
+                      ? null
+                      : () => ref.read(authProvider.notifier).continueAsGuest(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Continuer sans connexion'),
                 ),
-                child: const Text('Continuer sans connexion'),
-              ),
               const SizedBox(height: 24),
             ],
           ),
