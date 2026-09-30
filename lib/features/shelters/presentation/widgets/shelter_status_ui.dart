@@ -40,8 +40,7 @@ extension ShelterAvailabilityUi on Shelter {
 
   bool get canStartNavigation =>
       validationStatus == ValidationStatus.validated &&
-      (status == ShelterStatus.open ||
-          status == ShelterStatus.almostFull) &&
+      (status == ShelterStatus.open || status == ShelterStatus.almostFull) &&
       availablePlaces > 0;
 
   Color get availabilityColor {
@@ -51,10 +50,9 @@ extension ShelterAvailabilityUi on Shelter {
         availablePlaces == 0) {
       return const Color(0xFFC62828);
     }
-    if (validationStatus == ValidationStatus.pending ||
-        status == ShelterStatus.almostFull ||
+    if (status == ShelterStatus.almostFull ||
         availablePlaces / capacityTotal < 0.5) {
-      return AppColors.primary;
+      return AppColors.secondary;
     }
     return const Color(0xFF2E7D32);
   }
@@ -63,8 +61,7 @@ extension ShelterAvailabilityUi on Shelter {
     if (availabilityColor == const Color(0xFFC62828)) {
       return const Color(0xFFFFF0EE);
     }
-    if (validationStatus == ValidationStatus.pending ||
-        status == ShelterStatus.almostFull ||
+    if (status == ShelterStatus.almostFull ||
         (capacityTotal > 0 && availablePlaces / capacityTotal < 0.5)) {
       return const Color(0xFFFFF6E2);
     }
@@ -79,20 +76,13 @@ class ShelterStatusText extends StatelessWidget {
   final ShelterStatus status;
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(status.icon, size: 16, color: status.foregroundColor),
-      const SizedBox(width: 5),
-      Text(
-        status.label,
-        style: TextStyle(
-          color: status.foregroundColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ],
+  Widget build(BuildContext context) => Text(
+    status.label,
+    style: TextStyle(
+      color: status.foregroundColor,
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+    ),
   );
 }
 
@@ -131,9 +121,14 @@ class ShelterStatusChip extends StatelessWidget {
 
 /// Badge de validation, distinct du statut d'occupation du refuge.
 class ShelterValidationChip extends StatelessWidget {
-  const ShelterValidationChip({super.key, required this.status});
+  const ShelterValidationChip({
+    super.key,
+    required this.status,
+    this.prominent = false,
+  });
 
   final ValidationStatus status;
+  final bool prominent;
 
   @override
   Widget build(BuildContext context) {
@@ -154,14 +149,14 @@ class ShelterValidationChip extends StatelessWidget {
         Icons.cancel_outlined,
       ),
     };
-    final foreground = status == ValidationStatus.pending
+    final foreground = status == ValidationStatus.pending || !prominent
         ? AppColors.primary
-        : color;
+        : Colors.white;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: prominent ? color : color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(

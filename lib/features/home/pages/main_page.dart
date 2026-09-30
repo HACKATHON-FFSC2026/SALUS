@@ -4,7 +4,7 @@ import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/alerts/pages/alerts_page.dart';
 import 'package:salus/features/help/pages/help_page.dart';
 import 'package:salus/features/home/pages/home_tab_page.dart';
-import 'package:salus/features/shelters/pages/shelters_page.dart';
+import 'package:salus/features/shelters/presentation/pages/shelters_page.dart';
 import 'package:toastification/toastification.dart';
 
 /// Un onglet = un icône, un libellé, une page. Ajouter un onglet ne touche
@@ -53,9 +53,10 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: [
-        for (final tab in _tabs) tab.page,
-      ]),
+      body: IndexedStack(
+        index: _index,
+        children: [for (final tab in _tabs) tab.page],
+      ),
       floatingActionButton: GestureDetector(
         onTap: _onSosPressed,
         child: Container(

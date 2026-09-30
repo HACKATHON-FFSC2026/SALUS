@@ -78,15 +78,31 @@ class LoginPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
               ],
+              Text(
+                'Choisissez votre mode d’accès',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Google synchronise votre profil. Le mode invité donne accès à l’application sans compte.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.primary.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 14),
               ElevatedButton(
                 onPressed: auth.isBusy
                     ? null
-                    : () => ref
-                          .read(authProvider.notifier)
-                          .signInWithGoogle(),
+                    : () => ref.read(authProvider.notifier).signInWithGoogle(),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.surface,
                   foregroundColor: AppColors.primary,
+                  side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.16),
+                  ),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -101,11 +117,9 @@ class LoginPage extends ConsumerWidget {
               ElevatedButton(
                 onPressed: auth.isBusy
                     ? null
-                    : () => ref
-                          .read(authProvider.notifier)
-                          .continueAsGuest(),
+                    : () => ref.read(authProvider.notifier).continueAsGuest(),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.sos,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('Continuer sans connexion'),
@@ -118,11 +132,7 @@ class LoginPage extends ConsumerWidget {
     );
   }
 
-  void _notify(
-    BuildContext context,
-    String message,
-    ToastificationType type,
-  ) {
+  void _notify(BuildContext context, String message, ToastificationType type) {
     toastification.show(
       context: context,
       title: Text(message),

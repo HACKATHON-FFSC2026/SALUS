@@ -46,10 +46,7 @@ Future<void> showShelterDetailSheet(
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: ShelterDetailSheet(
-          shelter: shelter,
-          onStartRoute: onStartRoute,
-        ),
+        child: ShelterDetailSheet(shelter: shelter, onStartRoute: onStartRoute),
       ),
     ),
   );
@@ -183,18 +180,9 @@ class ShelterDetailSheet extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-          ShelterStatusText(status: shelter.status),
-            ShelterValidationChip(status: shelter.validationStatus),
-          ],
-        ),
-        const SizedBox(height: 18),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
             color: shelter.availabilityBackgroundColor,
             borderRadius: BorderRadius.circular(18),
@@ -202,16 +190,24 @@ class ShelterDetailSheet extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'PLACES DISPONIBLES',
-                style: TextStyle(
-                  color: AppColors.inactive,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: .6,
-                ),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text(
+                    'Disponibilité',
+                    style: TextStyle(
+                      color: AppColors.inactive,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  ShelterStatusChip(status: shelter.status),
+                  ShelterValidationChip(status: shelter.validationStatus),
+                ],
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -227,7 +223,7 @@ class ShelterDetailSheet extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(left: 6, bottom: 2),
                     child: Text(
-                      'sur ${shelter.capacityTotal} places',
+                      'disponibles sur ${shelter.capacityTotal}',
                       style: const TextStyle(
                         color: AppColors.primary,
                         fontSize: 13,
@@ -282,10 +278,7 @@ class ShelterDetailSheet extends StatelessWidget {
               shelter.validationStatus != ValidationStatus.validated
                   ? 'Itinéraire disponible après validation du refuge.'
                   : 'Ce refuge ne dispose pas actuellement de places ouvertes.',
-              style: const TextStyle(
-                color: AppColors.inactive,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: AppColors.inactive, fontSize: 12),
             ),
         ],
       ],
