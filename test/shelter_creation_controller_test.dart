@@ -23,6 +23,9 @@ class _FakeShelterRepository implements ShelterRepository {
   @override
   Stream<List<Shelter>> watchValidatedShelters() =>
       Stream<List<Shelter>>.empty();
+
+  @override
+  Stream<List<Shelter>> watchAllShelters() => Stream<List<Shelter>>.empty();
 }
 
 void main() {

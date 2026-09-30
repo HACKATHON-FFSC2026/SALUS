@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/utils/log.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
-import 'package:salus/features/shelters/data/shelter_repository.dart';
 import 'package:salus/features/shelters/domain/models/shelter_creation_state.dart';
+import 'package:salus/features/shelters/data/shelter_repository.dart'
+    show shelterRepositoryProvider;
+import 'package:salus/features/shelters/domain/shelter_repository.dart';
 
 /// Uid de l'utilisateur connecté (`null` si personne ou un invité).
 /// Exposé en provider pour pouvoir être surchargé dans les tests.

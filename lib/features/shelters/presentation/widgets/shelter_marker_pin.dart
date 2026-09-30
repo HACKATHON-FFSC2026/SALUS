@@ -36,7 +36,13 @@ class ShelterMarkerPin extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(status.icon, color: Colors.white, size: 18),
+          child: Icon(
+            status.icon,
+            color: status.foregroundColor == status.color
+                ? Colors.white
+                : status.foregroundColor,
+            size: 18,
+          ),
         ),
       ),
     );

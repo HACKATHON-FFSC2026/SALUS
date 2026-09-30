@@ -20,6 +20,9 @@ class _FakeShelterRepository implements ShelterRepository {
     return _controller.stream;
   }
 
+  @override
+  Stream<List<Shelter>> watchAllShelters() => _controller.stream;
+
   void emit(List<Shelter> shelters) => _controller.add(shelters);
   void fail(Object error) => _controller.addError(error);
   Future<void> close() => _controller.close();

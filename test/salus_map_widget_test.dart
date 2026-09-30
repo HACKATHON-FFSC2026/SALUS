@@ -25,6 +25,9 @@ class _StubShelterRepository implements ShelterRepository {
     }
     return Stream<List<Shelter>>.value(shelters);
   }
+
+  @override
+  Stream<List<Shelter>> watchAllShelters() => watchValidatedShelters();
 }
 
 Shelter _shelter({
