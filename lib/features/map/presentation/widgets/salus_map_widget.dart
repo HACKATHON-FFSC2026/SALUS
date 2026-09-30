@@ -12,6 +12,7 @@ import 'package:toastification/toastification.dart';
 import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
+import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
 
 class SalusMapWidget extends ConsumerStatefulWidget {
   const SalusMapWidget({super.key});
@@ -137,6 +138,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             child: _shelterBanner(sheltersAsync),
           ),
 
+        Positioned(left: 16, bottom: 24, child: _ShelterLegend()),
+
         // Bouton flottant de recentrage
         Positioned(
           bottom: 24,
@@ -179,6 +182,41 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                 child: const Text('Réessayer'),
               )
             : null,
+      ),
+    );
+  }
+}
+
+class _ShelterLegend extends StatelessWidget {
+  const _ShelterLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    const statuses = [
+      ShelterStatus.open,
+      ShelterStatus.almostFull,
+      ShelterStatus.full,
+      ShelterStatus.closed,
+    ];
+    return Card(
+      color: AppColors.surface.withValues(alpha: 0.92),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          children: [
+            for (final status in statuses)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(status.icon, size: 13, color: status.color),
+                  const SizedBox(width: 4),
+                  Text(status.label, style: const TextStyle(fontSize: 11)),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

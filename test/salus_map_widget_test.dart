@@ -47,10 +47,7 @@ Shelter _shelter({
   );
 }
 
-Future<void> _pumpMap(
-  WidgetTester tester,
-  ShelterRepository repository,
-) async {
+Future<void> _pumpMap(WidgetTester tester, ShelterRepository repository) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [shelterRepositoryProvider.overrideWithValue(repository)],
@@ -110,7 +107,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('Refuge Mahamasina'), findsOneWidget);
-    expect(find.text('12 / 50 personnes'), findsOneWidget);
-    expect(find.text('Voir les détails'), findsOneWidget);
+    expect(find.text('38 places disponibles'), findsOneWidget);
+    expect(find.text('Voir le refuge'), findsOneWidget);
   });
 }

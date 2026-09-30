@@ -49,11 +49,11 @@ void main() {
 
     expect(find.text('Refuge Mahamasina'), findsOneWidget);
     expect(find.text('Mahamasina, Antananarivo'), findsOneWidget);
-    expect(find.text('12 / 50 personnes'), findsOneWidget);
+    expect(find.text('38 places disponibles'), findsOneWidget);
     expect(find.text('Ouvert'), findsOneWidget);
     expect(find.text('Eau'), findsOneWidget);
     expect(find.text('Nourriture'), findsOneWidget);
-    expect(find.text('Voir les détails'), findsOneWidget);
+    expect(find.text('Voir le refuge'), findsOneWidget);
 
     // Les ressources désactivées ne sont pas affichées.
     expect(find.text('Électricité'), findsNothing);
@@ -86,7 +86,7 @@ void main() {
     expect(find.text('Eau'), findsNothing);
   });
 
-  testWidgets('le bouton « Voir les détails » ouvre la fiche complète', (
+  testWidgets('le bouton « Voir le refuge » ouvre la fiche complète', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -104,9 +104,9 @@ void main() {
 
     await tester.tap(find.text('ouvrir'));
     await tester.pumpAndSettle();
-    expect(find.text('Voir les détails'), findsOneWidget);
+    expect(find.text('Voir le refuge'), findsOneWidget);
 
-    await tester.tap(find.text('Voir les détails'));
+    await tester.tap(find.text('Voir le refuge'));
     await tester.pumpAndSettle();
 
     expect(find.text('Localisation'), findsOneWidget);
