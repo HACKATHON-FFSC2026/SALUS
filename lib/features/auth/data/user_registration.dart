@@ -1,14 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/utils/firestore_converters.dart';
 import 'package:salus/core/utils/log.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 const usersCollection = 'users';
 
 /// Full document written the first time a user signs in.
 ///
 /// Built from the [User] entity so the shape can never drift from the
-/// serialization tested in `test/entities_serialization_test.dart`. Every
+/// serialization tested in `test/user_registration_test.dart`. Every
 /// `required` DateTime must be present, otherwise a later `User.fromJson`
 /// throws on `json['createdAt'] as Timestamp`.
 Map<String, Object?> buildRegistrationData({
