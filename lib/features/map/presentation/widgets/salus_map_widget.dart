@@ -9,11 +9,13 @@ import 'package:latlong2/latlong.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
+import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
+import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
 
 class SalusMapWidget extends ConsumerStatefulWidget {
   const SalusMapWidget({super.key});
@@ -25,6 +27,7 @@ class SalusMapWidget extends ConsumerStatefulWidget {
 class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
+  
 
   // Position par défaut (Antananarivo) avant la première fixation GPS
   static const LatLng _defaultLocation = LatLng(-18.8792, 47.5079);
@@ -66,11 +69,19 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     }
   }
 
+  
+
   @override
   Widget build(BuildContext context) {
     final locationState = ref.watch(locationProvider);
     final sheltersAsync = ref.watch(validatedSheltersProvider);
     final shelters = sheltersAsync.value ?? const <Shelter>[];
+    final riskZones = (ref.watch(riskZonesProvider).value ?? const <Zone>[])
+      .where((z) => z.isActive)
+      .toList();
+    final safeZones =
+      ref.watch(filteredSafeZonesProvider).value ?? const <Zone>[];
+    final userDanger = ref.watch(dangerousZonesProvider);
 
     return Stack(
       fit: StackFit.expand,
@@ -88,6 +99,11 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.salus.app',
             ),
+
+
+            PolygonLayer(polygons: [for (final z in safeZones) z.toPolygon()]),
+            PolygonLayer(polygons: [for (final z in riskZones) z.toPolygon()]),
+
 
             // ponytail: CurrentLocationLayer ouvre son propre flux geolocator.
             // Le recentrage passe par notre port, la pastille par le plugin.
@@ -209,6 +225,23 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                 : const Icon(Icons.my_location),
           ),
         ),
+
+        // Bandeau d'alerte si l'utilisateur est dans une zone à risque.
+        //Alerte Temporaire
+          if (userDanger.isNotEmpty)
+            Positioned(
+              bottom: 160,
+              left: 16,
+              right: 16,
+              child: Card(
+              color: Colors.red.shade50,
+              child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.warning_amber_rounded, color: Colors.red),
+              title: Text('Vous êtes dans une zone à risque : ${userDanger.first.label}'),
+      ),
+    ),
+  ),
       ],
     );
   }
