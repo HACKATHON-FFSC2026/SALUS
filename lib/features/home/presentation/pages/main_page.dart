@@ -53,9 +53,10 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: [
-        for (final tab in _tabs) tab.page,
-      ]),
+      body: IndexedStack(
+        index: _index,
+        children: [for (final tab in _tabs) tab.page],
+      ),
       floatingActionButton: GestureDetector(
         onTap: _onSosPressed,
         child: Container(

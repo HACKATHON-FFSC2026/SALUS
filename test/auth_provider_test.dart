@@ -6,6 +6,9 @@ import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/auth/presentation/state/auth_state.dart';
 
 class _FakeAuthRepository implements AuthRepository {
+  @override
+  String? get currentUserId => googleUser?.uid;
+
   UserProfile? googleUser;
   bool guestThrows = false;
   bool syncThrows = false;
@@ -115,10 +118,7 @@ void main() {
   test('isBusy covers both the network and the Firestore phase', () async {
     fake.googleUser = _aina;
     final statuses = <AuthStatus>[];
-    container.listen(
-      authProvider,
-      (_, next) => statuses.add(next.status),
-    );
+    container.listen(authProvider, (_, next) => statuses.add(next.status));
 
     await container.read(authProvider.notifier).signInWithGoogle();
 

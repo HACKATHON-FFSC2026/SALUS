@@ -4,6 +4,9 @@ import 'package:salus/features/auth/domain/user_profile.dart';
 /// FirebaseAuth, GoogleSignIn ni Firestore. Implémentation dans
 /// features/auth/data.
 abstract class AuthRepository {
+  /// Identifiant Firebase de l'utilisateur connecté, null en mode invité.
+  String? get currentUserId;
+
   /// null si l'authentification Google a échoué (refus, réseau, compte nul).
   Future<UserProfile?> signInWithGoogle();
 
