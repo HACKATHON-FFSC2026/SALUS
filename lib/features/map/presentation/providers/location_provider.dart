@@ -18,34 +18,50 @@ class LocationNotifier extends Notifier<LocationState> {
   LocationState build() => const LocationState();
 
   /// Demande la permission si besoin puis publie la première fixation.
+  ///
+  /// Toutes les écritures passent par [_publish] : la carte peut quitter
+  /// l'écran pendant le dialogue de permission, et Riverpod lève sur une
+  /// écriture dans `state` d'un notifier déjà disposé.
   Future<void> refresh() async {
-    state = state.copyWith(status: LocationStatus.loading);
+    _publish(state.copyWith(status: LocationStatus.loading));
     try {
       final position = await ref
           .read(locationRepositoryProvider)
           .currentPosition();
-      state = state.copyWith(
-        status: LocationStatus.success,
-        position: position,
-        errorMessage: null,
+      _publish(
+        state.copyWith(
+          status: LocationStatus.success,
+          position: position,
+          errorMessage: null,
+        ),
       );
     } on LocationFailureException catch (e) {
-      state = LocationState(
-        status: _statusOf(e.failure),
-        errorMessage: _messageOf(e.failure),
+      _publish(
+        LocationState(
+          status: _statusOf(e.failure),
+          errorMessage: _messageOf(e.failure),
+        ),
       );
     } catch (e) {
-      state = LocationState(
-        status: LocationStatus.error,
-        errorMessage: 'Erreur lors de la récupération du GPS : $e',
+      _publish(
+        LocationState(
+          status: LocationStatus.error,
+          errorMessage: 'Erreur lors de la récupération du GPS : $e',
+        ),
       );
     }
+  }
+
+  void _publish(LocationState next) {
+    if (!ref.mounted) return;
+    state = next;
   }
 
   static LocationStatus _statusOf(LocationFailure failure) => switch (failure) {
     LocationFailure.serviceDisabled => LocationStatus.serviceDisabled,
     LocationFailure.permissionDenied ||
     LocationFailure.permissionDeniedForever => LocationStatus.permissionDenied,
+    LocationFailure.timeout ||
     LocationFailure.unknown => LocationStatus.error,
   };
 
@@ -57,6 +73,8 @@ class LocationNotifier extends Notifier<LocationState> {
     LocationFailure.permissionDeniedForever =>
       'Les permissions GPS sont bloquées. Veuillez les activer dans les '
           'paramètres de votre téléphone.',
+    LocationFailure.timeout =>
+      'Pas de signal GPS. Réessayez dans quelques instants.',
     LocationFailure.unknown =>
       'Erreur lors de la récupération du GPS.',
   };

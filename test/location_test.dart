@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salus/features/map/domain/location.dart';
@@ -116,6 +118,34 @@ void main() {
       final state = await run(() async => throw Exception('geolocator boom'));
       expect(state.status, LocationStatus.error);
       expect(state.errorMessage, contains('geolocator boom'));
+    });
+
+    test('a missing fix is a retryable error, not a crash', () async {
+      final state = await run(
+        () async =>
+            throw const LocationFailureException(LocationFailure.timeout),
+      );
+      expect(state.status, LocationStatus.error);
+      expect(state.errorMessage, contains('Pas de signal GPS'));
+    });
+
+    test('leaving the map mid-flight does not throw on publish', () async {
+      // L'utilisateur quitte la carte pendant le dialogue de permission.
+      // Écrire dans `state` d'un notifier disposé levait une exception.
+      final gate = Completer<GeoPoint>();
+      final c = ProviderContainer(
+        overrides: [
+          locationRepositoryProvider.overrideWithValue(
+            _FakeLocationRepository(() => gate.future),
+          ),
+        ],
+      );
+
+      final pending = c.read(locationProvider.notifier).refresh();
+      c.dispose();
+      gate.complete(const GeoPoint(latitude: 1, longitude: 2));
+
+      await expectLater(pending, completes);
     });
 
     test('a retry after a failure clears the stale error', () async {
