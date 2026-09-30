@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salus/core/widgets/google_logo.dart';
-import 'package:salus/features/auth/pages/login_page.dart';
-import 'package:salus/features/home/pages/main_page.dart';
+import 'package:salus/features/auth/presentation/pages/login_page.dart';
+import 'package:salus/features/home/presentation/pages/main_page.dart';
 
 void main() {
   testWidgets('login exposes both entry points', (tester) async {

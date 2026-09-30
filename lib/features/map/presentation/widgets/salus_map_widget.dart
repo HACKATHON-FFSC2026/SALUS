@@ -33,8 +33,10 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
   @override
   void initState() {
     super.initState();
-    // Demander la permission et récupérer la position au démarrage
+    // Demander la permission et récupérer la position au démarrage. Le
+    // microtask peut s'exécuter après un unmount: `ref.read` lèverait.
     Future.microtask(() {
+      if (!mounted) return;
       ref.read(locationProvider.notifier).refresh();
     });
   }

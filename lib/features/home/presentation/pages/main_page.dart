@@ -1,9 +1,9 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:salus/core/themes/app_theme.dart';
-import 'package:salus/features/alerts/pages/alerts_page.dart';
-import 'package:salus/features/help/pages/help_page.dart';
-import 'package:salus/features/home/pages/home_tab_page.dart';
+import 'package:salus/features/alerts/presentation/pages/alerts_page.dart';
+import 'package:salus/features/help/presentation/pages/help_page.dart';
+import 'package:salus/features/home/presentation/pages/home_tab_page.dart';
 import 'package:salus/features/shelters/presentation/pages/shelters_page.dart';
 import 'package:toastification/toastification.dart';
 
