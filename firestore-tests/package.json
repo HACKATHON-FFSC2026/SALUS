@@ -1,0 +1,13 @@
+{
+  "name": "salus-firestore-tests",
+  "private": true,
+  "type": "module",
+  "description": "Vérifie firestore.rules sur l'émulateur. Prérequis: Node 20+, et un JDK 21 ou plus récent (firebase-tools refuse Java < 21). Lancer: npm test",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project salus-rules-check \"node rules.test.mjs\""
+  },
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}

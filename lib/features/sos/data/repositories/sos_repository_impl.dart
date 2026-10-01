@@ -17,7 +17,7 @@ class SosRepositoryImpl implements ISosRepository {
   final ISosRemoteDataSource _remoteDataSource;
 
   @override
-  Future<void> sendSos({
+  Future<String> sendSos({
     required double latitude,
     required double longitude,
     DistressType distressType = DistressType.other,
@@ -42,12 +42,30 @@ class SosRepositoryImpl implements ISosRepository {
   }
 
   @override
-  Stream<List<SOSAlert>> watchActiveSosAlerts() {
-    return _remoteDataSource.watchActiveSosAlerts();
+  Stream<List<SOSAlert>> watchActiveSosAlerts({List<String>? geoCells}) {
+    return _remoteDataSource.watchActiveSosAlerts(geoCells: geoCells);
+  }
+
+  @override
+  Stream<List<SOSAlert>> watchMyActiveSosAlerts() {
+    return _remoteDataSource.watchMyActiveSosAlerts();
   }
 
   @override
   Future<void> respondToSos(String alertId) {
     return _remoteDataSource.respondToSos(alertId);
+  }
+
+  @override
+  Future<void> shareLocation({
+    required String alertId,
+    required double latitude,
+    required double longitude,
+  }) {
+    return _remoteDataSource.shareSosLocation(
+      alertId: alertId,
+      latitude: latitude,
+      longitude: longitude,
+    );
   }
 }

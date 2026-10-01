@@ -3,46 +3,51 @@ import 'package:salus/core/entities/sos_alert_entity.dart';
 import '../repositories/sos_repository.dart';
 
 class SendSosUseCase {
-  final ISosRepository _repository;
-
   SendSosUseCase(this._repository);
 
-  Future<void> execute({
+  final ISosRepository _repository;
+
+  /// Retourne l'identifiant de l'alerte créée.
+  Future<String> execute({
     DistressType distressType = DistressType.other,
     String? description,
   }) async {
-    // 1. Vérification de l'activation du service de géolocalisation
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      throw Exception('Le service de géolocalisation est désactivé sur votre appareil.');
-    }
+    final position = await currentPosition();
 
-    // 2. Vérification et demande des permissions GPS
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        throw Exception('Permission de localisation refusée.');
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      throw Exception('Les permissions de localisation sont bloquées dans vos paramètres.');
-    }
-
-    // 3. Récupération des coordonnées GPS
-    Position position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
-    );
-
-    // 4. Envoi du SOS via le repository
-    await _repository.sendSos(
+    return _repository.sendSos(
       latitude: position.latitude,
       longitude: position.longitude,
       distressType: distressType,
       description: description,
     );
   }
+}
+
+/// Position GPS de l'utilisateur, permission obtenue au passage.
+///
+/// Partagée par l'envoi et le partage de position temps réel.
+Future<Position> currentPosition() async {
+  if (!await Geolocator.isLocationServiceEnabled()) {
+    throw Exception(
+      'La géolocalisation est désactivée sur votre appareil.',
+    );
+  }
+
+  var permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+  }
+
+  if (permission == LocationPermission.deniedForever) {
+    throw Exception(
+      'La localisation est bloquée. Activez-la dans vos paramètres.',
+    );
+  }
+  if (permission == LocationPermission.denied) {
+    throw Exception('Permission de localisation refusée.');
+  }
+
+  return Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+  );
 }

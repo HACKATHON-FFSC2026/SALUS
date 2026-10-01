@@ -1,155 +1,93 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
+import 'package:salus/core/themes/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../domain/entities/first_aid_guidelines.dart';
 
-class SosResponseDetailPage extends ConsumerWidget {
+/// Fiche d'intervention affichée après « JE RÉPONDS ».
+///
+/// Elle porte deux choses: où aller, et quoi faire en attendant. Les consignes
+/// viennent de [FirstAidGuideline], donc dépendantes du type de détresse
+/// annoncé, pas d'une liste générique identique pour un incendie et pour une
+/// agression.
+@RoutePage()
+class SosResponseDetailPage extends StatelessWidget {
+  const SosResponseDetailPage({super.key, required this.sosAlert});
+
   final SOSAlert sosAlert;
 
-  const SosResponseDetailPage({
-    super.key,
-    required this.sosAlert,
-  });
-
-  Future<void> _openMaps(double lat, double lng) async {
-    final Uri googleMapsUrl = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-    if (await canLaunchUrl(googleMapsUrl)) {
-      await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
+  Future<void> _openMaps(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1'
+      '&destination=${sosAlert.location.latitude},${sosAlert.location.longitude}',
+    );
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) throw Exception('navigation refusée');
+    } catch (_) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Itinéraire indisponible. Coordonnées: '
+            '${sosAlert.location.latitude.toStringAsFixed(4)}, '
+            '${sosAlert.location.longitude.toStringAsFixed(4)}',
+          ),
+          backgroundColor: AppColors.sos,
+        ),
+      );
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    const Color emeraldColor = Color(0xFF10B981);
+  Widget build(BuildContext context) {
+    final guideline = FirstAidGuideline.getGuidelinesFor(
+      sosAlert.distressType,
+    );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Slate 900
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.primary,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        centerTitle: false,
         title: const Text(
           'Intervention en cours',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            color: AppColors.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            // Status Banner
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: emeraldColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: emeraldColor.withValues(alpha: 0.4), width: 1.5),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: emeraldColor, size: 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Vous avez répondu à cet appel',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Suivez les consignes de sécurité ci-dessous lors de votre déplacement.',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // SOS Summary Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          sosAlert.distressType.name.toUpperCase(),
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      if (sosAlert.distanceInKm != null)
-                        Row(
-                          children: [
-                            const Icon(Icons.navigation, color: Colors.amber, size: 14),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${sosAlert.distanceInKm!.toStringAsFixed(2)} km',
-                              style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    sosAlert.description ?? 'Demande d\'assistance urgente signalée.',
-                    style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
-                  ),
-                ],
-              ),
-            ),
-
+            _Acknowledgement(),
+            const SizedBox(height: 16),
+            _SummaryCard(alert: sosAlert),
             const SizedBox(height: 24),
-
-            // Consignes de sécurité
-            const Text(
-              'Consignes de sécurité :',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+            Text(
+              guideline.title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 12),
-            _buildSafetyInstruction('1. Assurez votre propre sécurité avant toute intervention.'),
-            _buildSafetyInstruction('2. Gardez votre téléphone charged et restez joignable.'),
-            _buildSafetyInstruction('3. Si la situation dégénère, prévenez immédiatement les autorités.'),
-
-            const SizedBox(height: 32),
-
-            // Bouton Google Maps
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _openMaps(sosAlert.location.latitude, sosAlert.location.longitude),
-                icon: const Icon(Icons.map_outlined, color: Colors.white),
-                label: const Text(
-                  'OUVRIR DANS GOOGLE MAPS',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: emeraldColor,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            for (final step in guideline.steps) _Step(text: step),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: () => _openMaps(context),
+              icon: const Icon(Icons.near_me, color: Colors.white),
+              label: const Text(
+                'ITINÉRAIRE',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -158,19 +96,128 @@ class SosResponseDetailPage extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildSafetyInstruction(String text) {
+class _Acknowledgement extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.4), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Colors.green, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Vous avez répondu à cet appel',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Colors.green.shade900,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Votre position est partagée tant que l\'alerte est active.',
+                  style: TextStyle(color: AppColors.inactive, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({required this.alert});
+
+  final SOSAlert alert;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppColors.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.inactive.withValues(alpha: 0.25)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.sos,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    alert.distressType.name.toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (alert.distanceInKm != null)
+                  Text(
+                    '${alert.distanceInKm!.toStringAsFixed(2)} km',
+                    style: const TextStyle(
+                      color: AppColors.secondary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              alert.description ?? 'Demande d\'assistance urgente.',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Step extends StatelessWidget {
+  const _Step({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.shield, color: Colors.amberAccent, size: 16),
-          const SizedBox(width: 8),
+          const Icon(Icons.shield_outlined, color: AppColors.secondary, size: 18),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.3),
+              style: const TextStyle(color: AppColors.primary, fontSize: 13, height: 1.35),
             ),
           ),
         ],

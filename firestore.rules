@@ -107,13 +107,73 @@ service cloud.firestore {
     }
 
     match /sos_alerts/{alertId} {
-      // Responders need a shared live queue to coordinate incoming distress calls.
-      allow read: if isAdmin() || isResponder();
-      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin() || (isResponder()
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'assignedOrganizationId', 'resolvedAt', 'respondersCount'])
-        && request.resource.data.status in ['inProgress', 'resolved', 'cancelled']);
+
+      function isOwner() {
+        return signedIn() && resource.data.userId == request.auth.uid;
+      }
+
+      function changedOnly(keys) {
+        return request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(keys);
+      }
+
+      function isStillActive() {
+        return resource.data.status == 'waiting'
+          || resource.data.status == 'inProgress';
+      }
+
+      // La victime se déclare intervenant. Uniquement son propre uid, et
+      // exactement un de plus: deux « Je réponds » ne doivent pas compter deux
+      // fois la même personne.
+      function joinsAsResponder() {
+        return signedIn()
+          && isStillActive()
+          && changedOnly(['responderIds'])
+          && request.resource.data.responderIds.size()
+               == resource.data.responderIds.size() + 1
+          && request.resource.data.responderIds.hasOnly(
+               resource.data.responderIds.concat([request.auth.uid]));
+      }
+
+      // La victime annule, ou partage sa position tant que l'alerte est active.
+      function victimUpdates() {
+        return isOwner()
+          && (
+            (changedOnly(['status'])
+              && request.resource.data.status == 'cancelled')
+            || (isStillActive()
+              && changedOnly(['location', 'geoCell', 'locationUpdatedAt']))
+          );
+      }
+
+      // Un aidant identifié prend en charge ou clôt l'alerte. Seul lui peut
+      // passer en `inProgress` / `resolved`: un citoyen qui répond garde
+      // l'alerte en attente, sinon un simple tap ferait croire à la victime
+      // que des secours sont en route.
+      function responderUpdates() {
+        return isResponder()
+          && isStillActive()
+          && changedOnly(['status', 'assignedOrganizationId', 'resolvedAt'])
+          && request.resource.data.status in ['inProgress', 'resolved'];
+      }
+
+      // Les alertes actives sont visibles par tout utilisateur connecté: c'est
+      // la file communautaire dans laquelle un citoyen répond (spec §1
+      // « Répondre à une détresse »). Une alerte terminée ne reste lisible que
+      // par la victime, les intervenants et l'admin: elle contient une position
+      // et un motif de détresse qui n'ont plus lieu d'être exposés.
+      allow read: if isAdmin() || isOwner() || isResponder()
+        || (signedIn() && resource.data.status in ['waiting', 'inProgress']);
+
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.responderIds.size() == 0;
+
+      allow update: if isAdmin()
+        || victimUpdates()
+        || joinsAsResponder()
+        || responderUpdates();
+
       allow delete: if isAdmin();
     }
 

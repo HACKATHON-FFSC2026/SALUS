@@ -16,6 +16,15 @@ final hasAccountProvider = FutureProvider<bool>((ref) async {
 final authProvider =
     NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
 
+/// uid Firebase de l'utilisateur connecté, `null` s'il est invité.
+///
+/// Les features qui écrivent dans Firestore sous l'identité de l'utilisateur
+/// (SOS, signalements) le lisent ici plutôt que d'instancier leur propre
+/// FirebaseAuth.
+final currentUidProvider = Provider<String?>((ref) {
+  return ref.watch(authProvider).user?.uid;
+});
+
 /// Règles de connexion. La page ne fait que refléter l'état.
 class AuthNotifier extends Notifier<AuthState> {
   @override
