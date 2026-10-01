@@ -10,17 +10,6 @@
 
 part of 'app_router.dart';
 
-/// generated route for [OperationsPortalPage]
-class OperationsPortalRoute extends PageRouteInfo<void> {
-  const OperationsPortalRoute({List<PageRouteInfo>? children})
-    : super(OperationsPortalRoute.name, initialChildren: children);
-  static const String name = 'OperationsPortalRoute';
-  static PageInfo page = PageInfo(
-    name,
-    builder: (data) => const OperationsPortalPage(),
-  );
-}
-
 /// generated route for
 /// [CreateShelterPage]
 class CreateShelterRoute extends PageRouteInfo<void> {
@@ -65,6 +54,22 @@ class MainRoute extends PageRouteInfo<void> {
     name,
     builder: (data) {
       return const MainPage();
+    },
+  );
+}
+
+/// generated route for
+/// [OperationsPortalPage]
+class OperationsPortalRoute extends PageRouteInfo<void> {
+  const OperationsPortalRoute({List<PageRouteInfo>? children})
+    : super(OperationsPortalRoute.name, initialChildren: children);
+
+  static const String name = 'OperationsPortalRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const OperationsPortalPage();
     },
   );
 }

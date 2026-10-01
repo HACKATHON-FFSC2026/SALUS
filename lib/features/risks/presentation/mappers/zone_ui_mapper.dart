@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:salus/core/entities/zone_entity.dart';
-
+import 'package:salus/core/utils/geo_math.dart';
+ 
 extension ZoneUiMapper on Zone {
   List<LatLng> get toLatLngList =>
       geometry.map((c) => LatLng(c.latitude, c.longitude)).toList();
-
+ 
+  /// Point où placer l'icône (centre du cercle / du polygone).
+  LatLng get center {
+    final c = GeoMath.centroid(geometry);
+    return LatLng(c.latitude, c.longitude);
+  }
+ 
   Color get borderColor {
     if (type == ZoneType.safe) return Colors.green;
     return switch (severity) {
@@ -17,7 +24,7 @@ extension ZoneUiMapper on Zone {
       null => Colors.red,
     };
   }
-
+ 
   Color get fillColor {
     final alpha = type == ZoneType.safe
         ? 0.25
@@ -30,7 +37,7 @@ extension ZoneUiMapper on Zone {
           };
     return borderColor.withValues(alpha: alpha);
   }
-
+ 
   String get label => switch (disasterType) {
         DisasterType.earthquake => 'Séisme',
         DisasterType.tsunami => 'Tsunami',
@@ -40,7 +47,17 @@ extension ZoneUiMapper on Zone {
         DisasterType.volcano => 'Volcan',
         _ => 'Catastrophe',
       };
-
+ 
+  IconData get icon => switch (disasterType) {
+        DisasterType.earthquake => Icons.warning_amber_rounded, // pas d'icône séisme dans cette version de Flutter
+        DisasterType.tsunami => Icons.tsunami,
+        DisasterType.cyclone => Icons.cyclone,
+        DisasterType.flood => Icons.flood,
+        DisasterType.landslide => Icons.landslide,
+        DisasterType.volcano => Icons.volcano,
+        _ => Icons.warning_amber_rounded,
+      };
+ 
   Polygon toPolygon() => Polygon(
         points: toLatLngList,
         color: fillColor,
