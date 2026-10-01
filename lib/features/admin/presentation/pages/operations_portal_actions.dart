@@ -59,77 +59,58 @@ extension _OperationsPortalActions on _OperationsPortalPageState {
   }
 
   Future<void> _createOrganization() async {
-    final formKey = GlobalKey<FormState>();
-    final name = TextEditingController();
-    final email = TextEditingController();
-    final phone = TextEditingController();
-    final created = await showDialog<bool>(
+    await _openOrganizationEditor();
+  }
+
+  Future<void> _editOrganization(AdminPortalRecord record) async {
+    await _openOrganizationEditor(record: record);
+  }
+
+  Future<void> _manageOrganizationMembership(AdminPortalRecord user) async {
+    final useCases = ref.read(adminPortalUseCasesProvider);
+    await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Nouvelle organisation'),
-        content: Form(
-          key: formKey,
-          child: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Nom'),
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? 'Nom obligatoire'
-                      : null,
-                ),
-                TextFormField(
-                  controller: email,
-                  decoration: const InputDecoration(
-                    labelText: 'Email de contact',
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) => value == null || !value.contains('@')
-                      ? 'Email invalide'
-                      : null,
-                ),
-                TextFormField(
-                  controller: phone,
-                  decoration: const InputDecoration(labelText: 'Téléphone'),
-                  keyboardType: TextInputType.phone,
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? 'Téléphone obligatoire'
-                      : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, true);
-              }
-            },
-            child: const Text('Créer'),
-          ),
-        ],
+      builder: (_) => OrganizationMembershipDialog(
+        user: user,
+        useCases: useCases,
+        onAssign: (organizationId) =>
+            useCases.assignUserToOrganization(user.id, organizationId),
+        onRemove: () => useCases.removeUserOrganizationRole(user.id),
       ),
     );
-    if (created == true) {
-      await ref
-          .read(adminPortalUseCasesProvider)
-          .createOrganization(
-            name: name.text.trim(),
-            email: email.text.trim(),
-            phone: phone.text.trim(),
-          );
-    }
-    name.dispose();
-    email.dispose();
-    phone.dispose();
+  }
+
+  Future<void> _openOrganizationEditor({AdminPortalRecord? record}) async {
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => AdminOrganizationFormDialog(
+        organization: record,
+        onSave:
+            ({
+              required name,
+              required type,
+              required email,
+              required phone,
+            }) async {
+              final useCases = ref.read(adminPortalUseCasesProvider);
+              if (record == null) {
+                await useCases.createOrganization(
+                  name: name,
+                  type: type,
+                  email: email,
+                  phone: phone,
+                );
+              } else {
+                await useCases.updateOrganization(
+                  id: record.id,
+                  name: name,
+                  type: type,
+                  email: email,
+                  phone: phone,
+                );
+              }
+            },
+      ),
+    );
   }
 }

@@ -85,10 +85,13 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
         capacityOccupied: _integer(data['capacityOccupied']),
         capacityTotal: _integer(data['capacityTotal']),
         contactEmail: data['contactEmail']?.toString(),
+        contactPhone: data['contactPhone']?.toString(),
         type: data['type']?.toString(),
         targetType: data['targetType']?.toString(),
         status: data['status']?.toString(),
         verified: data['verified'] == true,
+        verifiedBy: data['verifiedBy']?.toString(),
+        verifiedAt: _date(data['verifiedAt']),
         validationStatus: data['validationStatus']?.toString(),
         isActive: data['isActive'] as bool?,
         organizationId: data['organizationId']?.toString(),
@@ -226,16 +229,90 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
       _firestore.collection('users').doc(id).update({'isActive': isActive});
 
   @override
+  Future<void> assignUserToOrganization(
+    String userId,
+    String organizationId,
+  ) async {
+    final userReference = _firestore.collection('users').doc(userId);
+    final organizationReference = _firestore
+        .collection('organizations')
+        .doc(organizationId);
+    await _firestore.runTransaction((transaction) async {
+      final user = await transaction.get(userReference);
+      final organization = await transaction.get(organizationReference);
+      final organizationData = organization.data();
+      if (!user.exists || !organization.exists || organizationData == null) {
+        throw StateError('Compte ou organisation introuvable.');
+      }
+      if (organizationData['verified'] != true ||
+          organizationData['isActive'] == false) {
+        throw StateError('L’organisation doit être vérifiée et active.');
+      }
+      final roles =
+          (user.data()?['roles'] as List<dynamic>? ?? const [])
+              .map((role) => role.toString())
+              .where((role) => role != 'shelterManager')
+              .toSet()
+            ..add('organizationMember');
+      transaction.update(userReference, {
+        'roles': roles.toList(),
+        'organizationId': organizationId,
+      });
+    });
+  }
+
+  @override
+  Future<void> removeUserOrganizationRole(String userId) async {
+    final userReference = _firestore.collection('users').doc(userId);
+    final user = await userReference.get();
+    if (!user.exists) throw StateError('Compte introuvable.');
+    final roles = (user.data()?['roles'] as List<dynamic>? ?? const [])
+        .map((role) => role.toString())
+        .where(
+          (role) => role != 'organizationMember' && role != 'shelterManager',
+        )
+        .toList();
+    await userReference.update({
+      'roles': roles,
+      'organizationId': FieldValue.delete(),
+    });
+  }
+
+  @override
   Future<void> createOrganization({
     required String name,
+    required String type,
     required String email,
     required String phone,
   }) => _firestore.collection('organizations').add({
     'name': name,
-    'type': 'ngo',
+    'type': type,
     'verified': false,
+    'isActive': true,
     'contactEmail': email,
     'contactPhone': phone,
     'createdAt': FieldValue.serverTimestamp(),
   });
+
+  @override
+  Future<void> updateOrganization({
+    required String id,
+    required String name,
+    required String type,
+    required String email,
+    required String phone,
+  }) => _firestore.collection('organizations').doc(id).update({
+    'name': name,
+    'type': type,
+    'contactEmail': email,
+    'contactPhone': phone,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  @override
+  Future<void> setOrganizationActive(String id, {required bool isActive}) =>
+      _firestore.collection('organizations').doc(id).update({
+        'isActive': isActive,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 }

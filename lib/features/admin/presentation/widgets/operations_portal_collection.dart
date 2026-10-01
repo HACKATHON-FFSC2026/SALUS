@@ -15,6 +15,8 @@ class OperationsPortalCollection extends StatelessWidget {
     required this.userId,
     required this.useCases,
     required this.onCreateOrganization,
+    required this.onEditOrganization,
+    required this.onManageOrganizationMembership,
     required this.onCreateShelter,
     required this.onCreateRiskZone,
     required this.onEditRiskZone,
@@ -26,6 +28,8 @@ class OperationsPortalCollection extends StatelessWidget {
   final String userId;
   final AdminPortalUseCases useCases;
   final VoidCallback onCreateOrganization;
+  final ValueChanged<AdminPortalRecord> onEditOrganization;
+  final ValueChanged<AdminPortalRecord> onManageOrganizationMembership;
   final VoidCallback onCreateShelter;
   final VoidCallback onCreateRiskZone;
   final ValueChanged<AdminPortalRecord> onEditRiskZone;
@@ -90,6 +94,8 @@ class OperationsPortalCollection extends StatelessWidget {
           organizationId: organizationId,
           userId: userId,
           useCases: useCases,
+          onEditOrganization: onEditOrganization,
+          onManageOrganizationMembership: onManageOrganizationMembership,
           onEditRiskZone: onEditRiskZone,
         ),
       ],
@@ -106,6 +112,8 @@ class OperationsPortalDataTable extends ConsumerWidget {
     required this.organizationId,
     required this.userId,
     required this.useCases,
+    required this.onEditOrganization,
+    required this.onManageOrganizationMembership,
     required this.onEditRiskZone,
     this.limit,
   });
@@ -116,6 +124,8 @@ class OperationsPortalDataTable extends ConsumerWidget {
   final String? organizationId;
   final String userId;
   final AdminPortalUseCases useCases;
+  final ValueChanged<AdminPortalRecord> onEditOrganization;
+  final ValueChanged<AdminPortalRecord> onManageOrganizationMembership;
   final ValueChanged<AdminPortalRecord> onEditRiskZone;
   final int? limit;
 
@@ -171,6 +181,8 @@ class OperationsPortalDataTable extends ConsumerWidget {
                 isAdmin: isAdmin,
                 userId: userId,
                 useCases: useCases,
+                onEditOrganization: onEditOrganization,
+                onManageOrganizationMembership: onManageOrganizationMembership,
                 onEditRiskZone: onEditRiskZone,
               ),
           ],
