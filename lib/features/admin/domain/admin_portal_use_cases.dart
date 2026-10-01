@@ -89,6 +89,7 @@ class AdminPortalUseCases {
     required int capacityTotal,
     required double latitude,
     required double longitude,
+    required Map<String, bool> resources,
     required String userId,
   }) => _repository.createShelter(
     name: name,
@@ -96,6 +97,7 @@ class AdminPortalUseCases {
     capacityTotal: capacityTotal,
     latitude: latitude,
     longitude: longitude,
+    resources: resources,
     userId: userId,
   );
 
