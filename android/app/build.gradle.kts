@@ -17,6 +17,11 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// ponytail: no key.properties -> no signing config, AGP falls back to its own debug keystore
+val signingName = "salusDebug"
+val hasSigning = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    .all { keystoreProperties.getProperty(it) != null }
+
 android {
     namespace = "com.example.salus"
     compileSdk = flutter.compileSdkVersion
@@ -39,22 +44,30 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        create("salusDebug") {
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
+    if (hasSigning) {
+        signingConfigs {
+            create(signingName) {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
         }
     }
 
     buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("salusDebug")
-        }
+        if (hasSigning) {
+            debug {
+                signingConfig = signingConfigs.getByName(signingName)
+            }
 
-        release {
-            signingConfig = signingConfigs.getByName("salusDebug")
+            release {
+                signingConfig = signingConfigs.getByName(signingName)
+            }
+        } else {
+            debug {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }
