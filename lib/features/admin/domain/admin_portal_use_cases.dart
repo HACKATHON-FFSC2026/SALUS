@@ -76,6 +76,12 @@ class AdminPortalUseCases {
     uid: uid,
   );
 
+  Future<void> updateReport({
+    required String id,
+    required String status,
+    required String uid,
+  }) => _repository.updateReport(id: id, status: status, uid: uid);
+
   Future<void> validateShelter(String id, String uid) =>
       _repository.validateShelter(id, uid);
 

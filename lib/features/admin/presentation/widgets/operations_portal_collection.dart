@@ -17,6 +17,7 @@ class OperationsPortalCollection extends StatelessWidget {
     required this.onCreateOrganization,
     required this.onEditOrganization,
     required this.onManageOrganizationMembership,
+    required this.onViewReport,
     required this.onCreateShelter,
     required this.onCreateRiskZone,
     required this.onEditRiskZone,
@@ -30,6 +31,7 @@ class OperationsPortalCollection extends StatelessWidget {
   final VoidCallback onCreateOrganization;
   final ValueChanged<AdminPortalRecord> onEditOrganization;
   final ValueChanged<AdminPortalRecord> onManageOrganizationMembership;
+  final ValueChanged<AdminPortalRecord> onViewReport;
   final VoidCallback onCreateShelter;
   final VoidCallback onCreateRiskZone;
   final ValueChanged<AdminPortalRecord> onEditRiskZone;
@@ -96,6 +98,7 @@ class OperationsPortalCollection extends StatelessWidget {
           useCases: useCases,
           onEditOrganization: onEditOrganization,
           onManageOrganizationMembership: onManageOrganizationMembership,
+          onViewReport: onViewReport,
           onEditRiskZone: onEditRiskZone,
         ),
       ],
@@ -114,6 +117,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
     required this.useCases,
     required this.onEditOrganization,
     required this.onManageOrganizationMembership,
+    required this.onViewReport,
     required this.onEditRiskZone,
     this.limit,
   });
@@ -126,6 +130,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
   final AdminPortalUseCases useCases;
   final ValueChanged<AdminPortalRecord> onEditOrganization;
   final ValueChanged<AdminPortalRecord> onManageOrganizationMembership;
+  final ValueChanged<AdminPortalRecord> onViewReport;
   final ValueChanged<AdminPortalRecord> onEditRiskZone;
   final int? limit;
 
@@ -149,6 +154,18 @@ class OperationsPortalDataTable extends ConsumerWidget {
         );
       }
       var records = snapshot.data!;
+      if (collection == AdminCollection.reports) {
+        const statusPriority = {'open': 0, 'reviewed': 1, 'resolved': 2};
+        records.sort((a, b) {
+          final priority = (statusPriority[a.status] ?? 3).compareTo(
+            statusPriority[b.status] ?? 3,
+          );
+          if (priority != 0) return priority;
+          return (b.createdAt ?? DateTime(0)).compareTo(
+            a.createdAt ?? DateTime(0),
+          );
+        });
+      }
       if (limit != null) records = records.take(limit!).toList();
       if (records.isEmpty) {
         return const _PortalMessage('Aucun élément à afficher pour le moment.');
@@ -183,6 +200,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
                 useCases: useCases,
                 onEditOrganization: onEditOrganization,
                 onManageOrganizationMembership: onManageOrganizationMembership,
+                onViewReport: onViewReport,
                 onEditRiskZone: onEditRiskZone,
               ),
           ],

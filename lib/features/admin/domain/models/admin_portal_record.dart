@@ -18,6 +18,9 @@ class AdminPortalRecord {
     this.contactPhone,
     this.type,
     this.targetType,
+    this.targetId,
+    this.reporterId,
+    this.reason,
     this.status,
     this.verified = false,
     this.verifiedBy,
@@ -51,6 +54,9 @@ class AdminPortalRecord {
   final String? contactPhone;
   final String? type;
   final String? targetType;
+  final String? targetId;
+  final String? reporterId;
+  final String? reason;
   final String? status;
   final bool verified;
   final String? verifiedBy;

@@ -80,6 +80,68 @@ extension _OperationsPortalActions on _OperationsPortalPageState {
     );
   }
 
+  Future<void> _viewReport(AdminPortalRecord report) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Signalement · ${_reportTargetLabel(report.targetType)}'),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _reportDetail('Statut', _reportStatusLabel(report.status)),
+                _reportDetail('Motif', _reportReasonLabel(report.reason)),
+                _reportDetail(
+                  'Élément concerné',
+                  report.targetId ?? 'Non précisé',
+                ),
+                _reportDetail('Auteur (UID)', report.reporterId ?? 'Inconnu'),
+                _reportDetail('Date', _reportDate(report.createdAt)),
+                const SizedBox(height: 8),
+                const Text(
+                  'Description',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  report.description?.trim().isNotEmpty == true
+                      ? report.description!.trim()
+                      : 'Aucune description fournie.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reportDetail(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 130,
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        Expanded(child: SelectableText(value)),
+      ],
+    ),
+  );
+
   Future<void> _openOrganizationEditor({AdminPortalRecord? record}) async {
     await showDialog<bool>(
       context: context,
@@ -114,3 +176,30 @@ extension _OperationsPortalActions on _OperationsPortalPageState {
     );
   }
 }
+
+String _reportTargetLabel(String? value) => switch (value) {
+  'shelter' => 'Refuge',
+  'zone' => 'Zone',
+  'road' => 'Route',
+  'other' => 'Autre élément',
+  _ => 'Élément inconnu',
+};
+
+String _reportReasonLabel(String? value) => switch (value) {
+  'unsafe' => 'Dangereux',
+  'unavailable' => 'Indisponible',
+  'blocked' => 'Bloqué',
+  'other' => 'Autre motif',
+  _ => 'Motif inconnu',
+};
+
+String _reportStatusLabel(String? value) => switch (value) {
+  'open' => 'Ouvert',
+  'reviewed' => 'Examiné',
+  'resolved' => 'Résolu',
+  _ => value ?? 'Inconnu',
+};
+
+String _reportDate(DateTime? value) => value == null
+    ? 'Inconnue'
+    : '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';

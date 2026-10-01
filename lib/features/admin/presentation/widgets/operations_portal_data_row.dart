@@ -14,6 +14,7 @@ class OperationsPortalDataRow extends StatelessWidget {
     required this.useCases,
     required this.onEditOrganization,
     required this.onManageOrganizationMembership,
+    required this.onViewReport,
     required this.onEditRiskZone,
   });
 
@@ -24,6 +25,7 @@ class OperationsPortalDataRow extends StatelessWidget {
   final AdminPortalUseCases useCases;
   final ValueChanged<AdminPortalRecord> onEditOrganization;
   final ValueChanged<AdminPortalRecord> onManageOrganizationMembership;
+  final ValueChanged<AdminPortalRecord> onViewReport;
   final ValueChanged<AdminPortalRecord> onEditRiskZone;
 
   String get _detail => switch (collection) {
@@ -35,10 +37,10 @@ class OperationsPortalDataRow extends StatelessWidget {
       '${record.address ?? ''} · ${record.capacityOccupied ?? 0}/${record.capacityTotal ?? 0} places',
     AdminCollection.organizations =>
       '${record.contactEmail ?? ''} · ${record.contactPhone ?? ''} · ${_organizationType(record.type)}',
+    AdminCollection.reports =>
+      '${_reportReason(record.reason)} · ${_reportTarget(record.targetType)} · ${_displayDate(record.createdAt)}',
     AdminCollection.zones =>
       '${_disasterLabel(record.disasterType)} · ${_severityLabel(record.severity)} · ${record.geometry.length} points',
-    _ =>
-      '${record.targetType ?? record.type ?? ''} · ${_displayDate(record.createdAt ?? record.startedAt)}',
   };
 
   String get _status => collection == AdminCollection.zones
@@ -185,6 +187,40 @@ class OperationsPortalDataRow extends StatelessWidget {
             onPressed: () => onManageOrganizationMembership(record),
             icon: const Icon(Icons.business_outlined, color: AppColors.primary),
           ),
+        if (collection == AdminCollection.reports)
+          IconButton(
+            tooltip: 'Voir le signalement',
+            onPressed: () => onViewReport(record),
+            icon: const Icon(
+              Icons.visibility_outlined,
+              color: AppColors.primary,
+            ),
+          ),
+        if (collection == AdminCollection.reports &&
+            record.status != 'resolved')
+          PopupMenuButton<String>(
+            tooltip: 'Mettre à jour le signalement',
+            itemBuilder: (context) => [
+              if (record.status == 'open')
+                const PopupMenuItem(
+                  value: 'reviewed',
+                  child: Text('Marquer comme examiné'),
+                ),
+              const PopupMenuItem(
+                value: 'resolved',
+                child: Text('Marquer comme résolu'),
+              ),
+            ],
+            onSelected: (status) => useCases.updateReport(
+              id: record.id,
+              status: status,
+              uid: userId,
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(Icons.more_vert, color: AppColors.primary),
+            ),
+          ),
         if (isAdmin &&
             collection == AdminCollection.users &&
             record.roles.contains('organizationMember'))
@@ -241,6 +277,22 @@ String _organizationType(String? type) => switch (type) {
   'emergencyServices' => 'Services d’urgence',
   'other' => 'Autre',
   _ => type ?? 'Organisation',
+};
+
+String _reportReason(String? reason) => switch (reason) {
+  'unsafe' => 'Dangereux',
+  'unavailable' => 'Indisponible',
+  'blocked' => 'Bloqué',
+  'other' => 'Autre motif',
+  _ => 'Motif inconnu',
+};
+
+String _reportTarget(String? targetType) => switch (targetType) {
+  'shelter' => 'Refuge',
+  'zone' => 'Zone',
+  'road' => 'Route',
+  'other' => 'Autre élément',
+  _ => 'Cible inconnue',
 };
 
 String _displayDate(DateTime? value) => value == null
