@@ -49,6 +49,7 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
             AdminCollection.organizations,
             AdminCollection.shelters,
             AdminCollection.users,
+            AdminCollection.reports,
           ]
         : const [
             AdminCollection.sosAlerts,
@@ -88,6 +89,9 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
         contactPhone: data['contactPhone']?.toString(),
         type: data['type']?.toString(),
         targetType: data['targetType']?.toString(),
+        targetId: data['targetId']?.toString(),
+        reporterId: data['reporterId']?.toString(),
+        reason: data['reason']?.toString(),
         status: data['status']?.toString(),
         verified: data['verified'] == true,
         verifiedBy: data['verifiedBy']?.toString(),
@@ -140,6 +144,16 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
     if (status == 'inProgress')
       'assignedOrganizationId': assignedOrganizationId ?? uid,
     if (status == 'resolved') 'resolvedAt': FieldValue.serverTimestamp(),
+  });
+
+  @override
+  Future<void> updateReport({
+    required String id,
+    required String status,
+    required String uid,
+  }) => _firestore.collection('reports').doc(id).update({
+    'status': status,
+    'reviewedBy': uid,
   });
 
   @override

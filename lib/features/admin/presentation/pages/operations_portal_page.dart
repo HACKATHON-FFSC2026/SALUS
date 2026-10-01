@@ -66,6 +66,7 @@ class _OperationsPortalPageState extends ConsumerState<OperationsPortalPage> {
                 'Organisations',
                 'Refuges',
                 'Utilisateurs',
+                'Signalements',
                 'SOS',
                 'Zones',
               ]

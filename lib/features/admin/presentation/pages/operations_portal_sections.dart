@@ -12,11 +12,11 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
     if (section == 'Utilisateurs') {
       return _collectionPage(AdminCollection.users, admin, orgId);
     }
-    if (section == 'SOS') {
-      return _collectionPage(AdminCollection.sosAlerts, admin, orgId);
-    }
     if (section == 'Signalements') {
       return _collectionPage(AdminCollection.reports, admin, orgId);
+    }
+    if (section == 'SOS') {
+      return _collectionPage(AdminCollection.sosAlerts, admin, orgId);
     }
     return _collectionPage(AdminCollection.zones, admin, orgId);
   }
@@ -34,6 +34,7 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
     onCreateOrganization: _createOrganization,
     onEditOrganization: _editOrganization,
     onManageOrganizationMembership: _manageOrganizationMembership,
+    onViewReport: _viewReport,
     onCreateShelter: _createShelter,
     onCreateRiskZone: () => _openRiskZoneEditor(organizationId: orgId),
     onEditRiskZone: (zone) =>
@@ -69,7 +70,13 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
                 ? 2
                 : 1;
             final names = admin
-                ? ['SOS en cours', 'Organisations', 'Refuges', 'Utilisateurs']
+                ? [
+                    'SOS en cours',
+                    'Organisations',
+                    'Refuges',
+                    'Utilisateurs',
+                    'Signalements ouverts',
+                  ]
                 : ['SOS en cours', 'Signalements ouverts', 'Zones actives'];
             final collections = admin
                 ? const [
@@ -77,6 +84,7 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
                     AdminCollection.organizations,
                     AdminCollection.shelters,
                     AdminCollection.users,
+                    AdminCollection.reports,
                   ]
                 : const [
                     AdminCollection.sosAlerts,
@@ -120,20 +128,43 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
           limit: 6,
           onEditOrganization: (_) {},
           onManageOrganizationMembership: (_) {},
+          onViewReport: (_) {},
           onEditRiskZone: (_) {},
         ),
+        if (admin) ...[
+          const SizedBox(height: 20),
+          OperationsPortalDataTable(
+            title: 'Signalements à traiter',
+            collection: AdminCollection.reports,
+            isAdmin: true,
+            organizationId: orgId,
+            userId: _uid,
+            useCases: ref.read(adminPortalUseCasesProvider),
+            limit: 5,
+            onEditOrganization: (_) {},
+            onManageOrganizationMembership: (_) {},
+            onViewReport: _viewReport,
+            onEditRiskZone: (_) {},
+          ),
+        ],
       ],
     ),
   );
 
-  IconData _metricIcon(int i) =>
-      [Icons.sos, Icons.apartment, Icons.home_work, Icons.people][i % 4];
+  IconData _metricIcon(int i) => [
+    Icons.sos,
+    Icons.apartment,
+    Icons.home_work,
+    Icons.people,
+    Icons.report_outlined,
+  ][i % 5];
   Color _metricColor(int i) => [
     const Color(0xffc94b4b),
     AppColors.primary,
     AppColors.primary,
     AppColors.primary,
-  ][i % 4];
+    const Color(0xffd97706),
+  ][i % 5];
 
   Widget _metric(String title, int value, IconData icon, Color color) =>
       Container(

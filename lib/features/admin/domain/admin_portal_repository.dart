@@ -21,6 +21,12 @@ abstract interface class AdminPortalRepository {
     required String uid,
   });
 
+  Future<void> updateReport({
+    required String id,
+    required String status,
+    required String uid,
+  });
+
   Future<void> validateShelter(String id, String uid);
 
   Future<void> setShelterValidationStatus(String id, String status, String uid);
