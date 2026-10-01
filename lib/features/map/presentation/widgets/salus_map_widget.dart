@@ -10,6 +10,7 @@ import 'package:salus/features/map/presentation/providers/location_provider.dart
 import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
+import 'package:salus/features/risks/presentation/widgets/disaster_marker_pin.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
@@ -103,6 +104,19 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
 
             PolygonLayer(polygons: [for (final z in safeZones) z.toPolygon()]),
             PolygonLayer(polygons: [for (final z in riskZones) z.toPolygon()]),
+
+            MarkerLayer(
+              markers: [
+                for (final z in riskZones)
+                Marker(
+                  key: ValueKey('risk-marker-${z.id}'),
+                  point: z.center,
+                  width: 40,
+                 height: 40,
+              child: DisasterMarkerPin(zone: z),
+      ),
+  ],
+),
 
 
             // ponytail: CurrentLocationLayer ouvre son propre flux geolocator.
