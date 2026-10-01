@@ -56,10 +56,9 @@ class DefaultFirebaseOptions {
     projectId: 'salus-bd055',
     storageBucket: 'salus-bd055.firebasestorage.app',
   );
-
-  static const FirebaseOptions web = FirebaseOptions(
+static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyBq1UlywdS_2puDN8QpEQytd6dj4YEtils',
-    appId: '1:755877285966:web:3a168b98c246572853f31f',
+    appId: '1:755877285966:web:466d2a45691b63a853f31f',
     messagingSenderId: '755877285966',
     projectId: 'salus-bd055',
     authDomain: 'salus-bd055.firebaseapp.com',
