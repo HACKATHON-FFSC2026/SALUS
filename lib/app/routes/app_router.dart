@@ -7,7 +7,10 @@ import 'package:salus/features/home/presentation/pages/main_page.dart';
 import 'package:salus/features/admin/presentation/pages/operations_portal_page.dart';
 import 'package:salus/features/shelters/presentation/pages/create_shelter_page.dart';
 import 'package:salus/features/shelters/presentation/pages/shelter_location_picker_page.dart';
+import 'package:salus/core/entities/sos_alert_entity.dart';
+import 'package:salus/features/sos/presentation/pages/active_sos_list_page.dart';
 import 'package:salus/features/sos/presentation/pages/sos_page.dart';
+import 'package:salus/features/sos/presentation/pages/sos_response_detail_page.dart';
 
 part 'app_router.gr.dart';
 
@@ -21,6 +24,8 @@ class AppRouter extends RootStackRouter {
     AutoRoute(page: MainRoute.page),
 AutoRoute(page: OperationsPortalRoute.page),
     AutoRoute(page: SosRoute.page),
+    AutoRoute(page: ActiveSosListRoute.page),
+    AutoRoute(page: SosResponseDetailRoute.page),
     AutoRoute(page: CreateShelterRoute.page),
     AutoRoute(page: ShelterLocationPickerRoute.page),
   ];

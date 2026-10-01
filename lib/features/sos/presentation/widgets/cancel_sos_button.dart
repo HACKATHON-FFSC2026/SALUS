@@ -2,9 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:salus/core/themes/app_theme.dart';
 
 class CancelSosButton extends StatelessWidget {
+  const CancelSosButton({
+    super.key,
+    required this.onConfirmCancel,
+    this.isBusy = false,
+  });
+
   final VoidCallback onConfirmCancel;
 
-  const CancelSosButton({super.key, required this.onConfirmCancel});
+  /// Annulation en cours d'écriture: le bouton se verrouille pour ne pas
+  /// empiler les requêtes.
+  final bool isBusy;
 
   void _showConfirmationDialog(BuildContext context) {
     showDialog(
@@ -53,8 +61,14 @@ class CancelSosButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: OutlinedButton.icon(
-        onPressed: () => _showConfirmationDialog(context),
-        icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+        onPressed: isBusy ? null : () => _showConfirmationDialog(context),
+        icon: isBusy
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.check_circle_outline, color: Colors.green),
         label: const Text(
           'Je suis en sécurité (Annuler SOS)',
           style: TextStyle(

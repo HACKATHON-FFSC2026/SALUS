@@ -1,36 +1,51 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
+import 'package:salus/core/utils/geo_grid.dart';
 import '../../data/repositories/sos_repository_impl.dart';
 
-final activeSosStreamProvider = StreamProvider.autoDispose<List<SOSAlert>>((ref) async* {
+/// Alertes SOS actives, triées par proximité quand la position est connue.
+///
+/// La permission de localisation n'est jamais demandée ici : une liste qui
+/// s'ouvre depuis l'accueil n'a pas à faire apparaître une boîte de dialogue
+/// système. Sans permission déjà accordée, on retombe sur la liste globale.
+final activeSosStreamProvider = StreamProvider.autoDispose<List<SOSAlert>>((
+  ref,
+) async* {
   final repository = ref.watch(sosRepositoryProvider);
+  final origin = await _permittedPosition();
 
-  // Position actuelle de l'utilisateur
-  Position? currentPosition;
-  try {
-    currentPosition = await Geolocator.getCurrentPosition();
-  } catch (_) {
-    currentPosition = null;
-  }
-
-  await for (final alerts in repository.watchActiveSosAlerts()) {
-    if (currentPosition != null) {
-      final processedAlerts = alerts.map((sos) {
-        final distanceInMeters = Geolocator.distanceBetween(
-          currentPosition!.latitude,
-          currentPosition.longitude,
-          sos.location.latitude,
-          sos.location.longitude,
-        );
-        return sos.copyWith(distanceInKm: distanceInMeters / 1000);
-      }).toList();
-
-      // Tri par distance la plus proche
-      processedAlerts.sort((a, b) => (a.distanceInKm ?? 0).compareTo(b.distanceInKm ?? 0));
-      yield processedAlerts;
-    } else {
+  await for (final alerts in repository.watchActiveSosAlerts(
+    geoCells: origin == null
+        ? null
+        : GeoGrid.cellsAround(origin.latitude, origin.longitude),
+  )) {
+    if (origin == null) {
       yield alerts;
+      continue;
     }
+
+    final sorted = alerts
+        .map((sos) => sos.withDistanceFrom(latitude: origin.latitude, longitude: origin.longitude))
+        .toList()
+      ..sort((a, b) => (a.distanceInKm ?? 0).compareTo(b.distanceInKm ?? 0));
+    yield sorted;
   }
 });
+
+/// Position de référence si la permission est déjà accordée.
+///
+/// `getLastKnownPosition` ne déclenche aucune boîte de dialogue, contrairement
+/// à `getCurrentPosition`, et suffit à trier une liste d'alertes.
+Future<Position?> _permittedPosition() async {
+  try {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return null;
+    }
+    return await Geolocator.getLastKnownPosition();
+  } catch (_) {
+    return null;
+  }
+}
