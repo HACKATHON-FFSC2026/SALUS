@@ -7,6 +7,7 @@ import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
+import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
 import 'package:toastification/toastification.dart';
@@ -71,6 +72,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     final locationState = ref.watch(locationProvider);
     final sheltersAsync = ref.watch(validatedSheltersProvider);
     final shelters = sheltersAsync.value ?? const <Shelter>[];
+    final riskZonesAsync = ref.watch(activeRiskZonesProvider);
+    final riskZones = riskZonesAsync.value ?? const <Zone>[];
 
     return Stack(
       fit: StackFit.expand,
@@ -88,6 +91,21 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.salus.app',
             ),
+            if (riskZones.isNotEmpty)
+              PolygonLayer(
+                polygons: [
+                  for (final zone in riskZones)
+                    Polygon(
+                      points: [
+                        for (final point in zone.geometry)
+                          LatLng(point.latitude, point.longitude),
+                      ],
+                      color: _zoneColor(zone.severity).withValues(alpha: .22),
+                      borderColor: _zoneColor(zone.severity),
+                      borderStrokeWidth: 2.5,
+                    ),
+                ],
+              ),
 
             // ponytail: CurrentLocationLayer ouvre son propre flux geolocator.
             // Le recentrage passe par notre port, la pastille par le plugin.
@@ -171,7 +189,7 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_showLegend) const _ShelterLegend(),
+              if (_showLegend) const _MapLegend(),
               const SizedBox(width: 6),
               FloatingActionButton.small(
                 heroTag: 'shelter_legend_fab',
@@ -179,7 +197,7 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                 foregroundColor: AppColors.primary,
                 tooltip: _showLegend
                     ? 'Masquer la légende'
-                    : 'Légende des refuges',
+                    : 'Légende de la carte',
                 onPressed: () => setState(() => _showLegend = !_showLegend),
                 child: Icon(_showLegend ? Icons.close : Icons.info_outline),
               ),
@@ -236,8 +254,16 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
   }
 }
 
-class _ShelterLegend extends StatelessWidget {
-  const _ShelterLegend();
+Color _zoneColor(Severity? severity) => switch (severity) {
+  Severity.low => const Color(0xffe9a23b),
+  Severity.medium => const Color(0xffe47736),
+  Severity.high => const Color(0xffc94b4b),
+  Severity.critical => const Color(0xff8f2020),
+  null => const Color(0xffc94b4b),
+};
+
+class _MapLegend extends StatelessWidget {
+  const _MapLegend();
 
   @override
   Widget build(BuildContext context) {
@@ -247,24 +273,48 @@ class _ShelterLegend extends StatelessWidget {
       ShelterStatus.full,
       ShelterStatus.closed,
     ];
-    return Card(
-      color: AppColors.surface.withValues(alpha: 0.92),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 4,
-          children: [
-            for (final status in statuses)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(status.icon, size: 13, color: status.foregroundColor),
-                  const SizedBox(width: 4),
-                  Text(status.label, style: const TextStyle(fontSize: 11)),
-                ],
-              ),
-          ],
+    const severities = {
+      Severity.low: 'Risque faible',
+      Severity.medium: 'Risque modéré',
+      Severity.high: 'Risque élevé',
+      Severity.critical: 'Risque critique',
+    };
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width - 90,
+      ),
+      child: Card(
+        color: AppColors.surface.withValues(alpha: 0.92),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: [
+              for (final entry in severities.entries)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 13,
+                      color: _zoneColor(entry.key),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(entry.value, style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+              for (final status in statuses)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(status.icon, size: 13, color: status.foregroundColor),
+                    const SizedBox(width: 4),
+                    Text(status.label, style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:salus/features/admin/domain/admin_portal_repository.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
+import 'package:salus/features/admin/domain/models/admin_zone_point.dart';
 
 class FirestoreAdminPortalRepository implements AdminPortalRepository {
   FirestoreAdminPortalRepository(this._firestore);
@@ -93,6 +94,20 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
         organizationId: data['organizationId']?.toString(),
         assignedOrganizationId: data['assignedOrganizationId']?.toString(),
         createdBy: data['createdBy']?.toString(),
+        source: data['source']?.toString(),
+        zoneType: data['type']?.toString(),
+        zoneOrigin: data['origin']?.toString(),
+        disasterType: data['disasterType']?.toString(),
+        severity: data['severity']?.toString(),
+        geometry: (data['geometry'] as List<dynamic>? ?? const [])
+            .whereType<GeoPoint>()
+            .map(
+              (point) => AdminZonePoint(
+                latitude: point.latitude,
+                longitude: point.longitude,
+              ),
+            )
+            .toList(),
       );
 
   DateTime? _date(Object? value) => value is Timestamp
@@ -131,8 +146,84 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
       .update({'validationStatus': 'validated', 'validatedBy': uid});
 
   @override
+  Future<void> setShelterValidationStatus(
+    String id,
+    String status,
+    String uid,
+  ) => _firestore.collection('shelters').doc(id).update({
+    'validationStatus': status,
+    'validatedBy': status == 'validated' ? uid : null,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  @override
+  Future<void> createShelter({
+    required String name,
+    required String address,
+    required int capacityTotal,
+    required double latitude,
+    required double longitude,
+    required String userId,
+  }) => _firestore.collection('shelters').add({
+    'name': name,
+    'location': GeoPoint(latitude, longitude),
+    'address': address,
+    'capacityTotal': capacityTotal,
+    'capacityOccupied': 0,
+    'status': 'open',
+    'resources': {
+      'water': false,
+      'food': false,
+      'electricity': false,
+      'medicalKit': false,
+    },
+    'photos': <String>[],
+    'createdBy': userId,
+    'validationStatus': 'validated',
+    'validatedBy': userId,
+    'unsafeReportsCount': 0,
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  @override
   Future<void> toggleZone(String id, {required bool isActive}) =>
       _firestore.collection('zones').doc(id).update({'isActive': isActive});
+
+  @override
+  Future<void> saveManualRiskZone({
+    required String? id,
+    required String name,
+    required String disasterType,
+    required String severity,
+    required List<AdminZonePoint> geometry,
+    required String userId,
+    required String? organizationId,
+  }) async {
+    final collection = _firestore.collection('zones');
+    final document = id == null ? collection.doc() : collection.doc(id);
+    final values = <String, Object?>{
+      'type': 'risk',
+      'origin': 'manual',
+      'source': name,
+      'disasterType': disasterType,
+      'severity': severity,
+      'geometry': [
+        for (final point in geometry) GeoPoint(point.latitude, point.longitude),
+      ],
+    };
+    if (id == null) {
+      await document.set({
+        ...values,
+        'createdBy': userId,
+        'organizationId': organizationId,
+        'isActive': true,
+        'startedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      await document.update(values);
+    }
+  }
 
   @override
   Future<void> setUserActive(String id, {required bool isActive}) =>
