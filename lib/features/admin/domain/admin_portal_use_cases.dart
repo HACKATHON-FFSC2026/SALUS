@@ -51,7 +51,9 @@ class AdminPortalUseCases {
       activeSos: sos
           .where((record) => !['resolved', 'cancelled'].contains(record.status))
           .length,
-      organizations: organizations.where((record) => record.verified).length,
+      organizations: organizations
+          .where((record) => record.verified && record.isActive != false)
+          .length,
       shelters: records[AdminCollection.shelters]?.length ?? 0,
       users: records[AdminCollection.users]?.length ?? 0,
       openReports: reports.where((record) => record.status == 'open').length,
@@ -125,9 +127,38 @@ class AdminPortalUseCases {
   Future<void> setUserActive(String id, {required bool isActive}) =>
       _repository.setUserActive(id, isActive: isActive);
 
+  Future<void> assignUserToOrganization(String userId, String organizationId) =>
+      _repository.assignUserToOrganization(userId, organizationId);
+
+  Future<void> removeUserOrganizationRole(String userId) =>
+      _repository.removeUserOrganizationRole(userId);
+
   Future<void> createOrganization({
     required String name,
+    required String type,
     required String email,
     required String phone,
-  }) => _repository.createOrganization(name: name, email: email, phone: phone);
+  }) => _repository.createOrganization(
+    name: name,
+    type: type,
+    email: email,
+    phone: phone,
+  );
+
+  Future<void> updateOrganization({
+    required String id,
+    required String name,
+    required String type,
+    required String email,
+    required String phone,
+  }) => _repository.updateOrganization(
+    id: id,
+    name: name,
+    type: type,
+    email: email,
+    phone: phone,
+  );
+
+  Future<void> setOrganizationActive(String id, {required bool isActive}) =>
+      _repository.setOrganizationActive(id, isActive: isActive);
 }

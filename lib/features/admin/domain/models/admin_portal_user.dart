@@ -16,7 +16,6 @@ class AdminPortalUser {
   final String? email;
 
   bool get isAdmin => roles.contains('admin');
-  bool get isResponder =>
-      roles.contains('organizationMember') || roles.contains('shelterManager');
+  bool get isResponder => roles.contains('organizationMember');
   bool get canAccess => isActive && (isAdmin || isResponder);
 }

@@ -49,9 +49,24 @@ abstract interface class AdminPortalRepository {
 
   Future<void> setUserActive(String id, {required bool isActive});
 
+  Future<void> assignUserToOrganization(String userId, String organizationId);
+
+  Future<void> removeUserOrganizationRole(String userId);
+
   Future<void> createOrganization({
     required String name,
+    required String type,
     required String email,
     required String phone,
   });
+
+  Future<void> updateOrganization({
+    required String id,
+    required String name,
+    required String type,
+    required String email,
+    required String phone,
+  });
+
+  Future<void> setOrganizationActive(String id, {required bool isActive});
 }

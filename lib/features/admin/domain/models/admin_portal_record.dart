@@ -15,10 +15,13 @@ class AdminPortalRecord {
     this.capacityOccupied,
     this.capacityTotal,
     this.contactEmail,
+    this.contactPhone,
     this.type,
     this.targetType,
     this.status,
     this.verified = false,
+    this.verifiedBy,
+    this.verifiedAt,
     this.validationStatus,
     this.isActive,
     this.organizationId,
@@ -45,10 +48,13 @@ class AdminPortalRecord {
   final int? capacityOccupied;
   final int? capacityTotal;
   final String? contactEmail;
+  final String? contactPhone;
   final String? type;
   final String? targetType;
   final String? status;
   final bool verified;
+  final String? verifiedBy;
+  final DateTime? verifiedAt;
   final String? validationStatus;
   final bool? isActive;
   final String? organizationId;

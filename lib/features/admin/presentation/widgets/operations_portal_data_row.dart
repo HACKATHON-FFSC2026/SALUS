@@ -12,6 +12,8 @@ class OperationsPortalDataRow extends StatelessWidget {
     required this.isAdmin,
     required this.userId,
     required this.useCases,
+    required this.onEditOrganization,
+    required this.onManageOrganizationMembership,
     required this.onEditRiskZone,
   });
 
@@ -20,6 +22,8 @@ class OperationsPortalDataRow extends StatelessWidget {
   final bool isAdmin;
   final String userId;
   final AdminPortalUseCases useCases;
+  final ValueChanged<AdminPortalRecord> onEditOrganization;
+  final ValueChanged<AdminPortalRecord> onManageOrganizationMembership;
   final ValueChanged<AdminPortalRecord> onEditRiskZone;
 
   String get _detail => switch (collection) {
@@ -30,7 +34,7 @@ class OperationsPortalDataRow extends StatelessWidget {
     AdminCollection.shelters =>
       '${record.address ?? ''} · ${record.capacityOccupied ?? 0}/${record.capacityTotal ?? 0} places',
     AdminCollection.organizations =>
-      '${record.contactEmail ?? ''} · ${record.type ?? ''}',
+      '${record.contactEmail ?? ''} · ${record.contactPhone ?? ''} · ${_organizationType(record.type)}',
     AdminCollection.zones =>
       '${_disasterLabel(record.disasterType)} · ${_severityLabel(record.severity)} · ${record.geometry.length} points',
     _ =>
@@ -41,6 +45,12 @@ class OperationsPortalDataRow extends StatelessWidget {
       ? (record.isActive == false ? 'inactive' : 'active')
       : collection == AdminCollection.shelters
       ? record.validationStatus ?? 'pending'
+      : collection == AdminCollection.organizations
+      ? record.isActive == false
+            ? 'suspended'
+            : record.verified
+            ? 'verified'
+            : 'pending'
       : record.status ??
             (record.verified
                 ? 'vérifiée'
@@ -87,6 +97,28 @@ class OperationsPortalDataRow extends StatelessWidget {
             onPressed: () => useCases.verifyOrganization(record.id, userId),
             icon: const Icon(Icons.verified_outlined, color: AppColors.primary),
           ),
+        if (isAdmin && collection == AdminCollection.organizations) ...[
+          IconButton(
+            tooltip: 'Modifier l’organisation',
+            onPressed: () => onEditOrganization(record),
+            icon: const Icon(Icons.edit_outlined, color: AppColors.primary),
+          ),
+          IconButton(
+            tooltip: record.isActive == false
+                ? 'Réactiver l’organisation'
+                : 'Suspendre l’organisation',
+            onPressed: () => useCases.setOrganizationActive(
+              record.id,
+              isActive: record.isActive == false,
+            ),
+            icon: Icon(
+              record.isActive == false
+                  ? Icons.play_circle_outline
+                  : Icons.pause_circle_outline,
+              color: AppColors.inactive,
+            ),
+          ),
+        ],
         if (collection == AdminCollection.sosAlerts &&
             record.status != 'resolved' &&
             record.status != 'cancelled')
@@ -147,6 +179,25 @@ class OperationsPortalDataRow extends StatelessWidget {
           ),
         if (isAdmin && collection == AdminCollection.users)
           IconButton(
+            tooltip: record.roles.contains('organizationMember')
+                ? 'Modifier l’association organisation'
+                : 'Associer à une organisation',
+            onPressed: () => onManageOrganizationMembership(record),
+            icon: const Icon(Icons.business_outlined, color: AppColors.primary),
+          ),
+        if (isAdmin &&
+            collection == AdminCollection.users &&
+            record.roles.contains('organizationMember'))
+          IconButton(
+            tooltip: 'Retirer le rôle organisation',
+            onPressed: () => useCases.removeUserOrganizationRole(record.id),
+            icon: const Icon(
+              Icons.person_remove_alt_1,
+              color: AppColors.inactive,
+            ),
+          ),
+        if (isAdmin && collection == AdminCollection.users)
+          IconButton(
             tooltip: record.isActive == false
                 ? 'Réactiver le compte'
                 : 'Désactiver le compte',
@@ -184,6 +235,14 @@ String _severityLabel(String? value) => switch (value) {
   _ => 'Gravité inconnue',
 };
 
+String _organizationType(String? type) => switch (type) {
+  'ngo' => 'ONG',
+  'government' => 'Administration',
+  'emergencyServices' => 'Services d’urgence',
+  'other' => 'Autre',
+  _ => type ?? 'Organisation',
+};
+
 String _displayDate(DateTime? value) => value == null
     ? ''
     : '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
@@ -206,6 +265,7 @@ class _PortalStatusPill extends StatelessWidget {
     'rejected': 'Rejeté',
     'active': 'Active',
     'inactive': 'Inactive',
+    'suspended': 'Suspendue',
   };
 
   @override

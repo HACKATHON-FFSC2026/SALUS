@@ -21,12 +21,12 @@ service cloud.firestore {
 
     function isAdmin() { return hasRole('admin'); }
     function isCitizen() { return hasRole('citizen'); }
-    function isShelterManager() { return hasRole('shelterManager'); }
-    function isOrganizationMember() { return hasRole('organizationMember'); }
-    function ownsShelter() {
-      return signedIn()
-        && (resource.data.createdBy == request.auth.uid
-          || resource.data.managedBy == request.auth.uid);
+    function isOrganizationMember() {
+      return hasRole('organizationMember')
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId is string
+        && exists(/databases/$(database)/documents/organizations/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId))
+        && get(/databases/$(database)/documents/organizations/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId)).data.verified == true
+        && get(/databases/$(database)/documents/organizations/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId)).data.isActive != false;
     }
 
     // =========================
@@ -89,23 +89,16 @@ service cloud.firestore {
       // Shelter details are public so citizens can find help without signing in.
       allow read: if true;
 
-      // Citizens and shelter managers can submit a proposal, which always
-      // starts pending. Admins can add official, already validated shelters.
+      // Citizens can submit a proposal, which always starts pending.
+      // Admins can add official, already validated shelters.
       allow create: if isAdmin()
         || (signedIn()
-          && (isCitizen() || isShelterManager())
+          && isCitizen()
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.validationStatus == 'pending');
 
-      // Managers can update operational details on their own shelter, but
-      // cannot approve it, transfer ownership, or change its identity.
-      allow update: if isAdmin()
-        || (isShelterManager()
-          && ownsShelter()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'capacityTotal', 'capacityOccupied', 'status', 'resources',
-            'photos', 'address', 'location', 'updatedAt', 'unsafeReportsCount'
-          ]));
+      // Admins supervise and edit all refuge records.
+      allow update: if isAdmin();
 
       allow delete: if isAdmin();
     }

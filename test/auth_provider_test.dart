@@ -30,6 +30,11 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<bool> hasAccount() async => googleUser != null;
+
+  @override
+  Future<void> signOut() async {
+    googleUser = null;
+  }
 }
 
 const _aina = UserProfile(

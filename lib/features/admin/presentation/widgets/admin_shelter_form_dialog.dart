@@ -234,10 +234,12 @@ class _AdminShelterFormDialogState extends State<AdminShelterFormDialog> {
                         ),
                         validator: (value) {
                           final capacity = int.tryParse(value?.trim() ?? '');
-                          if (capacity == null)
+                          if (capacity == null) {
                             return 'Saisissez une capacité entière.';
-                          if (capacity <= 0)
+                          }
+                          if (capacity <= 0) {
                             return 'La capacité doit être supérieure à 0.';
+                          }
                           return null;
                         },
                       ),

@@ -32,6 +32,8 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
     userId: _uid,
     useCases: ref.read(adminPortalUseCasesProvider),
     onCreateOrganization: _createOrganization,
+    onEditOrganization: _editOrganization,
+    onManageOrganizationMembership: _manageOrganizationMembership,
     onCreateShelter: _createShelter,
     onCreateRiskZone: () => _openRiskZoneEditor(organizationId: orgId),
     onEditRiskZone: (zone) =>
@@ -116,6 +118,8 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
           userId: _uid,
           useCases: ref.read(adminPortalUseCasesProvider),
           limit: 6,
+          onEditOrganization: (_) {},
+          onManageOrganizationMembership: (_) {},
           onEditRiskZone: (_) {},
         ),
       ],
