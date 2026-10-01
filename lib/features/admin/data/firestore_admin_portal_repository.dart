@@ -163,6 +163,7 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
     required int capacityTotal,
     required double latitude,
     required double longitude,
+    required Map<String, bool> resources,
     required String userId,
   }) => _firestore.collection('shelters').add({
     'name': name,
@@ -171,12 +172,7 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
     'capacityTotal': capacityTotal,
     'capacityOccupied': 0,
     'status': 'open',
-    'resources': {
-      'water': false,
-      'food': false,
-      'electricity': false,
-      'medicalKit': false,
-    },
+    'resources': resources,
     'photos': <String>[],
     'createdBy': userId,
     'validationStatus': 'validated',

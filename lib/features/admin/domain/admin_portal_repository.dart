@@ -31,6 +31,7 @@ abstract interface class AdminPortalRepository {
     required int capacityTotal,
     required double latitude,
     required double longitude,
+    required Map<String, bool> resources,
     required String userId,
   });
 

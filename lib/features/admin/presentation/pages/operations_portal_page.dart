@@ -11,6 +11,7 @@ import 'package:salus/features/admin/presentation/providers/admin_portal_provide
 import 'package:salus/features/admin/presentation/widgets/operations_portal_navigation.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_collection.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_zone_editor.dart';
+import 'package:salus/features/admin/presentation/widgets/admin_shelter_form_dialog.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 
 part 'operations_portal_sections.dart';
