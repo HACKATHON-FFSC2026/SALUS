@@ -70,6 +70,22 @@ class MainRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [SosPage]
+class SosRoute extends PageRouteInfo<void> {
+  const SosRoute({List<PageRouteInfo>? children})
+    : super(SosRoute.name, initialChildren: children);
+
+  static const String name = 'SosRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const SosPage();
+    },
+  );
+}
+
+/// generated route for
 /// [ShelterLocationPickerPage]
 class ShelterLocationPickerRoute
     extends PageRouteInfo<ShelterLocationPickerRouteArgs> {
