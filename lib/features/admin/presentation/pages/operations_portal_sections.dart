@@ -32,6 +32,10 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
     userId: _uid,
     useCases: ref.read(adminPortalUseCasesProvider),
     onCreateOrganization: _createOrganization,
+    onCreateShelter: _createShelter,
+    onCreateRiskZone: () => _openRiskZoneEditor(organizationId: orgId),
+    onEditRiskZone: (zone) =>
+        _openRiskZoneEditor(organizationId: orgId, zone: zone),
   );
 
   Widget _overview(bool admin, String? orgId) => SingleChildScrollView(
@@ -112,6 +116,7 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
           userId: _uid,
           useCases: ref.read(adminPortalUseCasesProvider),
           limit: 6,
+          onEditRiskZone: (_) {},
         ),
       ],
     ),

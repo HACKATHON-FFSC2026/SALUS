@@ -20,8 +20,13 @@ service cloud.firestore {
     }
 
     function isAdmin() { return hasRole('admin'); }
-    function isResponder() {
-      return hasRole('organizationMember') || hasRole('shelterManager');
+    function isCitizen() { return hasRole('citizen'); }
+    function isShelterManager() { return hasRole('shelterManager'); }
+    function isOrganizationMember() { return hasRole('organizationMember'); }
+    function ownsShelter() {
+      return signedIn()
+        && (resource.data.createdBy == request.auth.uid
+          || resource.data.managedBy == request.auth.uid);
     }
 
     // =========================
@@ -32,11 +37,6 @@ service cloud.firestore {
       function isSelf() {
         return request.auth != null
           && request.auth.uid == userId;
-      }
-
-      function isAdmin() {
-        return signedIn()
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['admin']);
       }
 
       function onlySelfWritable() {
@@ -72,6 +72,8 @@ service cloud.firestore {
 
       allow create: if isSelf() && validCreate();
 
+      // Admins can approve role requests and manage account roles. Users can
+      // only edit their own profile fields from the allowlist above.
       allow update: if isAdmin()
         || (isSelf() && onlySelfWritable());
 
@@ -84,21 +86,28 @@ service cloud.firestore {
     // =========================
     match /shelters/{shelterId} {
 
-      // Authenticated users can see shelters.
-      allow read: if request.auth != null;
+      // Shelter details are public so citizens can find help without signing in.
+      allow read: if true;
 
-      // An authenticated user can create a shelter
-      // only if they are recorded as its creator.
-      allow create: if request.auth != null
-        && request.resource.data.createdBy == request.auth.uid;
+      // Citizens and shelter managers can submit a proposal, which always
+      // starts pending. Admins can add official, already validated shelters.
+      allow create: if isAdmin()
+        || (signedIn()
+          && (isCitizen() || isShelterManager())
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.validationStatus == 'pending');
 
-      // The creator can update their own shelter.
-      allow update: if isAdmin() || (request.auth != null
-        && resource.data.createdBy == request.auth.uid);
+      // Managers can update operational details on their own shelter, but
+      // cannot approve it, transfer ownership, or change its identity.
+      allow update: if isAdmin()
+        || (isShelterManager()
+          && ownsShelter()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'capacityTotal', 'capacityOccupied', 'status', 'resources',
+            'photos', 'address', 'location', 'updatedAt', 'unsafeReportsCount'
+          ]));
 
-      // The creator can delete their own shelter.
-      allow delete: if isAdmin() || (request.auth != null
-        && resource.data.createdBy == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
     match /organizations/{organizationId} {
@@ -108,19 +117,27 @@ service cloud.firestore {
 
     match /sos_alerts/{alertId} {
       // Responders need a shared live queue to coordinate incoming distress calls.
-      allow read: if isAdmin() || isResponder();
-      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin() || (isResponder()
+      allow read: if isAdmin() || isOrganizationMember()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || (isOrganizationMember()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['status', 'assignedOrganizationId', 'resolvedAt', 'respondersCount'])
         && request.resource.data.status in ['inProgress', 'resolved', 'cancelled']);
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'updatedAt'])
+        && request.resource.data.status == 'cancelled';
       allow delete: if isAdmin();
     }
 
     match /reports/{reportId} {
-      allow read: if isAdmin() || isResponder();
+      allow read: if isAdmin() || isOrganizationMember()
+        || (signedIn() && resource.data.reporterId == request.auth.uid);
       allow create: if signedIn() && request.resource.data.reporterId == request.auth.uid;
-      allow update: if isAdmin() || (isResponder()
+      allow update: if isAdmin() || (isOrganizationMember()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['status', 'reviewedBy'])
         && request.resource.data.status in ['reviewed', 'resolved']);
@@ -128,18 +145,19 @@ service cloud.firestore {
     }
 
     match /zones/{zoneId} {
-      allow read: if signedIn();
-      allow create: if isAdmin() || (isResponder()
+      // Citizens need map data before logging in.
+      allow read: if true;
+      allow create: if isAdmin() || (isOrganizationMember()
         && request.resource.data.createdBy == request.auth.uid);
-      allow update, delete: if isAdmin() || (isResponder()
+      allow update, delete: if isAdmin() || (isOrganizationMember()
         && resource.data.createdBy == request.auth.uid);
     }
 
     match /help_responses/{responseId} {
-      allow read: if isAdmin() || isResponder();
-      allow create: if isResponder()
+      allow read: if isAdmin() || isOrganizationMember();
+      allow create: if isOrganizationMember()
         && request.resource.data.responderId == request.auth.uid;
-      allow update: if isAdmin() || (isResponder()
+      allow update: if isAdmin() || (isOrganizationMember()
         && resource.data.responderId == request.auth.uid);
       allow delete: if isAdmin();
     }

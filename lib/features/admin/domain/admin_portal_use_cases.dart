@@ -3,6 +3,7 @@ import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_dashboard_metrics.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
+import 'package:salus/features/admin/domain/models/admin_zone_point.dart';
 
 /// Cas d'utilisation du portail. Les widgets ne portent aucune règle métier
 /// et ne dépendent que de cette couche applicative.
@@ -76,8 +77,48 @@ class AdminPortalUseCases {
   Future<void> validateShelter(String id, String uid) =>
       _repository.validateShelter(id, uid);
 
+  Future<void> setShelterValidationStatus(
+    String id,
+    String status,
+    String uid,
+  ) => _repository.setShelterValidationStatus(id, status, uid);
+
+  Future<void> createShelter({
+    required String name,
+    required String address,
+    required int capacityTotal,
+    required double latitude,
+    required double longitude,
+    required String userId,
+  }) => _repository.createShelter(
+    name: name,
+    address: address,
+    capacityTotal: capacityTotal,
+    latitude: latitude,
+    longitude: longitude,
+    userId: userId,
+  );
+
   Future<void> toggleZone(String id, {required bool isActive}) =>
       _repository.toggleZone(id, isActive: isActive);
+
+  Future<void> saveManualRiskZone({
+    required String? id,
+    required String name,
+    required String disasterType,
+    required String severity,
+    required List<AdminZonePoint> geometry,
+    required String userId,
+    required String? organizationId,
+  }) => _repository.saveManualRiskZone(
+    id: id,
+    name: name,
+    disasterType: disasterType,
+    severity: severity,
+    geometry: geometry,
+    userId: userId,
+    organizationId: organizationId,
+  );
 
   Future<void> setUserActive(String id, {required bool isActive}) =>
       _repository.setUserActive(id, isActive: isActive);

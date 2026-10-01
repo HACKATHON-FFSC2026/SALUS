@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
+import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_data_row.dart';
 
@@ -14,6 +15,9 @@ class OperationsPortalCollection extends StatelessWidget {
     required this.userId,
     required this.useCases,
     required this.onCreateOrganization,
+    required this.onCreateShelter,
+    required this.onCreateRiskZone,
+    required this.onEditRiskZone,
   });
 
   final AdminCollection collection;
@@ -22,6 +26,9 @@ class OperationsPortalCollection extends StatelessWidget {
   final String userId;
   final AdminPortalUseCases useCases;
   final VoidCallback onCreateOrganization;
+  final VoidCallback onCreateShelter;
+  final VoidCallback onCreateRiskZone;
+  final ValueChanged<AdminPortalRecord> onEditRiskZone;
 
   String get _title => switch (collection) {
     AdminCollection.organizations => 'Organisations',
@@ -61,6 +68,18 @@ class OperationsPortalCollection extends StatelessWidget {
                 icon: const Icon(Icons.add),
                 label: const Text('Ajouter'),
               ),
+            if (isAdmin && collection == AdminCollection.shelters)
+              FilledButton.icon(
+                onPressed: onCreateShelter,
+                icon: const Icon(Icons.add),
+                label: const Text('Ajouter un refuge'),
+              ),
+            if (collection == AdminCollection.zones)
+              FilledButton.icon(
+                onPressed: onCreateRiskZone,
+                icon: const Icon(Icons.add_location_alt_outlined),
+                label: const Text('Tracer une zone à risque'),
+              ),
           ],
         ),
         const SizedBox(height: 20),
@@ -71,6 +90,7 @@ class OperationsPortalCollection extends StatelessWidget {
           organizationId: organizationId,
           userId: userId,
           useCases: useCases,
+          onEditRiskZone: onEditRiskZone,
         ),
       ],
     ),
@@ -86,6 +106,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
     required this.organizationId,
     required this.userId,
     required this.useCases,
+    required this.onEditRiskZone,
     this.limit,
   });
 
@@ -95,6 +116,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
   final String? organizationId;
   final String userId;
   final AdminPortalUseCases useCases;
+  final ValueChanged<AdminPortalRecord> onEditRiskZone;
   final int? limit;
 
   @override
@@ -149,6 +171,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
                 isAdmin: isAdmin,
                 userId: userId,
                 useCases: useCases,
+                onEditRiskZone: onEditRiskZone,
               ),
           ],
         ),

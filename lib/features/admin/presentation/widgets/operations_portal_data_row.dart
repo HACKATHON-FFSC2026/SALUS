@@ -12,6 +12,7 @@ class OperationsPortalDataRow extends StatelessWidget {
     required this.isAdmin,
     required this.userId,
     required this.useCases,
+    required this.onEditRiskZone,
   });
 
   final AdminCollection collection;
@@ -19,6 +20,7 @@ class OperationsPortalDataRow extends StatelessWidget {
   final bool isAdmin;
   final String userId;
   final AdminPortalUseCases useCases;
+  final ValueChanged<AdminPortalRecord> onEditRiskZone;
 
   String get _detail => switch (collection) {
     AdminCollection.sosAlerts =>
@@ -29,17 +31,22 @@ class OperationsPortalDataRow extends StatelessWidget {
       '${record.address ?? ''} · ${record.capacityOccupied ?? 0}/${record.capacityTotal ?? 0} places',
     AdminCollection.organizations =>
       '${record.contactEmail ?? ''} · ${record.type ?? ''}',
+    AdminCollection.zones =>
+      '${_disasterLabel(record.disasterType)} · ${_severityLabel(record.severity)} · ${record.geometry.length} points',
     _ =>
       '${record.targetType ?? record.type ?? ''} · ${_displayDate(record.createdAt ?? record.startedAt)}',
   };
 
-  String get _status =>
-      record.status ??
-      (record.verified
-          ? 'vérifiée'
-          : collection == AdminCollection.organizations
-          ? 'à vérifier'
-          : record.validationStatus ?? 'actif');
+  String get _status => collection == AdminCollection.zones
+      ? (record.isActive == false ? 'inactive' : 'active')
+      : collection == AdminCollection.shelters
+      ? record.validationStatus ?? 'pending'
+      : record.status ??
+            (record.verified
+                ? 'vérifiée'
+                : collection == AdminCollection.organizations
+                ? 'à vérifier'
+                : record.validationStatus ?? 'actif');
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -96,13 +103,21 @@ class OperationsPortalDataRow extends StatelessWidget {
               color: AppColors.primary,
             ),
           ),
-        if (isAdmin &&
-            collection == AdminCollection.shelters &&
-            record.validationStatus == 'pending')
-          IconButton(
-            tooltip: 'Valider le refuge',
-            onPressed: () => useCases.validateShelter(record.id, userId),
-            icon: const Icon(Icons.task_alt, color: AppColors.primary),
+        if (isAdmin && collection == AdminCollection.shelters)
+          PopupMenuButton<String>(
+            tooltip: 'Changer le statut',
+            initialValue: record.validationStatus ?? 'pending',
+            onSelected: (status) =>
+                useCases.setShelterValidationStatus(record.id, status, userId),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'validated', child: Text('Validé')),
+              PopupMenuItem(value: 'pending', child: Text('En attente')),
+              PopupMenuItem(value: 'rejected', child: Text('Rejeté')),
+            ],
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(Icons.edit_outlined, color: AppColors.primary),
+            ),
           ),
         if (collection == AdminCollection.zones &&
             (isAdmin || record.createdBy == userId))
@@ -120,6 +135,15 @@ class OperationsPortalDataRow extends StatelessWidget {
                   : Icons.visibility_outlined,
               color: AppColors.inactive,
             ),
+          ),
+        if (collection == AdminCollection.zones &&
+            record.zoneType == 'risk' &&
+            record.zoneOrigin == 'manual' &&
+            (isAdmin || record.createdBy == userId))
+          IconButton(
+            tooltip: 'Modifier le périmètre',
+            onPressed: () => onEditRiskZone(record),
+            icon: const Icon(Icons.edit_location_alt_outlined),
           ),
         if (isAdmin && collection == AdminCollection.users)
           IconButton(
@@ -142,6 +166,24 @@ class OperationsPortalDataRow extends StatelessWidget {
   );
 }
 
+String _disasterLabel(String? value) => switch (value) {
+  'flood' => 'Inondation',
+  'cyclone' => 'Cyclone',
+  'landslide' => 'Glissement de terrain',
+  'earthquake' => 'Séisme',
+  'tsunami' => 'Tsunami',
+  'volcano' => 'Éruption volcanique',
+  _ => 'Risque',
+};
+
+String _severityLabel(String? value) => switch (value) {
+  'low' => 'Faible',
+  'medium' => 'Modérée',
+  'high' => 'Élevée',
+  'critical' => 'Critique',
+  _ => 'Gravité inconnue',
+};
+
 String _displayDate(DateTime? value) => value == null
     ? ''
     : '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
@@ -156,17 +198,25 @@ class _PortalStatusPill extends StatelessWidget {
     'inProgress': 'En cours',
     'resolved': 'Résolue',
     'cancelled': 'Annulée',
-    'pending': 'À valider',
+    'pending': 'En attente',
     'validated': 'Validé',
     'open': 'Ouvert',
     'reviewed': 'Examiné',
     'verified': 'Vérifiée',
-    'rejected': 'Refusé',
+    'rejected': 'Rejeté',
+    'active': 'Active',
+    'inactive': 'Inactive',
   };
 
   @override
   Widget build(BuildContext context) {
-    final active = ['waiting', 'pending', 'open', 'inProgress'].contains(value);
+    final active = [
+      'waiting',
+      'pending',
+      'open',
+      'inProgress',
+      'active',
+    ].contains(value);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(

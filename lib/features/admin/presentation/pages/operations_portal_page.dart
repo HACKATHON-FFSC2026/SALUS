@@ -6,9 +6,11 @@ import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_dashboard_metrics.dart';
+import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/presentation/providers/admin_portal_providers.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_navigation.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_collection.dart';
+import 'package:salus/features/admin/presentation/widgets/operations_portal_zone_editor.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 
 part 'operations_portal_sections.dart';
@@ -62,6 +64,7 @@ class _OperationsPortalPageState extends ConsumerState<OperationsPortalPage> {
                 'Refuges',
                 'Utilisateurs',
                 'SOS',
+                'Zones',
               ]
             : const ['Vue générale', 'SOS', 'Signalements', 'Zones'];
         final index = _section.clamp(0, sections.length - 1);
