@@ -9,6 +9,12 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   String? get currentUserId => googleUser?.uid;
 
+  @override
+  UserProfile? get currentProfile => restoredSession;
+
+  /// Session déjà ouverte au démarrage de l'app (redémarrage du processus).
+  UserProfile? restoredSession;
+
   UserProfile? googleUser;
   bool guestThrows = false;
   bool syncThrows = false;
@@ -59,6 +65,34 @@ void main() {
   test('starts idle', () {
     expect(state().status, AuthStatus.idle);
     expect(state().isAuthenticated, isFalse);
+  });
+
+  /// Régression : après redémarrage, FirebaseAuth restaure sa session sur
+  /// disque. L'état repartait pourtant de zéro, si bien que la page SOS
+  /// demandait de se reconnecter et retirait le bouton d'envoi.
+  group('restauration de session', () {
+    test('réhydrate un profil déjà connecté', () {
+      fake.restoredSession = _aina;
+      final restored = ProviderContainer(
+        overrides: [authRepositoryProvider.overrideWithValue(fake)],
+      );
+      addTearDown(restored.dispose);
+
+      final state = restored.read(authProvider);
+      expect(state.status, AuthStatus.authenticated);
+      expect(state.user, _aina);
+    });
+
+    test('laisse un invité hors connexion au repos', () {
+      final restored = ProviderContainer(
+        overrides: [authRepositoryProvider.overrideWithValue(fake)],
+      );
+      addTearDown(restored.dispose);
+
+      final state = restored.read(authProvider);
+      expect(state.status, AuthStatus.idle);
+      expect(state.user, isNull);
+    });
   });
 
   group('signInWithGoogle', () {

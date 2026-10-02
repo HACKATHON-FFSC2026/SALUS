@@ -28,6 +28,22 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  UserProfile? get currentProfile {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+      return UserProfile(
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+      );
+    } catch (e) {
+      Log.warning('FirebaseAuth indisponible: $e');
+      return null;
+    }
+  }
+
+  @override
   Future<UserProfile?> signInWithGoogle() async {
     try {
       final auth = FirebaseAuth.instance;
