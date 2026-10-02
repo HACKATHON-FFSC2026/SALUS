@@ -7,6 +7,7 @@ import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/auth/presentation/state/auth_state.dart';
 import '../../domain/entities/emergency_numbers.dart';
+import '../../domain/usecases/send_sos_usecase.dart';
 import '../providers/sos_provider.dart';
 import '../widgets/call_emergency_button.dart';
 import '../widgets/cancel_sos_button.dart';
@@ -23,6 +24,17 @@ class SosPage extends ConsumerStatefulWidget {
 
 class _SosPageState extends ConsumerState<SosPage> {
   DistressType _distressType = DistressType.other;
+
+  @override
+  void initState() {
+    super.initState();
+    // La permission est demandée à l'arrivée sur la page, pas au moment du
+    // maintien. Sinon le gesture aboutit à une boîte de dialogue système
+    // puis à une erreur, alors que l'utilisateur vient de signaler une
+    // détresse: si le dialogue est refusé ou la géolocalisation coupée,
+    // aucune alerte n'est jamais envoyée.
+    WidgetsBinding.instance.addPostFrameCallback((_) => requestLocationPermission());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,43 +123,63 @@ class _SendSosView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!canSend) return const _SignInPrompt();
-
-    return Column(
-      children: [
-        const Spacer(),
-        const Text(
-          'SOS',
-          style: TextStyle(
-            fontSize: 36,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
-            color: AppColors.primary,
+    // La page ne tient pas en hauteur sur un petit écran : bouton 240 px,
+    // sélecteur de type, numéros d'urgence. `Spacer` débordait donc sur
+    // petit écran. `minHeight` + `spaceEvenly` garde la répartition sur
+    // grand écran tout en autorisant le défilement quand ça ne rentre pas.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              const Text(
+                'SOS',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  'Votre position sera transmise aux secours.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.inactive,
+                    fontSize: 15,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              _DistressTypePicker(
+                selected: distressType,
+                labels: _labels,
+                onChanged: onDistressTypeChanged,
+              ),
+              // L'envoi exige une identité vérifiable, mais l'écran ne masque
+              // jamais les numéros d'urgence: un invité en détresse doit
+              // pouvoir appeler quelqu'un même sans compte, et le compte
+              // n'est pas l'urgence.
+              if (!canSend) const _SignInHint(),
+              SosButton(
+                isLoading: isSending,
+                isEnabled: canSend,
+                onHold: onSend,
+              ),
+              CallEmergencyButton(
+                numbers: EmergencyNumbers.forCountry('Madagascar'),
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 40),
-          child: Text(
-            'Votre position sera transmise aux secours.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.inactive, fontSize: 15, height: 1.3),
-          ),
-        ),
-        const SizedBox(height: 18),
-        _DistressTypePicker(
-          selected: distressType,
-          labels: _labels,
-          onChanged: onDistressTypeChanged,
-        ),
-        const Spacer(),
-        SosButton(isLoading: isSending, isEnabled: true, onHold: onSend),
-        const Spacer(),
-        CallEmergencyButton(
-          numbers: EmergencyNumbers.forCountry('Madagascar'),
-        ),
-        const SizedBox(height: 20),
-      ],
+      ),
     );
   }
 }
@@ -225,58 +257,48 @@ class _DistressTypePicker extends StatelessWidget {
   }
 }
 
-/// Identité non vérifiée: le spec veut la connexion avant l'action sensible,
-/// pas un échec avec un message d'erreur après le maintien.
-class _SignInPrompt extends ConsumerWidget {
-  const _SignInPrompt();
+/// Émission possible sans compte, envoi impossible. Invite à se connecter
+/// au lieu de remplacer l'écran.
+///
+/// Le bouton d'envoi reste visible mais inerte : l'utilisateur voit ce qu'il
+/// lui manque et ce qu'il peut faire dans l'intervalle — appeler un numéro
+/// d'urgence, qui est la seule action qui compte quand on est en détresse.
+class _SignInHint extends StatelessWidget {
+  const _SignInHint();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authProvider);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.lock_outline, size: 56, color: AppColors.primary),
-            const SizedBox(height: 16),
-            Text(
-              'Identifiez-vous pour envoyer un SOS',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.bold,
-              ),
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Material(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => context.router.push(const LoginRoute()),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.lock_outline,
+                  size: 20,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Connectez-vous pour envoyer un SOS',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: AppColors.primary),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Un SOS engage des secours: votre identité doit être vérifiable '
-              'pour qu\'ils sachent qui intervenir.',
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.inactive),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => context.router.push(const LoginRoute()),
-              icon: const Icon(Icons.login, color: Colors.white),
-              label: const Text(
-                'Se connecter',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            if (auth.warningMessage != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                auth.warningMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.secondary),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

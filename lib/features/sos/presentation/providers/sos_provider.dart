@@ -100,6 +100,11 @@ class SosController extends Notifier<SosState> {
     DistressType distressType = DistressType.other,
     String? description,
   }) async {
+    // Deux gardes, pas une. `hasActiveAlert` ne dépend que d'`alertId`, qui
+    // n'est renseigné qu'après l'écriture : pendant l'envoi en vol il reste
+    // nul et la garde passerait, créant une seconde alerte. `sending` ferme la
+    // fenêtre entre le geste et l'écriture.
+    if (state.status == SosStatus.sending) return;
     if (state.hasActiveAlert) {
       state = state.copyWith(
         status: SosStatus.error,
