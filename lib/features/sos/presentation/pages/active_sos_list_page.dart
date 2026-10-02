@@ -6,7 +6,7 @@ import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import '../providers/active_sos_provider.dart';
-import '../providers/sos_provider.dart';
+import '../providers/responder_controller.dart';
 
 @RoutePage()
 class ActiveSosListPage extends ConsumerWidget {
@@ -92,7 +92,7 @@ class ActiveSosListPage extends ConsumerWidget {
   Future<void> _respond(BuildContext context, WidgetRef ref, SOSAlert sos) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(respondToSosUseCaseProvider).execute(sos.id);
+      await ref.read(offerHelpUseCaseProvider).execute(alertId: sos.id);
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(

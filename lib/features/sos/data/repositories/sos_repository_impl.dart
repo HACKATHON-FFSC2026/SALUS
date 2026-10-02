@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/features/sos/data/datasources/sos_remote_datasource.dart';
+import 'package:salus/features/sos/domain/entities/help_response.dart';
+import 'package:salus/features/sos/domain/entities/responder_location.dart';
 import 'package:salus/features/sos/domain/repositories/sos_repository.dart';
 
 final sosRemoteDataSourceProvider = Provider<ISosRemoteDataSource>((ref) {
@@ -54,6 +56,58 @@ class SosRepositoryImpl implements ISosRepository {
   @override
   Future<void> respondToSos(String alertId) {
     return _remoteDataSource.respondToSos(alertId);
+  }
+
+  @override
+  Future<String> offerHelp({
+    required String alertId,
+    HelpResponseType responseType = HelpResponseType.comingInPerson,
+    String? message,
+  }) {
+    return _remoteDataSource.createHelpResponse(
+      alertId: alertId,
+      responseType: responseType,
+      message: message,
+    );
+  }
+
+  @override
+  Future<void> setHelpStatus({
+    required String responseId,
+    required HelpResponseStatus status,
+  }) {
+    return _remoteDataSource.setHelpResponseStatus(
+      responseId: responseId,
+      status: status,
+    );
+  }
+
+  @override
+  Stream<List<HelpResponse>> watchHelpResponses(String alertId) {
+    return _remoteDataSource.watchHelpResponses(alertId);
+  }
+
+  @override
+  Future<void> shareResponderLocation({
+    required String alertId,
+    required double latitude,
+    required double longitude,
+  }) {
+    return _remoteDataSource.shareResponderLocation(
+      alertId: alertId,
+      latitude: latitude,
+      longitude: longitude,
+    );
+  }
+
+  @override
+  Future<void> stopResponderLocation(String alertId) {
+    return _remoteDataSource.stopResponderLocation(alertId);
+  }
+
+  @override
+  Stream<List<ResponderLocation>> watchResponderLocations(String alertId) {
+    return _remoteDataSource.watchResponderLocations(alertId);
   }
 
   @override
