@@ -7,7 +7,7 @@ import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/auth/presentation/state/auth_state.dart';
 import '../../domain/entities/emergency_numbers.dart';
-import '../../domain/entities/help_response.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
 import '../../domain/usecases/send_sos_usecase.dart';
 import '../providers/responder_controller.dart';
 import '../providers/sos_provider.dart';
@@ -345,14 +345,6 @@ class _ResponderRow extends StatelessWidget {
               ],
             ),
           ),
-          if (response.message case final message? when message.isNotEmpty)
-            Flexible(
-              child: Text(
-                message,
-                textAlign: TextAlign.right,
-                style: const TextStyle(color: AppColors.inactive, fontSize: 12),
-              ),
-            ),
         ],
       ),
     );

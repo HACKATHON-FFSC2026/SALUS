@@ -6,8 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/utils/log.dart';
 import 'package:salus/features/sos/data/repositories/sos_repository_impl.dart';
-import 'package:salus/features/sos/domain/entities/help_response.dart';
-import 'package:salus/features/sos/domain/entities/responder_location.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
+import 'package:salus/core/entities/location_share_entity.dart';
 import 'package:salus/features/sos/domain/usecases/offer_help_usecase.dart';
 import 'package:salus/features/sos/domain/usecases/send_sos_usecase.dart';
 
@@ -19,7 +19,15 @@ final setHelpStatusUseCaseProvider = Provider<SetHelpStatusUseCase>(
   (ref) => SetHelpStatusUseCase(ref.watch(sosRepositoryProvider)),
 );
 
-/// IntervenantsDeclare sur une alerte, pour la victime.
+/// Compte comme intervenant en cours pour la victime.
+extension ActiveHelpResponse on HelpResponse {
+  /// `responderIds` sur l'alerte est un registre figé — les règles n'autorisent
+  /// que l'ajout, jamais le retrait, pour garder la trace de qui s'est proposé.
+  /// Seul ce statut dit qui est encore mobilisable.
+  bool get isActive => status != HelpResponseStatus.cancelled;
+}
+
+/// Intervenants Declare sur une alerte, pour la victime.
 ///
 /// Le compte ne vient pas de `responderIds`: ce registre est figé par les
 /// règles, qui n'autorisent que l'ajout. Quelqu'un qui s'est retracte y reste
@@ -37,7 +45,7 @@ final respondersProvider = StreamProvider.family
 
 /// Positions connues des intervenants, indexées par uid.
 final responderLocationsProvider = StreamProvider.family
-    .autoDispose<Map<String, ResponderLocation>, String>((ref, alertId) {
+    .autoDispose<Map<String, LocationShare>, String>((ref, alertId) {
       return ref.watch(sosRepositoryProvider).watchResponderLocations(
         alertId,
       ).map((locations) => {for (final l in locations) l.userId: l});
@@ -211,17 +219,18 @@ final responderControllerProvider =
 /// `null` si l'une des positions est inconnue: on n'invente pas une distance.
 double? distanceInMeters({
   required SOSAlert alert,
-  required ResponderLocation? location,
+  required LocationShare? location,
 }) {
   if (location == null) return null;
   const earthRadiusKm = 6371.0;
   const toRad = 3.141592653589793 / 180;
-  final dLat = (location.latitude - alert.location.latitude) * toRad;
-  final dLon = (location.longitude - alert.location.longitude) * toRad;
+  final dLat = (location.currentLocation.latitude - alert.location.latitude) * toRad;
+  final dLon =
+      (location.currentLocation.longitude - alert.location.longitude) * toRad;
   final h =
       math.pow(math.sin(dLat / 2), 2) +
       math.cos(alert.location.latitude * toRad) *
-          math.cos(location.latitude * toRad) *
+          math.cos(location.currentLocation.latitude * toRad) *
           math.pow(math.sin(dLon / 2), 2);
   return 2 * earthRadiusKm * math.atan2(math.sqrt(h), math.sqrt(1 - h)) * 1000;
 }

@@ -1,14 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
+import 'package:salus/core/entities/location_share_entity.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/utils/geo_grid.dart';
 import 'package:salus/core/utils/log.dart';
-import 'package:salus/features/sos/domain/entities/help_response.dart';
-import 'package:salus/features/sos/domain/entities/responder_location.dart';
 
 /// Bornes de sécurité: au-delà, la liste devient inutilisable et coûte cher.
 /// Un flux d'alertes vit ou meurt dans les premières minutes, pas des heures.
 const _maxAlertsPerRead = 200;
+
+/// Un document par intervenant et par alerte, dans les deux collections.
+///
+/// Conséquence recherchée: répondre deux fois à la même alerte réutilise le
+/// même document au lieu d'en créer un second, qui doublerait le compte côté
+/// victime. Le retrait ne l'efface pas — il passe par le statut.
+String responderDocumentId({
+  required String alertId,
+  required String responderId,
+}) => '${alertId}_$responderId';
 
 abstract class ISosRemoteDataSource {
   /// Retourne l'identifiant du document créé.
@@ -31,7 +41,7 @@ abstract class ISosRemoteDataSource {
 
   Future<String> createHelpResponse({
     required String alertId,
-    required HelpResponseType responseType,
+    required ResponseType responseType,
     String? message,
   });
 
@@ -50,7 +60,7 @@ abstract class ISosRemoteDataSource {
 
   Future<void> stopResponderLocation(String alertId);
 
-  Stream<List<ResponderLocation>> watchResponderLocations(String alertId);
+  Stream<List<LocationShare>> watchResponderLocations(String alertId);
 
   Future<void> shareSosLocation({
     required String alertId,
@@ -187,27 +197,20 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
   @override
   Future<String> createHelpResponse({
     required String alertId,
-    required HelpResponseType responseType,
+    required ResponseType responseType,
     String? message,
   }) async {
     final uid = _requireUid();
-    // ID déterministe: un double-tap sur « JE RÉPONDS » réutilise le même
-    // document au lieu d'en créer un second, qui doublerait le compte côté
-    // victime.
     final docRef = _firestore.collection(helpResponsesCollection).doc(
-      HelpResponse.documentIdFor(alertId: alertId, responderId: uid),
+      responderDocumentId(alertId: alertId, responderId: uid),
     );
     final existing = await docRef.get();
     if (existing.exists) {
-      // Ne pas écraser un suivi en cours: `toJson` fige `status` à `offered`,
-      // l'écraser ferait régresser un intervenant déjà arrivé. Seul un
+      // Ne pas écraser un suivi en cours: le create fige `status` à `offered`,
+      // le réécrire ferait régresser un intervenant déjà arrivé. Seul un
       // désistement se relance, parce que répondre à nouveau est un acte
       // explicite.
-      final current = HelpResponse.fromJson(
-        existing.data(),
-        fallbackId: docRef.id,
-      );
-      if (current.status == HelpResponseStatus.cancelled) {
+      if (_statusOf(existing.data()) == HelpResponseStatus.cancelled) {
         await docRef.update({
           'status': HelpResponseStatus.offered.name,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -216,6 +219,10 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
       return docRef.id;
     }
 
+    // ponytail: horloge client pour `createdAt`/`updatedAt`, l'entité les veut
+    // non nuls. Ces deux champs ne servent qu'à l'affichage, les règles ne les
+    // regardent pas, donc un skew d'horloge n'a rien à casser ici.
+    final now = DateTime.now();
     final response = HelpResponse(
       id: docRef.id,
       responderId: uid,
@@ -223,6 +230,8 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
       responseType: responseType,
       status: HelpResponseStatus.offered,
       message: message,
+      createdAt: now,
+      updatedAt: now,
     );
     await docRef.set(response.toJson());
     return docRef.id;
@@ -233,6 +242,9 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
     required String responseId,
     required HelpResponseStatus status,
   }) async {
+    // Écriture brute, pas `toJson`: les règles n'autorisent que
+    // `changedOnly(['status','message','updatedAt'])`, donc réécrire `id` ou
+    // `createdAt` se ferait refuser.
     await _firestore.collection(helpResponsesCollection).doc(responseId).update({
       'status': status.name,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -245,10 +257,11 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
         .collection(helpResponsesCollection)
         .where('sosAlertId', isEqualTo: alertId)
         .snapshots()
-        .map((snapshot) => [
-          for (final doc in snapshot.docs)
-            HelpResponse.fromJson(doc.data(), fallbackId: doc.id),
-        ]);
+        .map(
+          (snapshot) => [
+            for (final doc in snapshot.docs) _decodeHelpResponse(doc),
+          ].whereType<HelpResponse>().toList(growable: false),
+        );
   }
 
   @override
@@ -258,23 +271,26 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
     required double longitude,
   }) async {
     final uid = _requireUid();
-    final location = ResponderLocation(
+    final docRef = _firestore.collection(locationSharesCollection).doc(
+      responderDocumentId(alertId: alertId, responderId: uid),
+    );
+    final location = LocationShare(
+      id: docRef.id,
       userId: uid,
       sosAlertId: alertId,
-      latitude: latitude,
-      longitude: longitude,
+      currentLocation: GeoPoint(latitude, longitude),
+      // ponytail: même horloge client que pour `help_responses`, champ
+      // d'affichage uniquement.
+      updatedAt: DateTime.now(),
     );
-    await _firestore
-        .collection(locationSharesCollection)
-        .doc(ResponderLocation.documentIdFor(alertId: alertId, userId: uid))
-        .set(location.toJson());
+    await docRef.set(location.toJson());
   }
 
   @override
   Future<void> stopResponderLocation(String alertId) async {
     final uid = _requireUid();
     final docRef = _firestore.collection(locationSharesCollection).doc(
-      ResponderLocation.documentIdFor(alertId: alertId, userId: uid),
+      responderDocumentId(alertId: alertId, responderId: uid),
     );
     // Le document reste: les règles interdisent de modifier autre chose que
     // la position, et `isActive: false` dit à la victime que le point est
@@ -291,16 +307,15 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
   }
 
   @override
-  Stream<List<ResponderLocation>> watchResponderLocations(String alertId) {
+  Stream<List<LocationShare>> watchResponderLocations(String alertId) {
     return _firestore
         .collection(locationSharesCollection)
         .where('sosAlertId', isEqualTo: alertId)
         .snapshots()
         .map(
           (snapshot) => [
-            for (final doc in snapshot.docs)
-              _decodeResponderLocation(doc.data()),
-          ].whereType<ResponderLocation>().toList(growable: false),
+            for (final doc in snapshot.docs) _decodeLocationShare(doc),
+          ].whereType<LocationShare>().toList(growable: false),
         );
   }
 
@@ -318,13 +333,37 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
   }
 }
 
-/// Une position illisible ne doit pas faire tomber la liste des intervenants:
-/// la victime voit les autres plutôt que rien du tout.
-ResponderLocation? _decodeResponderLocation(Map<String, dynamic>? json) {
+/// Un document illisible ne doit pas faire tomber la liste entière: la victime
+/// voit les autres intervenants plutôt que rien du tout.
+///
+/// freezed lève `CheckedFromJsonException` sur un champ manquant, d'où le
+/// `Object` — un `FormatException` ne suffirait pas.
+HelpResponse? _decodeHelpResponse(DocumentSnapshot<Map<String, dynamic>> doc) {
   try {
-    return ResponderLocation.fromJson(json);
-  } on FormatException catch (e) {
-    Log.warning('Position intervenant ignorée: $e');
+    return HelpResponse.fromJson({...?doc.data(), 'id': doc.id});
+  } on Object catch (e) {
+    Log.warning('Suivi intervenant ignoré (${doc.id}): $e');
     return null;
   }
+}
+
+LocationShare? _decodeLocationShare(DocumentSnapshot<Map<String, dynamic>> doc) {
+  try {
+    return LocationShare.fromJson({...?doc.data(), 'id': doc.id});
+  } on Object catch (e) {
+    Log.warning('Position intervenant ignorée (${doc.id}): $e');
+    return null;
+  }
+}
+
+/// Statut brut d'un suivi existant, sans passer par le désérialiseur complet:
+/// `createdAt` peut manquer sur un document écrit par une version antérieure,
+/// et ici seule la comparaison au statut `cancelled` compte.
+HelpResponseStatus? _statusOf(Map<String, dynamic>? json) {
+  final raw = json?['status'];
+  if (raw is! String) return null;
+  for (final status in HelpResponseStatus.values) {
+    if (status.name == raw) return status;
+  }
+  return null;
 }

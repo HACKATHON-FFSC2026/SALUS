@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
-import 'package:salus/features/sos/domain/entities/help_response.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
 import 'package:salus/features/sos/presentation/providers/responder_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../domain/entities/first_aid_guidelines.dart';

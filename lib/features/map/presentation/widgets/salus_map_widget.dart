@@ -19,7 +19,12 @@ import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.d
 import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
 
 class SalusMapWidget extends ConsumerStatefulWidget {
-  const SalusMapWidget({super.key});
+  const SalusMapWidget({super.key, this.tileProvider});
+
+  /// Seam de test: les tuiles OSM demandent le réseau, ce qui laisse des
+  /// timers en vol et fait échouer le moindre test de widget. Les tests
+  /// injectent `ErrorTileProvider`; en production on garde le réseau.
+  final TileProvider? tileProvider;
 
   @override
   ConsumerState<SalusMapWidget> createState() => _SalusMapWidgetState();
@@ -99,6 +104,7 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.salus.app',
+              tileProvider: widget.tileProvider,
             ),
 
 

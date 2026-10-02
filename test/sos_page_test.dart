@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,8 +9,8 @@ import 'package:salus/features/auth/domain/auth_repository.dart';
 import 'package:salus/features/auth/domain/user_profile.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/sos/data/repositories/sos_repository_impl.dart';
-import 'package:salus/features/sos/domain/entities/help_response.dart';
-import 'package:salus/features/sos/domain/entities/responder_location.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
+import 'package:salus/core/entities/location_share_entity.dart';
 import 'package:salus/features/sos/domain/repositories/sos_repository.dart';
 import 'package:salus/features/sos/domain/usecases/send_sos_usecase.dart';
 import 'package:salus/features/sos/presentation/pages/sos_page.dart';
@@ -55,6 +58,14 @@ class _FakeSendSosUseCase extends SendSosUseCase {
 }
 
 class _FakeSosRepository implements ISosRepository {
+  _FakeSosRepository({this.myAlert, this.responses = const [], this.locations = const []});
+
+  /// Alerte dont la victime est propriétaire: c'est ce qui fait basculer la
+  /// page en vue « alerte ouverte ».
+  final SOSAlert? myAlert;
+  final List<HelpResponse> responses;
+  final List<LocationShare> locations;
+
   int sent = 0;
 
   @override
@@ -77,7 +88,7 @@ class _FakeSosRepository implements ISosRepository {
   @override
   Future<String> offerHelp({
     required String alertId,
-    HelpResponseType responseType = HelpResponseType.comingInPerson,
+    ResponseType responseType = ResponseType.comingInPerson,
     String? message,
   }) async => 'response-1';
 
@@ -87,9 +98,9 @@ class _FakeSosRepository implements ISosRepository {
     required HelpResponseStatus status,
   }) async {}
 
-  @override
+@override
   Stream<List<HelpResponse>> watchHelpResponses(String alertId) =>
-      const Stream.empty();
+      Stream.value(responses);
 
   @override
   Future<void> shareResponderLocation({
@@ -102,8 +113,8 @@ class _FakeSosRepository implements ISosRepository {
   Future<void> stopResponderLocation(String alertId) async {}
 
   @override
-  Stream<List<ResponderLocation>> watchResponderLocations(String alertId) =>
-      const Stream.empty();
+  Stream<List<LocationShare>> watchResponderLocations(String alertId) =>
+      Stream.value(locations);
 
   @override
   Future<void> shareLocation({
@@ -119,9 +130,9 @@ class _FakeSosRepository implements ISosRepository {
   Stream<List<SOSAlert>> watchActiveSosAlerts({List<String>? geoCells}) =>
       const Stream.empty();
 
-  @override
+@override
   Stream<List<SOSAlert>> watchMyActiveSosAlerts() =>
-      Stream.value(List<SOSAlert>.empty());
+      Stream.value(myAlert == null ? const <SOSAlert>[] : [myAlert!]);
 }
 
 /// Un invité en détresse doit pouvoir appeler quelqu'un. Masquer les numéros
@@ -210,6 +221,92 @@ void main() {
       expect(find.text('Appeler les secours'), findsOneWidget);
     });
   }
+
+  testWidgets('la victime voit qui intervient et à quelle distance', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final alert = SOSAlert(
+      id: 'a1',
+      userId: 'victim',
+      distressType: DistressType.other,
+      status: SOSStatus.waiting,
+      location: const GeoPoint(-18.8792, 47.5079),
+      createdAt: DateTime(2026, 3, 1),
+      // Le registre figé contient r1, qui s'est retiré: s'il était compté, la
+      // victime afficherait « 2 intervenants » alors qu'un seul se mobilise.
+      responderIds: const ['r1', 'r2'],
+    );
+    final when = DateTime(2026, 3, 1);
+    repo = _FakeSosRepository(
+      myAlert: alert,
+      responses: [
+        HelpResponse(
+          id: 'a1_r1',
+          sosAlertId: 'a1',
+          responderId: 'r1',
+          responseType: ResponseType.comingInPerson,
+          status: HelpResponseStatus.cancelled,
+          createdAt: when,
+          updatedAt: when,
+        ),
+        HelpResponse(
+          id: 'a1_r2',
+          sosAlertId: 'a1',
+          responderId: 'r2',
+          responseType: ResponseType.comingInPerson,
+          status: HelpResponseStatus.enRoute,
+          createdAt: when,
+          updatedAt: when,
+        ),
+        HelpResponse(
+          id: 'a1_r3',
+          sosAlertId: 'a1',
+          responderId: 'r3',
+          responseType: ResponseType.comingInPerson,
+          status: HelpResponseStatus.arrived,
+          createdAt: when,
+          updatedAt: when,
+        ),
+      ],
+      locations: [
+        LocationShare(
+          id: 'a1_r2',
+          sosAlertId: 'a1',
+          userId: 'r2',
+          // ~1 km au nord.
+          currentLocation: const GeoPoint(-18.8702, 47.5079),
+          updatedAt: when,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(_GuestAuthRepository()),
+          sosRepositoryProvider.overrideWithValue(repo),
+          sendSosUseCaseProvider.overrideWithValue(_FakeSendSosUseCase(repo)),
+        ],
+        child: const MaterialApp(home: SosPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Deux intervenants actifs, pas trois: celui qui s'est retiré est exclu.
+    expect(find.text('2 intervenants'), findsOneWidget);
+    expect(find.text('En route'), findsOneWidget);
+    expect(find.text('Arrivé sur place'), findsOneWidget);
+    expect(find.text('A proposé son aide'), findsNothing);
+
+    // Distance calculée, pas inventée.
+    expect(find.text('1.0 km'), findsOneWidget);
+    // r3 n'a pas encore publié de position: on ne fabrique pas de distance.
+    expect(find.text('position inconnue'), findsOneWidget);
+  });
 
   testWidgets('l\'invitation à se connecter est visible et cliquable', (
     tester,
