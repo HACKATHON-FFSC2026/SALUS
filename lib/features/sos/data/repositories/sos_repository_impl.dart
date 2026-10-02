@@ -32,22 +32,17 @@ class SosRepositoryImpl implements ISosRepository {
   }
 
   @override
-  Stream<SOSAlert?> watchSosAlert(String alertId) {
-    return _remoteDataSource.watchSosAlert(alertId);
-  }
-
-  @override
   Future<void> cancelSos(String alertId) {
     return _remoteDataSource.cancelSosAlert(alertId);
   }
 
   @override
-  Stream<List<SOSAlert>> watchActiveSosAlerts() {
-    return _remoteDataSource.watchActiveSosAlerts();
+  Future<void> respondToSos(String alertId) {
+    return _remoteDataSource.respondToSos(alertId);
   }
 
   @override
-  Future<void> respondToSos(String alertId) {
-    return _remoteDataSource.respondToSos(alertId);
+  Stream<List<SOSAlert>> watchActiveSosAlerts() {
+    return _remoteDataSource.watchActiveSosAlerts();
   }
 }

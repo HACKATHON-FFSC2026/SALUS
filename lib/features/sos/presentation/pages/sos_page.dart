@@ -1,11 +1,13 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/sos_provider.dart';
 import '../widgets/sos_button.dart';
 import '../widgets/call_emergency_button.dart';
+import '../widgets/sos_distress_modal.dart';
 
 @RoutePage()
 class SosPage extends ConsumerStatefulWidget {
@@ -28,7 +30,26 @@ class _SosPageState extends ConsumerState<SosPage> with SingleTickerProviderStat
 
     _animationController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        ref.read(sosControllerProvider.notifier).triggerSos();
+        _showDistressModal();
+      }
+    });
+  }
+
+  void _showDistressModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const SosDistressModal(),
+    ).then((result) {
+      _animationController.reset();
+      if (result != null) {
+        final distressType = result['distressType'] as DistressType;
+        final description = result['description'] as String?;
+        ref.read(sosControllerProvider.notifier).triggerSos(
+          distressType: distressType,
+          description: description,
+        );
       }
     });
   }

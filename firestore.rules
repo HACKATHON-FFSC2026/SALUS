@@ -93,7 +93,15 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow read: if request.auth != null;
       allow update: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+        && (resource.data.userId == request.auth.uid
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'respondersCount',
+                'status',
+                'updatedAt'
+              ])
+            && request.resource.data.respondersCount
+              == resource.data.respondersCount + 1
+            && request.resource.data.status == 'inProgress'));
       allow delete: if request.auth != null
         && resource.data.userId == request.auth.uid;
     }

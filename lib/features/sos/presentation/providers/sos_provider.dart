@@ -9,16 +9,10 @@ class SosState {
   final SosStatus status;
   final String? errorMessage;
 
-  const SosState({
-    this.status = SosStatus.initial,
-    this.errorMessage,
-  });
+  const SosState({this.status = SosStatus.initial, this.errorMessage});
 
   SosState copyWith({SosStatus? status, String? errorMessage}) {
-    return SosState(
-      status: status ?? this.status,
-      errorMessage: errorMessage,
-    );
+    return SosState(status: status ?? this.status, errorMessage: errorMessage);
   }
 }
 
@@ -27,7 +21,13 @@ final sendSosUseCaseProvider = Provider<SendSosUseCase>((ref) {
   return SendSosUseCase(repository);
 });
 
-final sosControllerProvider = NotifierProvider<SosController, SosState>(SosController.new);
+final sosControllerProvider = NotifierProvider<SosController, SosState>(
+  SosController.new,
+);
+
+final activeSosStreamProvider = StreamProvider<List<SOSAlert>>((ref) {
+  return ref.watch(sosRepositoryProvider).watchActiveSosAlerts();
+});
 
 class SosController extends Notifier<SosState> {
   @override

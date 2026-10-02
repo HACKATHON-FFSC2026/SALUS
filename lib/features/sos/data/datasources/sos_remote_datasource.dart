@@ -13,24 +13,20 @@ abstract class ISosRemoteDataSource {
     String? description,
   });
 
-  Stream<SOSAlert?> watchSosAlert(String alertId);
-
   Future<void> cancelSosAlert(String alertId);
 
-  Stream<List<SOSAlert>> watchActiveSosAlerts();
-
   Future<void> respondToSos(String alertId);
+
+  Stream<List<SOSAlert>> watchActiveSosAlerts();
 }
 
 class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
 
-  SosRemoteDataSourceImpl({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  SosRemoteDataSourceImpl({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   /// Convertit les coordonnées GPS en nom de lieu lisible (en lettres)
   Future<String> _getReadableLocationName(double lat, double lng) async {
@@ -39,16 +35,27 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng&accept-language=fr',
       );
-      final response = await http.get(url, headers: {
-        'User-Agent': 'SalusApp/1.0',
-      });
+      final response = await http.get(
+        url,
+        headers: {'User-Agent': 'SalusApp/1.0'},
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final address = data['address'];
         if (address != null) {
-          final suburb = address['suburb'] ?? address['neighbourhood'] ?? address['quarter'] ?? '';
-          final city = address['city'] ?? address['town'] ?? address['village'] ?? address['county'] ?? address['state'] ?? '';
+          final suburb =
+              address['suburb'] ??
+              address['neighbourhood'] ??
+              address['quarter'] ??
+              '';
+          final city =
+              address['city'] ??
+              address['town'] ??
+              address['village'] ??
+              address['county'] ??
+              address['state'] ??
+              '';
 
           if (suburb.isNotEmpty && city.isNotEmpty && suburb != city) {
             return '$suburb, $city';
@@ -98,16 +105,22 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
     }
 
     // 1. Obtenir le vrai nom du lieu sous forme de texte (ex: "Analakely, Antananarivo")
-    final String locationName = await _getReadableLocationName(latitude, longitude);
+    final String locationName = await _getReadableLocationName(
+      latitude,
+      longitude,
+    );
 
     // 2. Obtenir le contact de l'utilisateur
     String userContact = currentUser.phoneNumber ?? '';
     if (userContact.isEmpty) {
       try {
-        final userDoc =
-            await _firestore.collection('users').doc(currentUser.uid).get();
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .get();
         if (userDoc.exists && userDoc.data() != null) {
-          userContact = userDoc.data()?['contact'] ??
+          userContact =
+              userDoc.data()?['contact'] ??
               userDoc.data()?['phone'] ??
               userDoc.data()?['phoneNumber'] ??
               'Non renseigné';
@@ -137,23 +150,31 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
   }
 
   @override
-  Stream<SOSAlert?> watchSosAlert(String alertId) {
-    return _firestore
-        .collection('SOS_alertes')
-        .doc(alertId)
-        .snapshots()
-        .map((snapshot) {
-      if (!snapshot.exists || snapshot.data() == null) {
-        return null;
-      }
-      return SOSAlert.fromJson(snapshot.data()!);
+  Future<void> cancelSosAlert(String alertId) {
+    return _firestore.collection('SOS_alertes').doc(alertId).update({
+      'status': SOSStatus.cancelled.name,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   @override
-  Future<void> cancelSosAlert(String alertId) async {
-    await _firestore.collection('SOS_alertes').doc(alertId).update({
-      'status': SOSStatus.cancelled.name,
+  Future<void> respondToSos(String alertId) async {
+    final docRef = _firestore.collection('SOS_alertes').doc(alertId);
+    final snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      throw Exception('Alerte introuvable.');
+    }
+
+    final current = snapshot.data() ?? {};
+    final nextCount = ((current['respondersCount'] as num?)?.toInt() ?? 0) + 1;
+
+    // Synchroniser le statut avec le nombre d'intervenants
+    final newStatus = nextCount >= 1 ? SOSStatus.inProgress : SOSStatus.waiting;
+
+    await docRef.update({
+      'respondersCount': nextCount,
+      'status': newStatus.name,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -161,23 +182,19 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
   Stream<List<SOSAlert>> watchActiveSosAlerts() {
     return _firestore
         .collection('SOS_alertes')
-        .where('status', whereIn: [
-          SOSStatus.waiting.name,
-          SOSStatus.inProgress.name,
-        ])
+        .where(
+          'status',
+          whereIn: [SOSStatus.waiting.name, SOSStatus.inProgress.name],
+        )
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => SOSAlert.fromJson(doc.data()))
-          .toList();
-    });
-  }
-
-  @override
-  Future<void> respondToSos(String alertId) async {
-    await _firestore.collection('SOS_alertes').doc(alertId).update({
-      'respondersCount': FieldValue.increment(1),
-      'status': SOSStatus.inProgress.name,
-    });
+          final alerts = snapshot.docs
+              .map((doc) => SOSAlert.fromJson({...doc.data(), 'id': doc.id}))
+              .toList();
+          alerts.sort(
+            (first, second) => second.createdAt.compareTo(first.createdAt),
+          );
+          return alerts;
+        });
   }
 }

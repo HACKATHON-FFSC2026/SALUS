@@ -42,9 +42,7 @@ Ce document décrit l’état actuel de l’application. Les fonctions marquées
 
 ## Écrans présents, fonctions à venir
 
-- **Alertes** : écran présent, sans flux d’alertes connecté.
 - **Aide** : écran présent, contenu annoncé comme bientôt disponible.
-- **SOS** : bouton présent, affiche un message temporaire ; aucun signal de détresse n’est envoyé.
 - **Administration** : validation des refuges, gestion des utilisateurs, organisations et zones non implémentées.
 - **Assistance IA, chat et réponse aux demandes de détresse** : non implémentés.
 
@@ -54,4 +52,19 @@ Ce document décrit l’état actuel de l’application. Les fonctions marquées
 - Les opérations Firestore suivent les règles du fichier `firestore.rules` et nécessitent une authentification Firebase.
 - La géolocalisation nécessite que le service GPS soit activé et que l’utilisateur accorde la permission.
 - Le calcul de distance de recommandation est une estimation à vol d’oiseau ; le trajet routier est calculé par l’application de cartes externe.
+
+## 🚨 SOS & Alertes
+
+### 1. SOS
+* **Déclenchement sécurisé** : Maintien du bouton SOS appuyé pendant 2 secondes pour éviter les faux déclenchements.
+* **Enregistrement en base de données** : Sauvegarde instantanée de l'alerte géolocalisée dans la collection `SOS_alertes`.
+* **Annulation** : Possibilité pour l'utilisateur d'annuler son alerte via le bouton *"Je suis en sécurité"*.
+* **Appel d'urgence** : Accès direct pour passer un appel vers le **117**.
+
+### 2. Alertes
+* **Filtres fixes** : Tri et affichage des alertes selon leur statut (*En attente*, *En cours*, *Résolu* / *Annulé*).
+* **Fiche détaillée** : Vue complète incluant le type d'urgence, la localisation, la description et le nombre d'intervenants.
+* **Actions de gestion** :
+  * **Annuler le SOS** : Action permettant à l'émetteur de stopper l'alerte.
+  * **Marquer comme résolu** : Clôture de l'urgence une fois la situation maîtrisée.
 
