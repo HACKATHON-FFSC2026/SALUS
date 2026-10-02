@@ -1,6 +1,6 @@
 import 'package:salus/core/entities/sos_alert_entity.dart';
-import 'package:salus/features/sos/domain/entities/help_response.dart';
-import 'package:salus/features/sos/domain/entities/responder_location.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
+import 'package:salus/core/entities/location_share_entity.dart';
 
 abstract class ISosRepository {
   /// Émet un nouveau SOS et retourne son identifiant: sans lui, la victime ne
@@ -37,7 +37,7 @@ abstract class ISosRepository {
   /// document porte l'état vivant de l'intervenant.
   Future<String> offerHelp({
     required String alertId,
-    HelpResponseType responseType = HelpResponseType.comingInPerson,
+    ResponseType responseType = ResponseType.comingInPerson,
     String? message,
   });
 
@@ -65,7 +65,7 @@ abstract class ISosRepository {
   Future<void> stopResponderLocation(String alertId);
 
   /// Positions des intervenants connues sur une alerte.
-  Stream<List<ResponderLocation>> watchResponderLocations(String alertId);
+  Stream<List<LocationShare>> watchResponderLocations(String alertId);
 
   /// Partage la position courante de la victime pendant que l'alerte est active.
   Future<void> shareLocation({

@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/features/sos/data/datasources/sos_remote_datasource.dart';
-import 'package:salus/features/sos/domain/entities/help_response.dart';
-import 'package:salus/features/sos/domain/entities/responder_location.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
+import 'package:salus/core/entities/location_share_entity.dart';
 import 'package:salus/features/sos/domain/repositories/sos_repository.dart';
 
 final sosRemoteDataSourceProvider = Provider<ISosRemoteDataSource>((ref) {
@@ -61,7 +61,7 @@ class SosRepositoryImpl implements ISosRepository {
   @override
   Future<String> offerHelp({
     required String alertId,
-    HelpResponseType responseType = HelpResponseType.comingInPerson,
+    ResponseType responseType = ResponseType.comingInPerson,
     String? message,
   }) {
     return _remoteDataSource.createHelpResponse(
@@ -106,7 +106,7 @@ class SosRepositoryImpl implements ISosRepository {
   }
 
   @override
-  Stream<List<ResponderLocation>> watchResponderLocations(String alertId) {
+  Stream<List<LocationShare>> watchResponderLocations(String alertId) {
     return _remoteDataSource.watchResponderLocations(alertId);
   }
 

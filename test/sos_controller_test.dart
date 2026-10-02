@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
-import 'package:salus/features/sos/domain/entities/help_response.dart';
-import 'package:salus/features/sos/domain/entities/responder_location.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
+import 'package:salus/core/entities/location_share_entity.dart';
 import 'package:salus/features/sos/domain/repositories/sos_repository.dart';
 import 'package:salus/features/sos/data/repositories/sos_repository_impl.dart';
 import 'package:salus/features/sos/presentation/providers/sos_provider.dart';
@@ -81,7 +81,7 @@ class _FakeSosRepository implements ISosRepository {
   @override
   Future<String> offerHelp({
     required String alertId,
-    HelpResponseType responseType = HelpResponseType.comingInPerson,
+    ResponseType responseType = ResponseType.comingInPerson,
     String? message,
   }) async {
     offers++;
@@ -109,7 +109,7 @@ class _FakeSosRepository implements ISosRepository {
   Future<void> stopResponderLocation(String alertId) async {}
 
   @override
-  Stream<List<ResponderLocation>> watchResponderLocations(String alertId) =>
+  Stream<List<LocationShare>> watchResponderLocations(String alertId) =>
       const Stream.empty();
 
   @override

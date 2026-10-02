@@ -1,4 +1,4 @@
-import 'package:salus/features/sos/domain/entities/help_response.dart';
+import 'package:salus/core/entities/help_response_entity.dart';
 import 'package:salus/features/sos/domain/repositories/sos_repository.dart';
 
 /// Se propose comme intervenant sur une alerte.
@@ -16,7 +16,7 @@ class OfferHelpUseCase {
   /// rétracter ensuite.
   Future<String> execute({
     required String alertId,
-    HelpResponseType responseType = HelpResponseType.comingInPerson,
+    ResponseType responseType = ResponseType.comingInPerson,
     String? message,
   }) async {
     if (alertId.isEmpty) return '';
