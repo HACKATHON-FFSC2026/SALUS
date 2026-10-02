@@ -4,9 +4,9 @@ import 'package:salus/core/themes/app_theme.dart';
 
 /// Bouton d'envoi par maintien.
 ///
-/// Le geste est monté sur `onTapDown`/`onTapUp` et pas sur un simple `onTap`:
-/// un appui long évite l'envoi accidentel. Ce couple n'est pas atteignable au
-/// clavier ni au lecteur d'écran, d'où la `Semantics` exposée en plus.
+/// Le geste est écouté par un `Listener`, pas par un `GestureDetector` :
+/// `onTapDown` n'est émis qu'à la confirmation du tap, donc au relâchement,
+/// ce qui est l'inverse du comportement voulu ici.
 class SosButton extends StatefulWidget {
   const SosButton({
     super.key,
@@ -21,7 +21,7 @@ class SosButton extends StatefulWidget {
   /// n'est pas connecté.
   final bool isEnabled;
 
-  /// Déclenché au relâchement après avoir atteint la durée de maintien.
+  /// Déclenché quand la durée de maintien est atteinte.
   final VoidCallback onHold;
 
   @override
@@ -33,21 +33,14 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
   /// pas contraindre une détresse réelle.
   static const _holdDuration = Duration(seconds: 2);
 
-  late final AnimationController _controller;
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _holdDuration,
+  )..addListener(_onTick);
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _holdDuration,
-    )..addStatusListener((status) {
-      if (status == AnimationStatus.completed && widget.isEnabled) {
-        widget.onHold();
-      }
-      if (mounted) _controller.reset();
-    });
-  }
+  /// Un maintien n'envoie qu'une fois, même si la borne est atteinte puis
+  /// redépassée, ou si le pointeur bouge à la fin.
+  bool _sent = false;
 
   @override
   void dispose() {
@@ -55,15 +48,33 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
     super.dispose();
   }
 
+  void _onTick() {
+    if (_controller.value >= 1) _send();
+  }
+
   void _start() {
     if (!widget.isEnabled || widget.isLoading) return;
+    _sent = false;
     _controller.forward(from: 0);
     HapticFeedback.mediumImpact();
   }
 
   void _stop() {
-    if (_controller.status == AnimationStatus.completed) return;
+    // La décision se prend sur `value`, jamais sur `AnimationStatus`. À la
+    // borne, le statut reste `forward` et la notification `completed` n'arrive
+    // qu'au frame suivant — que l'arrêt du ticker empêche. Se fier au statut
+    // faisait passer l'envoi pour annulé et le supprimait au relâchement.
+    if (_controller.value >= 1) {
+      _send();
+      return;
+    }
     _controller.reverse();
+  }
+
+  void _send() {
+    if (_sent || !widget.isEnabled) return;
+    _sent = true;
+    widget.onHold();
   }
 
   @override
@@ -74,10 +85,15 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
       label: 'Envoyer une alerte SOS',
       hint: 'Maintenez appuyé deux secondes pour envoyer votre position',
       onTap: widget.isEnabled && !widget.isLoading ? widget.onHold : null,
-      child: GestureDetector(
-        onTapDown: (_) => _start(),
-        onTapUp: (_) => _stop(),
-        onTapCancel: _stop,
+      child: Listener(
+        // `opaque` est nécessaire : le sous-arbre est une chaîne de
+        // DecoratedBox et de Stack qui ne rapportent aucun hit au test de
+        // touch. En `deferToChild`, le défaut, l'appui n'atteint jamais
+        // l'écouteur.
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (_) => _start(),
+        onPointerUp: (_) => _stop(),
+        onPointerCancel: (_) => _stop(),
         child: AnimatedBuilder(
           animation: _controller,
           builder: (context, _) {
@@ -106,7 +122,9 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
                       child: CircularProgressIndicator(
                         value: _controller.value,
                         strokeWidth: 8,
-                        valueColor: const AlwaysStoppedAnimation(AppColors.secondary),
+                        valueColor: const AlwaysStoppedAnimation(
+                          AppColors.secondary,
+                        ),
                         backgroundColor: Colors.transparent,
                       ),
                     ),
@@ -115,11 +133,15 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
                       height: 200,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: widget.isEnabled ? AppColors.sos : AppColors.inactive,
+                        color: widget.isEnabled
+                            ? AppColors.sos
+                            : AppColors.inactive,
                       ),
                       child: Center(
                         child: widget.isLoading
-                            ? const CircularProgressIndicator(color: AppColors.surface)
+                            ? const CircularProgressIndicator(
+                                color: AppColors.surface,
+                              )
                             : Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: const [
