@@ -7,7 +7,9 @@ import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/auth/presentation/state/auth_state.dart';
 import '../../domain/entities/emergency_numbers.dart';
+import '../../domain/entities/help_response.dart';
 import '../../domain/usecases/send_sos_usecase.dart';
+import '../providers/responder_controller.dart';
 import '../providers/sos_provider.dart';
 import '../widgets/call_emergency_button.dart';
 import '../widgets/cancel_sos_button.dart';
@@ -197,12 +199,13 @@ class _ActiveSosView extends StatelessWidget {
         final isCancelling =
             ref.watch(sosControllerProvider.select((s) => s.status)) ==
             SosStatus.loading;
+        final currentAlert = alert;
 
         return ListView(
           padding: const EdgeInsets.symmetric(vertical: 20),
           children: [
-            SosStatusCard(alert: alert),
-            if (alert != null) ...[
+            SosStatusCard(alert: currentAlert),
+            if (currentAlert != null) ...[
               const SizedBox(height: 8),
               Center(
                 child: Text(
@@ -214,6 +217,8 @@ class _ActiveSosView extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
+              _RespondersPanel(alert: currentAlert),
             ],
             const SizedBox(height: 28),
             CancelSosButton(
@@ -225,6 +230,131 @@ class _ActiveSosView extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Intervenants proposés sur cette alerte.
+///
+/// Le compte vient des suivis actifs, pas de `responderIds`: ce registre est
+/// figé par les règles (ajout seul) et garde trace des gens qui se sont
+/// retirés. Aucun nom n'est affiché — les règles interdisent la lecture du
+/// profil d'autrui, puisqu'il contient email et téléphone.
+class _RespondersPanel extends ConsumerWidget {
+  const _RespondersPanel({required this.alert});
+
+  final SOSAlert alert;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final responders = ref.watch(respondersProvider(alert.id));
+    final locations = ref.watch(responderLocationsProvider(alert.id));
+
+    return responders.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (items) {
+        final locationByUid = locations.asData?.value ?? const {};
+        return Card(
+          color: AppColors.surface,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppColors.inactive.withValues(alpha: 0.25)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  items.isEmpty
+                      ? 'Personne ne s\'est encore proposé'
+                      : '${items.length} intervenant${items.length > 1 ? 's' : ''}',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                for (final response in items)
+                  _ResponderRow(
+                    response: response,
+                    meters: distanceInMeters(
+                      alert: alert,
+                      location: locationByUid[response.responderId],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ResponderRow extends StatelessWidget {
+  const _ResponderRow({required this.response, required this.meters});
+
+  final HelpResponse response;
+  final double? meters;
+
+  static const _labels = {
+    HelpResponseStatus.offered: 'A proposé son aide',
+    HelpResponseStatus.enRoute: 'En route',
+    HelpResponseStatus.arrived: 'Arrivé sur place',
+    HelpResponseStatus.cancelled: 'Retiré',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final onSite = response.status == HelpResponseStatus.arrived;
+    final distance = meters == null
+        ? 'position inconnue'
+        : meters! < 950
+            ? '${meters!.round()} m'
+            : '${(meters! / 1000).toStringAsFixed(1)} km';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(
+            onSite ? Icons.where_to_vote : Icons.directions_walk,
+            size: 20,
+            color: onSite ? Colors.green : AppColors.secondary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _labels[response.status] ?? 'En cours',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  distance,
+                  style: const TextStyle(color: AppColors.inactive, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          if (response.message case final message? when message.isNotEmpty)
+            Flexible(
+              child: Text(
+                message,
+                textAlign: TextAlign.right,
+                style: const TextStyle(color: AppColors.inactive, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

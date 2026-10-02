@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
+import 'package:salus/features/sos/domain/entities/help_response.dart';
+import 'package:salus/features/sos/domain/entities/responder_location.dart';
 import 'package:salus/features/sos/domain/repositories/sos_repository.dart';
 import 'package:salus/features/sos/data/repositories/sos_repository_impl.dart';
 import 'package:salus/features/sos/presentation/providers/sos_provider.dart';
@@ -34,6 +36,8 @@ class _FakeSosRepository implements ISosRepository {
 
   final cancelled = <String>[];
   final sharedLocations = <Map<String, double>>[];
+  final helpStatuses = <String, HelpResponseStatus>{};
+  int offers = 0;
   int sent = 0;
   Object? sendThrows;
 
@@ -73,6 +77,40 @@ class _FakeSosRepository implements ISosRepository {
 
   @override
   Future<void> respondToSos(String alertId) async {}
+
+  @override
+  Future<String> offerHelp({
+    required String alertId,
+    HelpResponseType responseType = HelpResponseType.comingInPerson,
+    String? message,
+  }) async {
+    offers++;
+    return 'response-$offers';
+  }
+
+  @override
+  Future<void> setHelpStatus({
+    required String responseId,
+    required HelpResponseStatus status,
+  }) async => helpStatuses[responseId] = status;
+
+  @override
+  Stream<List<HelpResponse>> watchHelpResponses(String alertId) =>
+      const Stream.empty();
+
+  @override
+  Future<void> shareResponderLocation({
+    required String alertId,
+    required double latitude,
+    required double longitude,
+  }) async {}
+
+  @override
+  Future<void> stopResponderLocation(String alertId) async {}
+
+  @override
+  Stream<List<ResponderLocation>> watchResponderLocations(String alertId) =>
+      const Stream.empty();
 
   @override
   Future<void> shareLocation({

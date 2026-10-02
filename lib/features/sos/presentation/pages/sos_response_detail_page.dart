@@ -1,7 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
+import 'package:salus/features/sos/domain/entities/help_response.dart';
+import 'package:salus/features/sos/presentation/providers/responder_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../domain/entities/first_aid_guidelines.dart';
 
@@ -11,17 +15,45 @@ import '../../domain/entities/first_aid_guidelines.dart';
 /// viennent de [FirstAidGuideline], donc dépendantes du type de détresse
 /// annoncé, pas d'une liste générique identique pour un incendie et pour une
 /// agression.
+///
+/// Elle pilote en plus le suivi du côté intervenant: la position_partagée vers la
+/// victime, l'annonce d'arrivée, et le retrait. Le `responseId` n'est pas passé
+/// en argument de route — le suivi est retrouvé en filtrant les réponses de
+/// l'alerte sur son propre `responderId`, ce qui évite de régénérer le
+/// routeur et reste correct après un hot restart.
 @RoutePage()
-class SosResponseDetailPage extends StatelessWidget {
+class SosResponseDetailPage extends ConsumerStatefulWidget {
   const SosResponseDetailPage({super.key, required this.sosAlert});
 
   final SOSAlert sosAlert;
+
+  @override
+  ConsumerState<SosResponseDetailPage> createState() =>
+      _SosResponseDetailPageState();
+}
+
+class _SosResponseDetailPageState extends ConsumerState<SosResponseDetailPage> {
+  HelpResponse? _myResponse;
+
+  SOSAlert get alert => widget.sosAlert;
+
+  @override
+  void initState() {
+    super.initState();
+    // Partage la position dès l'ouverture: la victime a choisi d'afficher son
+    // itinéraire, elle doit voir l'intervenant bouger.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(responderControllerProvider.notifier)
+          .startSharing(alertId: alert.id);
+    });
+  }
 
   Future<void> _openMaps(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final uri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1'
-      '&destination=${sosAlert.location.latitude},${sosAlert.location.longitude}',
+      '&destination=${alert.location.latitude},${alert.location.longitude}',
     );
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -31,8 +63,8 @@ class SosResponseDetailPage extends StatelessWidget {
         SnackBar(
           content: Text(
             'Itinéraire indisponible. Coordonnées: '
-            '${sosAlert.location.latitude.toStringAsFixed(4)}, '
-            '${sosAlert.location.longitude.toStringAsFixed(4)}',
+            '${alert.location.latitude.toStringAsFixed(4)}, '
+            '${alert.location.longitude.toStringAsFixed(4)}',
           ),
           backgroundColor: AppColors.sos,
         ),
@@ -40,11 +72,71 @@ class SosResponseDetailPage extends StatelessWidget {
     }
   }
 
+  Future<void> _markArrived() async {
+    final response = _myResponse;
+    if (response == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    await ref
+        .read(responderControllerProvider.notifier)
+        .markArrived(responseId: response.id);
+    if (!mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Arrivée signalée. La victime sait que vous êtes là.'),
+      ),
+    );
+  }
+
+  Future<void> _withdraw() async {
+    final response = _myResponse;
+    if (response == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Se retirer ?'),
+        content: const Text(
+          'La victime ne comptera plus votre intervention. Vous pouvez '
+          'répondre à nouveau tant que l\'alerte est active.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Rester'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Se retirer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await ref
+        .read(responderControllerProvider.notifier)
+        .withdraw(responseId: response.id);
+    if (!mounted) return;
+    context.router.maybePop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final guideline = FirstAidGuideline.getGuidelinesFor(
-      sosAlert.distressType,
+      alert.distressType,
     );
+    final controller = ref.watch(responderControllerProvider);
+    final myUid = ref.watch(currentUidProvider);
+    // On se suit soi-même: la liste des intervenants sert aussi à retrouver
+    // son document de suivi après un redémarrage de l'app.
+    ref.listen(respondersProvider(alert.id), (_, next) {
+      final mine = next.asData?.value
+          .where((r) => r.responderId == myUid)
+          .firstOrNull;
+      if (mine != null && mine.id != _myResponse?.id) {
+        setState(() => _myResponse = mine);
+      }
+    });
+
+    final withdrawn = _myResponse?.status == HelpResponseStatus.cancelled;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -66,9 +158,14 @@ class SosResponseDetailPage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _Acknowledgement(),
+            _Acknowledgement(
+              status: controller.status,
+              isSharingLocation: controller.isSharingLocation,
+              withdrawn: withdrawn,
+              warning: controller.errorMessage,
+            ),
             const SizedBox(height: 16),
-            _SummaryCard(alert: sosAlert),
+            _SummaryCard(alert: alert),
             const SizedBox(height: 24),
             Text(
               guideline.title,
@@ -91,6 +188,20 @@ class SosResponseDetailPage extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            if (!withdrawn) ...[
+              OutlinedButton.icon(
+                onPressed: _myResponse == null ? null : _markArrived,
+                icon: const Icon(Icons.where_to_vote, color: AppColors.primary),
+                label: const Text('JE SUIS ARRIVÉ(E) SUR PLACE'),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _myResponse == null ? null : _withdraw,
+                icon: const Icon(Icons.undo, color: AppColors.inactive),
+                label: const Text('Je ne peux plus venir'),
+              ),
+            ],
           ],
         ),
       ),
@@ -99,34 +210,81 @@ class SosResponseDetailPage extends StatelessWidget {
 }
 
 class _Acknowledgement extends StatelessWidget {
+  const _Acknowledgement({
+    required this.status,
+    required this.isSharingLocation,
+    required this.withdrawn,
+    this.warning,
+  });
+
+  final ResponderStatus status;
+  final bool isSharingLocation;
+  final bool withdrawn;
+  final String? warning;
+
   @override
   Widget build(BuildContext context) {
+    final (icon, tint, title, detail) = switch (status) {
+      ResponderStatus.arrived => (
+          Icons.pin_drop,
+          Colors.green,
+          'Vous êtes arrivé sur place',
+          'Prévenez la victime par appel: elle sait où vous êtes.',
+        ),
+      ResponderStatus.cancelled => (
+          Icons.undo,
+          AppColors.inactive,
+          'Vous vous êtes retiré',
+          'La victime ne compte plus votre intervention.',
+        ),
+      ResponderStatus.failure => (
+          Icons.error_outline,
+          AppColors.sos,
+          'Suivi indisponible',
+          warning ?? 'La position et l\'arrivée n\'ont pas pu être signalées.',
+        ),
+      _ => isSharingLocation
+          ? (
+              Icons.my_location,
+              Colors.green,
+              'Vous avez répondu à cet appel',
+              'Votre position est partagée à la victime en direct.',
+            )
+          : (
+              Icons.notifications_active_outlined,
+              AppColors.primary,
+              'Vous avez répondu à cet appel',
+              warning ??
+                  'Partage de position indisponible: signalez votre arrivée à la main.',
+            ),
+    };
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.12),
+        color: tint.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green.withValues(alpha: 0.4), width: 1.5),
+        border: Border.all(color: tint.withValues(alpha: 0.4), width: 1.5),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, color: Colors.green, size: 28),
+          Icon(icon, color: tint, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Vous avez répondu à cet appel',
+                  title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: Colors.green.shade900,
+                    color: tint,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Votre position est partagée tant que l\'alerte est active.',
-                  style: TextStyle(color: AppColors.inactive, fontSize: 12),
+                Text(
+                  detail,
+                  style: const TextStyle(color: AppColors.inactive, fontSize: 12),
                 ),
               ],
             ),

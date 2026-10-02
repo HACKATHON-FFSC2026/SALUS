@@ -6,6 +6,8 @@ import 'package:salus/features/auth/domain/auth_repository.dart';
 import 'package:salus/features/auth/domain/user_profile.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/sos/data/repositories/sos_repository_impl.dart';
+import 'package:salus/features/sos/domain/entities/help_response.dart';
+import 'package:salus/features/sos/domain/entities/responder_location.dart';
 import 'package:salus/features/sos/domain/repositories/sos_repository.dart';
 import 'package:salus/features/sos/domain/usecases/send_sos_usecase.dart';
 import 'package:salus/features/sos/presentation/pages/sos_page.dart';
@@ -71,6 +73,37 @@ class _FakeSosRepository implements ISosRepository {
 
   @override
   Future<void> respondToSos(String alertId) async {}
+
+  @override
+  Future<String> offerHelp({
+    required String alertId,
+    HelpResponseType responseType = HelpResponseType.comingInPerson,
+    String? message,
+  }) async => 'response-1';
+
+  @override
+  Future<void> setHelpStatus({
+    required String responseId,
+    required HelpResponseStatus status,
+  }) async {}
+
+  @override
+  Stream<List<HelpResponse>> watchHelpResponses(String alertId) =>
+      const Stream.empty();
+
+  @override
+  Future<void> shareResponderLocation({
+    required String alertId,
+    required double latitude,
+    required double longitude,
+  }) async {}
+
+  @override
+  Future<void> stopResponderLocation(String alertId) async {}
+
+  @override
+  Stream<List<ResponderLocation>> watchResponderLocations(String alertId) =>
+      const Stream.empty();
 
   @override
   Future<void> shareLocation({
