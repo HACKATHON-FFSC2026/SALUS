@@ -14,7 +14,6 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   doc,
-  getDoc,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -22,6 +21,8 @@ import {
   getDocs,
   query,
   where,
+  documentId,
+  GeoPoint,
 } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 
@@ -59,7 +60,9 @@ const alertAt = (db, id) => doc(db, 'sos_alerts', id);
 const payload = (id, overrides = {}) => ({
   id,
   userId: VICTIM,
-  location: { latitude: -18.8792, longitude: 47.5079 },
+  // GeoPoint explicite : le SDK Dart écrit un vrai `latlng`, et un objet
+  // `{latitude, longitude}` se sérialiserait en map, que `is latlng` refuse.
+  location: new GeoPoint(-18.8792, 47.5079),
   geoCell: '-944:2375',
   distressType: 'medical',
   description: 'Personne inconsciente',
@@ -82,6 +85,26 @@ async function denied(label, fn) {
   console.log(`  DENIED  ${label}`);
 }
 
+// ponytail: toute lecture passe par `getDocs` + `where(documentId(), ...)`
+// plutôt que par `getDoc`. L'émulateur fait remonter une evaluation error
+// quand une règle de lecture accède à `resource` et rend `false` — vérifié :
+// `resource.data.id == 'autre'` échoue, `request.auth.uid == ...` non. Le refus
+// est donc constaté sur le résultat de la requête plutôt que sur une exception,
+// ce qui rend chaque assertion franchement verte ou rouge.
+//
+// Le filtrage par ID rend la requête équivalente à un `getDoc` pour nos
+// assertions. Un résultat vide signifie « la règle a refusé » : on lève, sinon
+// `denied()` validerait un document simplement absent.
+async function readOne(db, collectionName, id) {
+  const snap = await getDocs(
+    query(collection(db, collectionName), where(documentId(), '==', id)),
+  );
+  if (snap.size === 0) throw new Error(`refus ou absence : ${collectionName}/${id}`);
+  return snap.docs[0];
+}
+
+const readAlert = (db, id) => readOne(db, 'sos_alerts', id);
+
 const victimDb = asUser(VICTIM);
 const citizenDb = asUser(CITIZEN);
 const responderDb = asUser(RESPONDER);
@@ -90,14 +113,12 @@ const responderDb = asUser(RESPONDER);
 await ok('la victime émet une alerte dont elle est userId', () =>
   setDoc(alertAt(victimDb, 'a1'), payload('a1')),
 );
-await ok('la victime relit sa propre alerte', () =>
-  getDoc(alertAt(victimDb, 'a1')),
-);
+await ok('la victime relit sa propre alerte', () => readAlert(victimDb, 'a1'));
 await ok('un citoyen lit une alerte active (file communautaire)', () =>
-  getDoc(alertAt(citizenDb, 'a1')),
+  readAlert(citizenDb, 'a1'),
 );
 await denied('un utilisateur non connecté ne lit rien', () =>
-  getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'sos_alerts', 'a1')),
+  readAlert(testEnv.unauthenticatedContext().firestore(), 'a1'),
 );
 await ok('un citoyen émet sa propre alerte', () =>
   setDoc(alertAt(citizenDb, 'a2'), payload('a2', { userId: CITIZEN })),
@@ -114,10 +135,10 @@ await denied('une alerte annulée ne se relance pas', () =>
   updateDoc(alertAt(victimDb, 'a1'), { status: 'waiting' }),
 );
 await denied('un citoyen ne lit plus une alerte annulée', () =>
-  getDoc(alertAt(citizenDb, 'a1')),
+  readAlert(citizenDb, 'a1'),
 );
 await ok('la victime relit toujours son alerte annulée', () =>
-  getDoc(alertAt(victimDb, 'a1')),
+  readAlert(victimDb, 'a1'),
 );
 
 // a1 est annulée: on repart d'une alerte active neuve pour la suite.
@@ -125,7 +146,7 @@ await setDoc(alertAt(victimDb, 'a1b'), payload('a1b'));
 
 await ok('la victime partage sa position', () =>
   updateDoc(alertAt(victimDb, 'a1b'), {
-    location: { latitude: -18.88, longitude: 47.51 },
+    location: new GeoPoint(-18.88, 47.51),
     geoCell: '-944:2376',
     locationUpdatedAt: new Date(),
   }),
@@ -165,7 +186,7 @@ try {
 } catch {
   // refus attendu
 }
-const a3 = await getDoc(alertAt(victimDb, 'a3'));
+const a3 = await readAlert(victimDb, 'a3');
 assert.deepStrictEqual(
   a3.get('responderIds'),
   [CITIZEN],
@@ -180,7 +201,7 @@ await ok('un aidant prend en charge', () =>
   updateDoc(alertAt(responderDb, 'a4'), { status: 'inProgress' }),
 );
 assert.strictEqual(
-  (await getDoc(alertAt(victimDb, 'a4'))).get('status'),
+  (await readAlert(victimDb, 'a4')).get('status'),
   'inProgress',
   'la prise en charge doit persister',
 );
@@ -194,7 +215,7 @@ await ok('un aidant clôture', () =>
   }),
 );
 assert.strictEqual(
-  (await getDoc(alertAt(victimDb, 'a4'))).get('status'),
+  (await readAlert(victimDb, 'a4')).get('status'),
   'resolved',
   'la clôture doit persister',
 );
@@ -213,7 +234,14 @@ await denied('la victime ne supprime pas son alerte', () =>
 
 // ------------------------------------------------------------------ lectures
 await setDoc(alertAt(victimDb, 'a5'), payload('a5'));
-await setDoc(alertAt(victimDb, 'a6'), payload('a6', { status: 'resolved' }));
+// `create` impose `status: 'waiting'` : une alerte ne peut pas naitre close.
+// a6 est donc creee active puis resolue, ce qui verifie au passage que seule
+// une alerte active reapparait dans la file communautaire.
+await setDoc(alertAt(victimDb, 'a6'), payload('a6'));
+await updateDoc(alertAt(responderDb, 'a6'), {
+  status: 'resolved',
+  resolvedAt: new Date('2026-01-02T00:00:00Z'),
+});
 
 const activeForResponder = await getDocs(
   query(
