@@ -31,7 +31,8 @@ dependencies:
   flutter_map_location_marker: ^9.0.0 
   flutter_map_marker_cluster: ^1.4.0 
   url_launcher: ^6.3.1
-  turf: ^0.0.9                       
+  turf: ^0.0.9                    
+  shared_preferences: ^2.5.5   
 
 dev_dependencies:
   flutter_test:
