@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
+import 'package:salus/core/utils/log.dart';
 import '../repositories/sos_repository.dart';
 
 class SendSosUseCase {
@@ -20,6 +21,23 @@ class SendSosUseCase {
       distressType: distressType,
       description: description,
     );
+  }
+}
+
+/// Demande la permission de localisation, une fois par session si possible.
+///
+/// À appeler en entrant sur la page SOS, jamais depuis le geste d'envoi :
+/// demander une permission système pendant qu'une personne signale une
+/// détresse lui fait perdre du temps et aboutit trop souvent à un refus.
+Future<void> requestLocationPermission() async {
+  try {
+    if (!await Geolocator.isLocationServiceEnabled()) return;
+    if (await Geolocator.checkPermission() != LocationPermission.denied) return;
+    await Geolocator.requestPermission();
+  } catch (e) {
+    // Une indisponibilité de la plateforme ne doit pas empêcher d'afficher la
+    // page: l'envoi signalera l'erreur au bon moment.
+    Log.warning('Permission de localisation non demandée: $e');
   }
 }
 

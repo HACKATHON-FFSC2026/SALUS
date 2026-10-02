@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,6 +37,9 @@ class _FakeSosRepository implements ISosRepository {
   int sent = 0;
   Object? sendThrows;
 
+  /// Bloque `sendSos` pour reproduire la fenêtre entre le geste et l'écriture.
+  Completer<void>? sendGate;
+
   @override
   Future<String> sendSos({
     required double latitude,
@@ -42,6 +47,7 @@ class _FakeSosRepository implements ISosRepository {
     DistressType distressType = DistressType.other,
     String? description,
   }) async {
+    if (sendGate != null) await sendGate!.future;
     if (sendThrows != null) throw sendThrows!;
     sent++;
     return 'alert-$sent';
@@ -135,6 +141,21 @@ void main() {
     expect(fake.sent, 1);
     expect(state().status, SosStatus.error);
     expect(state().errorMessage, 'Une alerte SOS est déjà en cours.');
+  });
+
+  // Deux maintiens quasi simultanés passent tous les deux `hasActiveAlert`,
+  // qui ne regarde qu'`alertId` — renseigné après l'écriture. La garde
+  // `sending` ferme la fenêtre entre le geste et la création du document.
+  test('deux maintiens quasi simultanés ne créent qu\'une alerte', () async {
+    fake.sendGate = Completer<void>();
+
+    final first = controller().triggerSos();
+    final second = controller().triggerSos();
+    fake.sendGate!.complete();
+    await Future.wait([first, second]);
+
+    expect(fake.sent, 1);
+    expect(state().status, SosStatus.success);
   });
 
   test('autorise une nouvelle alerte après annulation', () async {
