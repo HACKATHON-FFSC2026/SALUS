@@ -18,6 +18,7 @@ import {
   updateDoc,
   deleteDoc,
   collection,
+  getDoc,
   getDocs,
   query,
   where,
@@ -326,6 +327,22 @@ const response = (id, overrides = {}) => ({
 await ok('un citoyen se declare intervenant sur une alerte active', () =>
   setDoc(responseAt(citizenDb, RID), response(RID)),
 );
+// Le datasource fait `docRef.get()` AVANT le `set`, pour ne pas regresser un
+// suivi en cours. Sur un document inexistant `resource` est null: toute lecture
+// qui touche `resource.data` doit rester evaluable, sinon le bouton
+// « Je reponds » echoue en production.
+await ok('lire un suivi qui n\'existe pas encore ne leve pas d\'erreur', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'help_responses', RID),
+      response(RID),
+    );
+    await deleteDoc(doc(context.firestore(), 'help_responses', RID));
+  });
+  await assertSucceeds(getDoc(responseAt(citizenDb, RID)));
+  // On rebat le document: les assertions suivantes le lisent.
+  await setDoc(responseAt(citizenDb, RID), response(RID));
+});
 await ok('la victime lit les reponses a son alerte', () =>
   readOne(victimDb, 'help_responses', RID),
 );
@@ -441,6 +458,9 @@ await ok('l\'aidant inscrit sur l\'alerte lit la position', async () => {
     responderIds: [CITIZEN, SEER, RESPONDER],
   });
   await readOne(responderDb, 'location_shares', SHARE);
+});
+await ok('lire un point jamais publie ne leve pas d\'erreur', async () => {
+  await assertSucceeds(getDoc(shareAt(citizenDb, 'a3_jamais')));
 });
 await denied('on ne publie pas la position d\'un autre', () =>
   setDoc(shareAt(citizenDb, 'a3_r9'), share('a3_r9', { userId: VICTIM })),
