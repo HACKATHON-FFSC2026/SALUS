@@ -463,7 +463,11 @@ service cloud.firestore {
                .data.responderIds.hasAny([request.auth.uid]);
       }
 
+      // Meme raison que `help_responses`: le client peut tester l'existence d'un
+      // point avant de l'ecrire, et une regle false sur un document absent
+      // lui renverrait PERMISSION_DENIED au lieu de « inexistant ».
       allow read: if isAdmin()
+        || resource == null
         || (signedIn()
           && (resource.data.userId == request.auth.uid
             || alertHasResponder()
@@ -507,7 +511,17 @@ service cloud.firestore {
         return signedIn() && resource.data.responderId == request.auth.uid;
       }
 
-      allow read: if isAdmin() || isResponder() || isResponseOwner()
+      // `resource` est null quand le document n'existe pas encore, et une regle qui
+      // rend false sur un `get` absent renvoie PERMISSION_DENIED — pas
+      // « inexistant ». Le datasource teste l'existence avant d'ecrire pour ne
+      // pas regresser un suivi en cours; sans `resource == null` ce test echoue
+      // et « Je reponds » est casse pour quiconque n'a pas deja de suivi.
+      // Autoriser la lecture d'un document inexistant ne divulgue rien: il n'y
+      // a rien a lire.
+      allow read: if isAdmin()
+        || isResponder()
+        || resource == null
+        || isResponseOwner()
         || (signedIn() && alertIsMine(resource.data.sosAlertId));
 
       // On ne repond qu'a une detresse en cours, et sous son vrai uid.
