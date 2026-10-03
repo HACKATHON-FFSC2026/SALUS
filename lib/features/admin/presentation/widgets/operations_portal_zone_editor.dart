@@ -18,6 +18,7 @@ class OperationsPortalZoneEditor extends StatefulWidget {
   final Future<void> Function({
     required String? id,
     required String name,
+    required String description,
     required String disasterType,
     required String severity,
     required List<AdminZonePoint> geometry,
@@ -50,6 +51,7 @@ class _OperationsPortalZoneEditorState
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
   late final List<LatLng> _points;
   late String _disasterType;
   late String _severity;
@@ -63,6 +65,7 @@ class _OperationsPortalZoneEditorState
     super.initState();
     final zone = widget.zone;
     _nameController.text = zone?.source ?? '';
+    _descriptionController.text = zone?.description ?? '';
     _points = [
       for (final point in zone?.geometry ?? const <AdminZonePoint>[])
         LatLng(point.latitude, point.longitude),
@@ -78,11 +81,18 @@ class _OperationsPortalZoneEditorState
   @override
   void dispose() {
     _nameController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_descriptionController.text.trim().isEmpty) {
+      setState(
+        () => _error = 'Saisissez un message pour les personnes concernées.',
+      );
+      return;
+    }
     if (_points
             .map((point) => '${point.latitude},${point.longitude}')
             .toSet()
@@ -102,6 +112,7 @@ class _OperationsPortalZoneEditorState
       await widget.onSave(
         id: widget.zone?.id,
         name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
         disasterType: _disasterType,
         severity: _severity,
         geometry: [
@@ -142,8 +153,8 @@ class _OperationsPortalZoneEditorState
                   Expanded(
                     child: Text(
                       _isEditing
-                          ? 'Modifier la zone à risque'
-                          : 'Nouvelle zone à risque',
+                          ? 'Modifier la zone / alerte à risque'
+                          : 'Nouvelle alerte catastrophe',
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
@@ -159,6 +170,17 @@ class _OperationsPortalZoneEditorState
                     icon: const Icon(Icons.close),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _descriptionController,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: const InputDecoration(
+                  labelText: 'Message de l’alerte',
+                  hintText: 'Décrivez le danger et les consignes à suivre.',
+                  border: OutlineInputBorder(),
+                ),
               ),
               const SizedBox(height: 12),
               Form(
@@ -267,6 +289,13 @@ class _OperationsPortalZoneEditorState
                   ),
                 ],
               ),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'À la publication, la zone et l’alerte apparaissent en direct sur la carte et dans l’écran Alertes.',
+                  style: TextStyle(color: AppColors.inactive, fontSize: 12),
+                ),
+              ),
               const SizedBox(height: 8),
               Expanded(
                 child: ClipRRect(
@@ -354,7 +383,7 @@ class _OperationsPortalZoneEditorState
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.save_outlined),
-                  label: Text(_isEditing ? 'Enregistrer' : 'Créer la zone'),
+                  label: Text(_isEditing ? 'Enregistrer' : 'Publier l’alerte'),
                 ),
               ),
             ],

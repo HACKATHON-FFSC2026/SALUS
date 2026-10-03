@@ -31,6 +31,7 @@ abstract class Zone with _$Zone {
     Severity? severity,
     required ZoneOrigin origin,
     required String source,
+    String? description,
     String? createdBy,
     String? organizationId,
     @Default(true) bool isActive,

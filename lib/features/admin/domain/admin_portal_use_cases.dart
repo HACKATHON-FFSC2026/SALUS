@@ -35,7 +35,11 @@ class AdminPortalUseCases {
         !admin &&
         organizationId != null) {
       return records
-          .where((record) => record.organizationId == organizationId)
+          .where(
+            (record) =>
+                record.validationStatus == 'pending' ||
+                record.organizationId == organizationId,
+          )
           .toList();
     }
     return records;
@@ -115,6 +119,7 @@ class AdminPortalUseCases {
   Future<void> saveManualRiskZone({
     required String? id,
     required String name,
+    required String description,
     required String disasterType,
     required String severity,
     required List<AdminZonePoint> geometry,
@@ -123,6 +128,7 @@ class AdminPortalUseCases {
   }) => _repository.saveManualRiskZone(
     id: id,
     name: name,
+    description: description,
     disasterType: disasterType,
     severity: severity,
     geometry: geometry,

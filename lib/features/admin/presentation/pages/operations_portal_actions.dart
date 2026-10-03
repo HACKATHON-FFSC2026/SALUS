@@ -40,6 +40,7 @@ extension _OperationsPortalActions on _OperationsPortalPageState {
             ({
               required id,
               required name,
+              required String description,
               required disasterType,
               required severity,
               required geometry,
@@ -48,6 +49,7 @@ extension _OperationsPortalActions on _OperationsPortalPageState {
                 .saveManualRiskZone(
                   id: id,
                   name: name,
+                  description: description,
                   disasterType: disasterType,
                   severity: severity,
                   geometry: geometry,

@@ -30,9 +30,8 @@ PARCOURS ADMINISTRATEUR :
 - GERER LES UTILISATEURS
 
 # PORTAIL WEB ÉQUIPES
-Le même projet Flutter fournit le portail web. Enregistrer d’abord une application Web
-dans Firebase puis générer sa configuration (`flutterfire configure --platforms=web`);
-`lib/firebase_options.dart` ne contient actuellement que la configuration Android.
+Le même projet Flutter fournit le portail web. Les configurations Android et Web
+figurent dans `lib/firebase_options.dart`.
 Après connexion Google, le portail lit le profil `users/{uid}` : seuls les comptes actifs
 portant le rôle `admin` ou `organizationMember` y accèdent. Attribuer
 les rôles et `organizationId` depuis un environnement d’administration de confiance ;

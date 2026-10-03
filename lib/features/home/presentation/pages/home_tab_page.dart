@@ -1,12 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/map/presentation/widgets/salus_map_widget.dart';
 
-class HomeTabPage extends StatelessWidget {
+class HomeTabPage extends ConsumerWidget {
   const HomeTabPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final alerts = ref.watch(activeRiskZonesProvider);
+    final hasActiveAlerts = alerts.asData?.value.isNotEmpty == true;
+    final alertText = alerts.when(
+      loading: () => 'Chargement des alertes…',
+      error: (_, _) => 'Alertes momentanément indisponibles',
+      data: (zones) => zones.isEmpty
+          ? 'Aucune alerte active'
+          : '${zones.length} alerte${zones.length == 1 ? '' : 's'} active${zones.length == 1 ? '' : 's'}',
+    );
     return Scaffold(
       body: Stack(
         children: [
@@ -29,14 +40,18 @@ class HomeTabPage extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.shield_outlined,
-                      color: AppColors.primary,
+                    Icon(
+                      hasActiveAlerts
+                          ? Icons.warning_amber_rounded
+                          : Icons.shield_outlined,
+                      color: hasActiveAlerts
+                          ? Theme.of(context).colorScheme.error
+                          : AppColors.primary,
                       size: 19,
                     ),
                     const SizedBox(width: 9),
                     Text(
-                      'Aucune alerte à proximité',
+                      alertText,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,

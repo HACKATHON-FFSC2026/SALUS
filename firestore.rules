@@ -97,14 +97,24 @@ service cloud.firestore {
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.validationStatus == 'pending');
 
-      // Admins supervise and edit all refuge records.
-      allow update: if isAdmin();
+      // Organization members validate citizen proposals without changing
+      // operational or ownership fields. Admins manage all shelter fields.
+      allow update: if isAdmin()
+        || (isOrganizationMember()
+          && resource.data.validationStatus == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['validationStatus', 'validatedBy'])
+          && request.resource.data.validationStatus in ['validated', 'rejected']
+          && request.resource.data.validatedBy == request.auth.uid);
 
       allow delete: if isAdmin();
     }
 
     match /organizations/{organizationId} {
-      allow read: if signedIn();
+      // Verified active organizations are listed in the public Help directory.
+      // Their contact details are intentionally public for emergency assistance.
+      allow read: if signedIn()
+        || (resource.data.verified == true && resource.data.isActive == true);
       allow create, update, delete: if isAdmin();
     }
 

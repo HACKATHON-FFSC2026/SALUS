@@ -46,6 +46,7 @@ abstract interface class AdminPortalRepository {
   Future<void> saveManualRiskZone({
     required String? id,
     required String name,
+    required String description,
     required String disasterType,
     required String severity,
     required List<AdminZonePoint> geometry,
