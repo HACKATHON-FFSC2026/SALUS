@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';

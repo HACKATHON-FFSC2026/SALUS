@@ -127,6 +127,7 @@ const readAlert = (db, id) => readOne(db, 'sos_alerts', id);
 const victimDb = asUser(VICTIM);
 const citizenDb = asUser(CITIZEN);
 const responderDb = asUser(RESPONDER);
+const adminDb = asUser(ADMIN);
 
 // --------------------------------------------------- répertoire public Aide
 const publicDb = testEnv.unauthenticatedContext().firestore();
@@ -228,7 +229,13 @@ console.log('  OK      responderIds reste à [citizen-2]: ni doublon ni perte');
 
 // ---------------------------------------------------------- aidant identifié
 await setDoc(alertAt(victimDb, 'a4'), payload('a4'));
-await ok('un aidant prend en charge', () =>
+await ok('un admin affecte le SOS sans annoncer une intervention commencée', () =>
+  updateDoc(alertAt(adminDb, 'a4'), {
+    status: 'assigned',
+    assignedOrganizationId: 'org-1',
+  }),
+);
+await ok('l’organisation confirme la prise en charge qui lui est affectée', () =>
   updateDoc(alertAt(responderDb, 'a4'), {
     status: 'inProgress',
     assignedOrganizationId: 'org-1',

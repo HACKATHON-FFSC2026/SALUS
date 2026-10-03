@@ -4,7 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/themes/app_theme.dart';
-import 'package:salus/features/help/data/public_organization_repository.dart';
+import 'package:salus/app/di/app_dependencies.dart';
+import 'package:salus/features/help/domain/entities/public_organization.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HelpPage extends ConsumerWidget {

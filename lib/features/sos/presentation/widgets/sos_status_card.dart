@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
+import 'package:salus/core/providers/public_organization_provider.dart';
 import 'package:salus/core/themes/app_theme.dart';
 
-class SosStatusCard extends StatelessWidget {
+class SosStatusCard extends ConsumerWidget {
   const SosStatusCard({super.key, this.alert});
 
   /// Null tant que le flux temps réel n'a pas encore répondu. On affiche
@@ -13,6 +15,8 @@ class SosStatusCard extends StatelessWidget {
     switch (status) {
       case SOSStatus.waiting:
         return Colors.orange;
+      case SOSStatus.assigned:
+        return Colors.deepPurple;
       case SOSStatus.inProgress:
         return Colors.blue;
       case SOSStatus.resolved:
@@ -26,8 +30,10 @@ class SosStatusCard extends StatelessWidget {
     switch (status) {
       case SOSStatus.waiting:
         return 'En attente de secours';
+      case SOSStatus.assigned:
+        return 'Organisation assignée';
       case SOSStatus.inProgress:
-        return 'Secours en route';
+        return 'Intervention en cours';
       case SOSStatus.resolved:
         return 'Alerte résolue';
       case SOSStatus.cancelled:
@@ -36,10 +42,14 @@ class SosStatusCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final status = alert?.status ?? SOSStatus.waiting;
     final responders = alert?.respondersCount ?? 0;
     final statusColor = _getStatusColor(status);
+    final organizationId = alert?.assignedOrganizationId;
+    final organizationName = organizationId == null
+        ? null
+        : ref.watch(publicOrganizationNameProvider(organizationId));
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -54,7 +64,10 @@ class SosStatusCard extends StatelessWidget {
             spreadRadius: 2,
           ),
         ],
-        border: Border.all(color: statusColor.withValues(alpha: 0.4), width: 1.5),
+        border: Border.all(
+          color: statusColor.withValues(alpha: 0.4),
+          width: 1.5,
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -82,6 +95,36 @@ class SosStatusCard extends StatelessWidget {
               ),
             ],
           ),
+          if (organizationId != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(
+                  Icons.apartment_outlined,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Organisation :',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: organizationName == null
+                      ? const Text('Assignée')
+                      : organizationName.when(
+                          data: (name) => Text(name ?? 'Assignée'),
+                          loading: () => const Text('Chargement…'),
+                          error: (_, _) => const Text('Assignée'),
+                        ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -95,7 +138,10 @@ class SosStatusCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),

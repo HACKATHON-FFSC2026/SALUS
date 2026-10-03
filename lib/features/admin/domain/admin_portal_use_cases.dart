@@ -18,35 +18,30 @@ class AdminPortalUseCases {
     AdminCollection collection, {
     required bool admin,
     String? organizationId,
-  }) => _repository.watchCollection(collection).map((records) {
-    if (collection == AdminCollection.sosAlerts &&
-        !admin &&
-        organizationId != null &&
-        organizationId.isNotEmpty) {
-      return records
-          .where(
-            (record) =>
-                record.assignedOrganizationId == organizationId ||
-                record.status == 'waiting',
-          )
-          .toList();
-    }
-    if (collection == AdminCollection.shelters &&
-        !admin &&
-        organizationId != null) {
-      return records
-          .where(
-            (record) =>
-                record.validationStatus == 'pending' ||
-                record.organizationId == organizationId,
-          )
-          .toList();
-    }
-    return records;
-  });
+  }) => _repository
+      .watchCollection(
+        collection,
+        organizationId: admin ? null : organizationId,
+      )
+      .map((records) {
+        if (collection == AdminCollection.shelters &&
+            !admin &&
+            organizationId != null) {
+          return records
+              .where((record) => record.organizationId == organizationId)
+              .toList();
+        }
+        return records;
+      });
 
-  Future<AdminDashboardMetrics> loadMetrics({required bool admin}) async {
-    final records = await _repository.loadDashboardRecords(admin: admin);
+  Future<AdminDashboardMetrics> loadMetrics({
+    required bool admin,
+    String? organizationId,
+  }) async {
+    final records = await _repository.loadDashboardRecords(
+      admin: admin,
+      organizationId: organizationId,
+    );
     final sos = records[AdminCollection.sosAlerts] ?? const [];
     final reports = records[AdminCollection.reports] ?? const [];
     final organizations = records[AdminCollection.organizations] ?? const [];
@@ -75,10 +70,21 @@ class AdminPortalUseCases {
     required String? organizationId,
   }) => _repository.updateSos(
     id: id,
-    status: currentStatus == 'waiting' ? 'inProgress' : 'resolved',
+    status: currentStatus == 'assigned' || currentStatus == 'waiting'
+        ? 'inProgress'
+        : 'resolved',
     assignedOrganizationId: assignedOrganizationId,
     organizationId: organizationId,
   );
+
+  Future<void> assignReportToOrganization(String id, String organizationId) =>
+      _repository.assignReportToOrganization(id, organizationId);
+
+  Future<void> assignShelterToOrganization(String id, String organizationId) =>
+      _repository.assignShelterToOrganization(id, organizationId);
+
+  Future<void> assignSosToOrganization(String id, String organizationId) =>
+      _repository.assignSosToOrganization(id, organizationId);
 
   Future<void> updateReport({
     required String id,

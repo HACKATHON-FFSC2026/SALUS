@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/utils/geo_grid.dart';
-import '../../data/repositories/sos_repository_impl.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 
 /// Alertes SOS actives, triées par proximité quand la position est connue.
 ///

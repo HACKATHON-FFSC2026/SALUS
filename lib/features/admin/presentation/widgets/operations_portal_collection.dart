@@ -167,7 +167,18 @@ class OperationsPortalDataTable extends ConsumerWidget {
       }
       if (limit != null) records = records.take(limit!).toList();
       if (records.isEmpty) {
-        return const _PortalMessage('Aucun élément à afficher pour le moment.');
+        final message = !isAdmin
+            ? switch (collection) {
+                AdminCollection.sosAlerts =>
+                  'Aucun SOS n’est affecté à votre organisation.',
+                AdminCollection.reports =>
+                  'Aucun signalement n’est affecté à votre organisation.',
+                AdminCollection.shelters =>
+                  'Aucune proposition de refuge n’est affectée à votre organisation.',
+                _ => 'Aucun élément à afficher pour le moment.',
+              }
+            : 'Aucun élément à afficher pour le moment.';
+        return _PortalMessage(message);
       }
       return Container(
         width: double.infinity,

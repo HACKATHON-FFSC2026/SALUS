@@ -216,12 +216,15 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (isCitizen()
         && request.resource.data.createdBy == request.auth.uid
+          && (!request.resource.data.keys().hasAny(['organizationId'])
+            || request.resource.data.organizationId == null)
           && request.resource.data.validationStatus == 'pending');
 
       // L'organisation peut trancher une proposition sans modifier les autres
       // informations du refuge. La gestion globale appartient à l'admin.
       allow update: if isAdmin()
         || (isOrganizationMember()
+          && resource.data.organizationId == myOrganizationId()
           && resource.data.validationStatus == 'pending'
           && changedOnly(['validationStatus', 'validatedBy'])
           && request.resource.data.validationStatus in ['validated', 'rejected']
@@ -329,7 +332,7 @@ service cloud.firestore {
       }
 
       function isStillActive() {
-        return resource.data.status in ['waiting', 'inProgress'];
+        return resource.data.status in ['waiting', 'assigned', 'inProgress'];
       }
 
       // La victime se declare intervenant. Uniquement son propre uid, et
@@ -337,7 +340,7 @@ service cloud.firestore {
       // deux fois la meme personne.
       function joinsAsResponder() {
         return signedIn()
-          && isStillActive()
+          && resource.data.status in ['waiting', 'inProgress']
           && changedOnly(['responderIds'])
           && request.resource.data.responderIds.size()
                == resource.data.responderIds.size() + 1
@@ -375,11 +378,17 @@ service cloud.firestore {
       // que des secours sont en route.
       function responderUpdates() {
         return isResponder()
-          && isStillActive()
           && changedOnly(['status', 'assignedOrganizationId', 'resolvedAt'])
-          && (request.resource.data.status != 'inProgress'
-            || request.resource.data.assignedOrganizationId == myOrganizationId())
-          && request.resource.data.status in ['inProgress', 'resolved'];
+          && (
+            (resource.data.status in ['assigned', 'waiting']
+              && resource.data.assignedOrganizationId == myOrganizationId()
+              && request.resource.data.status == 'inProgress'
+              && request.resource.data.assignedOrganizationId == myOrganizationId())
+            || (resource.data.status == 'inProgress'
+              && resource.data.assignedOrganizationId == myOrganizationId()
+              && request.resource.data.status == 'resolved'
+              && request.resource.data.assignedOrganizationId == myOrganizationId())
+          );
       }
 
       // Les alertes actives sont visibles par tout utilisateur connecte : c'est
@@ -387,13 +396,17 @@ service cloud.firestore {
       // « Repondre a une detresse »). Une alerte terminee ne reste lisible que
       // par la victime, les intervenants et l'admin : elle contient une
       // position et un motif de detresse qui n'ont plus lieu d'etre exposes.
-      allow read: if isAdmin() || isOwner() || isResponder()
+      allow read: if isAdmin() || isOwner()
+        || (isResponder()
+          && resource.data.assignedOrganizationId == myOrganizationId())
         || (signedIn() && resource.data.status in ['waiting', 'inProgress']);
 
       // Une alerte ne peut naitre que comme une demande d'aide en attente.
       allow create: if isActiveAccount()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'waiting'
+        && (!request.resource.data.keys().hasAny(['assignedOrganizationId'])
+          || request.resource.data.assignedOrganizationId == null)
         && request.resource.data.responderIds.size() == 0
         && request.resource.data.distressType in [
           'medical',
@@ -530,7 +543,9 @@ service cloud.firestore {
         return signedIn() && resource.data.reporterId == request.auth.uid;
       }
 
-      allow read: if isAdmin() || isResponder() || isReporter();
+      allow read: if isAdmin() || isReporter()
+        || (isResponder()
+          && resource.data.assignedOrganizationId == myOrganizationId());
 
       // Un signalement est « open » a sa creation : un citoyen ne peut pas
       // s'auto-marquer « resolu » pour faire disparaitre son signalement du
@@ -539,6 +554,8 @@ service cloud.firestore {
         && request.resource.data.reporterId == request.auth.uid
         && request.resource.data.status == 'open'
         && request.resource.data.reviewedBy == null
+        && (!request.resource.data.keys().hasAny(['assignedOrganizationId'])
+          || request.resource.data.assignedOrganizationId == null)
         && request.resource.data.targetType in ['shelter', 'zone', 'road', 'other']
         && request.resource.data.reason in [
           'unsafe',
@@ -550,6 +567,7 @@ service cloud.firestore {
       // Le traitement n'ecrit que la decision : ni la cible, ni le motif.
       allow update: if isAdmin()
         || (isResponder()
+          && resource.data.assignedOrganizationId == myOrganizationId()
           && changedOnly(['status', 'reviewedBy'])
           && request.resource.data.status in ['reviewed', 'resolved']);
 

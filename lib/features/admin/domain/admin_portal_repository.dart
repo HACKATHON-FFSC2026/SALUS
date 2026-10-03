@@ -6,10 +6,14 @@ import 'package:salus/features/admin/domain/models/admin_zone_point.dart';
 abstract interface class AdminPortalRepository {
   Stream<AdminPortalUser?> watchUser(String uid);
 
-  Stream<List<AdminPortalRecord>> watchCollection(AdminCollection collection);
+  Stream<List<AdminPortalRecord>> watchCollection(
+    AdminCollection collection, {
+    String? organizationId,
+  });
 
   Future<Map<AdminCollection, List<AdminPortalRecord>>> loadDashboardRecords({
     required bool admin,
+    String? organizationId,
   });
 
   Future<void> verifyOrganization(String id, String uid);
@@ -21,11 +25,17 @@ abstract interface class AdminPortalRepository {
     required String? organizationId,
   });
 
+  Future<void> assignSosToOrganization(String id, String organizationId);
+
   Future<void> updateReport({
     required String id,
     required String status,
     required String uid,
   });
+
+  Future<void> assignReportToOrganization(String id, String organizationId);
+
+  Future<void> assignShelterToOrganization(String id, String organizationId);
 
   Future<void> validateShelter(String id, String uid);
 

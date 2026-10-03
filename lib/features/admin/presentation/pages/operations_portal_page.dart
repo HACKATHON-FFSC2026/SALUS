@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
@@ -14,7 +15,6 @@ import 'package:salus/features/admin/presentation/widgets/operations_portal_zone
 import 'package:salus/features/admin/presentation/widgets/admin_shelter_form_dialog.dart';
 import 'package:salus/features/admin/presentation/widgets/admin_organization_form_dialog.dart';
 import 'package:salus/features/admin/presentation/widgets/organization_membership_dialog.dart';
-import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 
 part 'operations_portal_sections.dart';
 part 'operations_portal_actions.dart';
@@ -44,6 +44,8 @@ class _OperationsPortalPageState extends ConsumerState<OperationsPortalPage> {
   }
 
   void _selectSection(int index) => setState(() => _section = index);
+
+  void _retryOverviewMetrics() => setState(() {});
 
   @override
   Widget build(BuildContext context) {

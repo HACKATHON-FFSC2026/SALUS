@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/widgets/salus_map_widget.dart';
 import 'package:salus/features/risks/domain/repositories/safe_zone.dart';

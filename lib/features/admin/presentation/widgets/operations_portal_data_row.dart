@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
+import 'package:salus/features/admin/presentation/widgets/sos_assignment_dialog.dart';
 
 class OperationsPortalDataRow extends StatelessWidget {
   const OperationsPortalDataRow({
@@ -41,15 +45,15 @@ class OperationsPortalDataRow extends StatelessWidget {
 
   String get _detail => switch (collection) {
     AdminCollection.sosAlerts =>
-      '${_distressLabel(record.distressType)} · ${record.responderCount} aidant${record.responderCount == 1 ? '' : 's'} · ${record.description ?? 'Aucun détail'} · ${_displayDate(record.createdAt)}',
+      '${_distressLabel(record.distressType)} · ${record.assignedOrganizationId == null ? 'Non assigné' : 'Organisation ${_shortCode(record.assignedOrganizationId!)}'} · ${record.responderCount} aidant${record.responderCount == 1 ? '' : 's'} · ${record.description ?? 'Aucun détail'} · ${_displayDate(record.createdAt)}',
     AdminCollection.users =>
       '${record.email ?? 'Email non renseigné'} · ${_rolesLabel(record.roles)} · ${_safetyStatusLabel(record.safetyStatus)}',
     AdminCollection.shelters =>
-      '${record.address ?? 'Adresse non renseignée'} · ${_shelterStatusLabel(record.status)} · ${record.capacityOccupied ?? 0}/${record.capacityTotal ?? 0} places',
+      '${record.address ?? 'Adresse non renseignée'} · ${_shelterStatusLabel(record.status)} · ${record.organizationId == null ? 'Non assigné' : 'Organisation ${_shortCode(record.organizationId!)}'} · ${record.capacityOccupied ?? 0}/${record.capacityTotal ?? 0} places',
     AdminCollection.organizations =>
       '${record.contactEmail ?? 'Email non renseigné'} · ${record.contactPhone ?? 'Téléphone non renseigné'} · ${_organizationType(record.type)}',
     AdminCollection.reports =>
-      '${_reportReason(record.reason)} · ${_reportTarget(record.targetType)} · ${_shortCode(record.targetId ?? '')} · ${_displayDate(record.createdAt)}',
+      '${_reportReason(record.reason)} · ${_reportTarget(record.targetType)} · ${_shortCode(record.targetId ?? '')} · ${record.assignedOrganizationId == null ? 'Non assigné' : 'Organisation ${_shortCode(record.assignedOrganizationId!)}'} · ${_displayDate(record.createdAt)}',
     AdminCollection.zones => _zoneDetail(record),
   };
 
@@ -105,6 +109,12 @@ class OperationsPortalDataRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         _PortalStatusPill(_status),
+        if (collection == AdminCollection.sosAlerts)
+          IconButton(
+            tooltip: 'Détails du SOS et itinéraire',
+            onPressed: () => _showSosDetails(context),
+            icon: const Icon(Icons.info_outline, color: AppColors.primary),
+          ),
         if (isAdmin &&
             collection == AdminCollection.organizations &&
             !record.verified)
@@ -135,11 +145,40 @@ class OperationsPortalDataRow extends StatelessWidget {
             ),
           ),
         ],
+        if (isAdmin && _canAssignToOrganization)
+          IconButton(
+            tooltip: _assignedOrganizationId == null
+                ? 'Assigner à une organisation'
+                : 'Réassigner à une organisation',
+            onPressed: () => _assignToOrganization(context),
+            icon: const Icon(
+              Icons.assignment_ind_outlined,
+              color: AppColors.primary,
+            ),
+          ),
         if (collection == AdminCollection.sosAlerts &&
+            isAdmin &&
+            record.status == 'inProgress')
+          IconButton(
+            tooltip: 'Marquer le SOS comme résolu',
+            onPressed: () => useCases.updateSos(
+              id: record.id,
+              currentStatus: record.status,
+              assignedOrganizationId: record.assignedOrganizationId,
+              organizationId: organizationId,
+            ),
+            icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+          ),
+        if (collection == AdminCollection.sosAlerts &&
+            !isAdmin &&
             record.status != 'resolved' &&
             record.status != 'cancelled')
           IconButton(
-            tooltip: 'Prendre en charge / résoudre',
+            tooltip: record.status == 'assigned'
+                ? 'Confirmer la prise en charge'
+                : record.status == 'waiting'
+                ? 'Prendre en charge pour mon organisation'
+                : 'Marquer comme résolu',
             onPressed: () => useCases.updateSos(
               id: record.id,
               currentStatus: record.status,
@@ -267,6 +306,187 @@ class OperationsPortalDataRow extends StatelessWidget {
     ),
   );
 
+  Future<void> _assignToOrganization(BuildContext context) async {
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => OrganizationAssignmentDialog(
+        title: switch (collection) {
+          AdminCollection.sosAlerts => 'Affecter le SOS',
+          AdminCollection.reports => 'Affecter le signalement',
+          AdminCollection.shelters => 'Affecter la proposition de refuge',
+          _ => 'Affecter à une organisation',
+        },
+        description: record.description ?? record.title,
+        currentOrganizationId: _assignedOrganizationId,
+        confirmLabel: 'Affecter',
+        useCases: useCases,
+        onAssign: (organizationId) => switch (collection) {
+          AdminCollection.sosAlerts => useCases.assignSosToOrganization(
+            record.id,
+            organizationId,
+          ),
+          AdminCollection.reports => useCases.assignReportToOrganization(
+            record.id,
+            organizationId,
+          ),
+          AdminCollection.shelters => useCases.assignShelterToOrganization(
+            record.id,
+            organizationId,
+          ),
+          _ => Future<void>.value(),
+        },
+      ),
+    );
+  }
+
+  Future<void> _showSosDetails(BuildContext context) async {
+    final latitude = record.locationLatitude;
+    final longitude = record.locationLongitude;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('SOS · ${_distressLabel(record.distressType)}'),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SosDetailLine('Statut', _statusLabel(record.status)),
+                _SosDetailLine(
+                  'Référence de la personne',
+                  _shortCode(record.userId ?? record.id),
+                ),
+                _SosDetailLine('Créé le', _displayDate(record.createdAt)),
+                _SosDetailLine('Aidants inscrits', '${record.responderCount}'),
+                const SizedBox(height: 14),
+                const Text(
+                  'Description',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  record.description?.trim().isNotEmpty == true
+                      ? record.description!.trim()
+                      : 'Aucun détail ajouté par la personne.',
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Dernière position connue',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 5),
+                if (latitude != null && longitude != null) ...[
+                  SizedBox(
+                    height: 260,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: FlutterMap(
+                        options: MapOptions(
+                          initialCenter: LatLng(latitude, longitude),
+                          initialZoom: 15,
+                          minZoom: 4,
+                          maxZoom: 18,
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.salus.app',
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: LatLng(latitude, longitude),
+                                width: 44,
+                                height: 52,
+                                child: const Icon(
+                                  Icons.location_pin,
+                                  color: AppColors.sos,
+                                  size: 44,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SelectableText(
+                    '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
+                  ),
+                  Text(
+                    record.locationUpdatedAt == null
+                        ? 'Position initiale'
+                        : 'Mise à jour : ${_displayDate(record.locationUpdatedAt)}',
+                    style: const TextStyle(
+                      color: AppColors.inactive,
+                      fontSize: 12,
+                    ),
+                  ),
+                ] else
+                  const Text('Position indisponible.'),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Fermer'),
+          ),
+          FilledButton.icon(
+            onPressed: latitude == null || longitude == null
+                ? null
+                : () => _openSosRoute(context, latitude, longitude),
+            icon: const Icon(Icons.directions),
+            label: const Text('Itinéraire'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openSosRoute(
+    BuildContext context,
+    double latitude,
+    double longitude,
+  ) async {
+    final uri = Uri.https('www.google.com', '/maps/dir/', {
+      'api': '1',
+      'destination': '$latitude,$longitude',
+      'travelmode': 'driving',
+    });
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d’ouvrir l’itinéraire.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d’ouvrir l’itinéraire.')),
+        );
+      }
+    }
+  }
+
+  String? get _assignedOrganizationId => collection == AdminCollection.shelters
+      ? record.organizationId
+      : record.assignedOrganizationId;
+
+  bool get _canAssignToOrganization => switch (collection) {
+    AdminCollection.sosAlerts =>
+      record.status != 'resolved' && record.status != 'cancelled',
+    AdminCollection.reports => record.status != 'resolved',
+    AdminCollection.shelters => record.validationStatus == 'pending',
+    _ => false,
+  };
+
   String _zoneToggleLabel(AdminPortalRecord zone) {
     if (zone.zoneType == 'risk' && zone.zoneOrigin == 'manual') {
       return zone.isActive == true ? 'Clôturer l’alerte' : 'Réactiver l’alerte';
@@ -322,6 +542,37 @@ class OperationsPortalDataRow extends StatelessWidget {
     }
   }
 }
+
+class _SosDetailLine extends StatelessWidget {
+  const _SosDetailLine(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 150,
+          child: Text(label, style: const TextStyle(color: AppColors.inactive)),
+        ),
+        Expanded(child: Text(value.isEmpty ? '—' : value)),
+      ],
+    ),
+  );
+}
+
+String _statusLabel(String? status) => switch (status) {
+  'waiting' => 'En attente d’affectation',
+  'assigned' => 'Affecté à une organisation',
+  'inProgress' => 'Intervention en cours',
+  'resolved' => 'Résolu',
+  'cancelled' => 'Annulé',
+  _ => status ?? 'Inconnu',
+};
 
 String _disasterLabel(String? value) => switch (value) {
   'flood' => 'Inondation',
@@ -433,6 +684,7 @@ class _PortalStatusPill extends StatelessWidget {
 
   static const _labels = {
     'waiting': 'En attente',
+    'assigned': 'Assignée',
     'inProgress': 'En cours',
     'resolved': 'Résolue',
     'cancelled': 'Annulée',
@@ -453,6 +705,7 @@ class _PortalStatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final active = [
       'waiting',
+      'assigned',
       'pending',
       'open',
       'inProgress',
