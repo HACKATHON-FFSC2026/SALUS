@@ -10,6 +10,7 @@ class OperationsPortalDataRow extends StatelessWidget {
     required this.collection,
     required this.record,
     required this.isAdmin,
+    required this.organizationId,
     required this.userId,
     required this.useCases,
     required this.onEditOrganization,
@@ -21,6 +22,7 @@ class OperationsPortalDataRow extends StatelessWidget {
   final AdminCollection collection;
   final AdminPortalRecord record;
   final bool isAdmin;
+  final String? organizationId;
   final String userId;
   final AdminPortalUseCases useCases;
   final ValueChanged<AdminPortalRecord> onEditOrganization;
@@ -28,39 +30,49 @@ class OperationsPortalDataRow extends StatelessWidget {
   final ValueChanged<AdminPortalRecord> onViewReport;
   final ValueChanged<AdminPortalRecord> onEditRiskZone;
 
-  String get _detail => switch (collection) {
+  String get _title => switch (collection) {
     AdminCollection.sosAlerts =>
-      '${record.distressType ?? 'urgence'} · ${_displayDate(record.createdAt)}',
+      'SOS · ${_shortCode(record.userId ?? record.id)}',
     AdminCollection.users =>
-      '${record.email ?? ''} · ${record.roles.join(', ')}',
-    AdminCollection.shelters =>
-      '${record.address ?? ''} · ${record.capacityOccupied ?? 0}/${record.capacityTotal ?? 0} places',
-    AdminCollection.organizations =>
-      '${record.contactEmail ?? ''} · ${record.contactPhone ?? ''} · ${_organizationType(record.type)}',
-    AdminCollection.reports =>
-      '${_reportReason(record.reason)} · ${_reportTarget(record.targetType)} · ${_displayDate(record.createdAt)}',
-    AdminCollection.zones =>
-      '${_disasterLabel(record.disasterType)} · ${_severityLabel(record.severity)} · ${record.geometry.length} points',
+      record.displayName ?? 'Utilisateur ${_shortCode(record.id)}',
+    AdminCollection.reports => 'Signalement · ${_shortCode(record.id)}',
+    _ => record.title,
   };
 
-  String get _status => collection == AdminCollection.zones
-      ? record.zoneType == 'risk' && record.zoneOrigin == 'manual'
-            ? (record.isActive == false ? 'closed' : 'active')
-            : (record.isActive == false ? 'inactive' : 'active')
-      : collection == AdminCollection.shelters
-      ? record.validationStatus ?? 'pending'
-      : collection == AdminCollection.organizations
-      ? record.isActive == false
-            ? 'suspended'
-            : record.verified
-            ? 'verified'
-            : 'pending'
-      : record.status ??
-            (record.verified
-                ? 'vérifiée'
-                : collection == AdminCollection.organizations
-                ? 'à vérifier'
-                : record.validationStatus ?? 'actif');
+  String get _detail => switch (collection) {
+    AdminCollection.sosAlerts =>
+      '${_distressLabel(record.distressType)} · ${record.responderCount} aidant${record.responderCount == 1 ? '' : 's'} · ${record.description ?? 'Aucun détail'} · ${_displayDate(record.createdAt)}',
+    AdminCollection.users =>
+      '${record.email ?? 'Email non renseigné'} · ${_rolesLabel(record.roles)} · ${_safetyStatusLabel(record.safetyStatus)}',
+    AdminCollection.shelters =>
+      '${record.address ?? 'Adresse non renseignée'} · ${_shelterStatusLabel(record.status)} · ${record.capacityOccupied ?? 0}/${record.capacityTotal ?? 0} places',
+    AdminCollection.organizations =>
+      '${record.contactEmail ?? 'Email non renseigné'} · ${record.contactPhone ?? 'Téléphone non renseigné'} · ${_organizationType(record.type)}',
+    AdminCollection.reports =>
+      '${_reportReason(record.reason)} · ${_reportTarget(record.targetType)} · ${_shortCode(record.targetId ?? '')} · ${_displayDate(record.createdAt)}',
+    AdminCollection.zones => _zoneDetail(record),
+  };
+
+  String get _status => switch (collection) {
+    AdminCollection.zones =>
+      record.zoneType == 'risk' && record.zoneOrigin == 'manual'
+          ? record.isActive == false
+                ? 'closed'
+                : 'active'
+          : record.isActive == false
+          ? 'inactive'
+          : 'active',
+    AdminCollection.shelters => record.validationStatus ?? 'pending',
+    AdminCollection.organizations =>
+      record.isActive != true
+          ? 'suspended'
+          : record.verified
+          ? 'verified'
+          : 'pending',
+    AdminCollection.users => record.isActive == false ? 'inactive' : 'active',
+    AdminCollection.sosAlerts ||
+    AdminCollection.reports => record.status ?? 'unknown',
+  };
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -73,7 +85,7 @@ class OperationsPortalDataRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                record.title,
+                _title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -108,15 +120,15 @@ class OperationsPortalDataRow extends StatelessWidget {
             icon: const Icon(Icons.edit_outlined, color: AppColors.primary),
           ),
           IconButton(
-            tooltip: record.isActive == false
+            tooltip: record.isActive != true
                 ? 'Réactiver l’organisation'
                 : 'Suspendre l’organisation',
             onPressed: () => useCases.setOrganizationActive(
               record.id,
-              isActive: record.isActive == false,
+              isActive: record.isActive != true,
             ),
             icon: Icon(
-              record.isActive == false
+              record.isActive != true
                   ? Icons.play_circle_outline
                   : Icons.pause_circle_outline,
               color: AppColors.inactive,
@@ -132,7 +144,7 @@ class OperationsPortalDataRow extends StatelessWidget {
               id: record.id,
               currentStatus: record.status,
               assignedOrganizationId: record.assignedOrganizationId,
-              uid: userId,
+              organizationId: organizationId,
             ),
             icon: const Icon(
               Icons.check_circle_outline,
@@ -321,6 +333,63 @@ String _disasterLabel(String? value) => switch (value) {
   _ => 'Risque',
 };
 
+String _zoneDetail(AdminPortalRecord record) {
+  final type = switch (record.zoneType) {
+    'safe' => 'Zone sûre',
+    'risk' => 'Zone à risque',
+    _ => 'Zone',
+  };
+  final origin = switch (record.zoneOrigin) {
+    'automatic' => 'automatique',
+    'manual' => 'manuelle',
+    _ => 'origine inconnue',
+  };
+  final hazard = record.zoneType == 'risk'
+      ? ' · ${_disasterLabel(record.disasterType)} · ${_severityLabel(record.severity)}'
+      : '';
+  return '$type $origin$hazard · ${record.geometry.length} points';
+}
+
+String _distressLabel(String? value) => switch (value) {
+  'medical' => 'Urgence médicale',
+  'security' => 'Sécurité',
+  'accident' => 'Accident',
+  'fire' => 'Incendie',
+  'other' => 'Autre urgence',
+  _ => 'Urgence',
+};
+
+String _shelterStatusLabel(String? value) => switch (value) {
+  'open' => 'Ouvert',
+  'almostFull' => 'Presque complet',
+  'full' => 'Complet',
+  'closed' => 'Fermé',
+  _ => 'Disponibilité inconnue',
+};
+
+String _safetyStatusLabel(String? value) => switch (value) {
+  'safe' => 'En sécurité',
+  'inDistress' => 'En détresse',
+  'unknown' => 'Situation inconnue',
+  _ => 'Situation non renseignée',
+};
+
+String _rolesLabel(List<String> roles) => roles.isEmpty
+    ? 'Aucun rôle'
+    : roles
+          .map(
+            (role) => switch (role) {
+              'admin' => 'Administrateur',
+              'citizen' => 'Citoyen',
+              'organizationMember' => 'Secouriste',
+              _ => role,
+            },
+          )
+          .join(', ');
+
+String _shortCode(String value) =>
+    value.length <= 8 ? value : value.substring(0, 8);
+
 String _severityLabel(String? value) => switch (value) {
   'low' => 'Faible',
   'medium' => 'Modérée',
@@ -377,6 +446,7 @@ class _PortalStatusPill extends StatelessWidget {
     'inactive': 'Inactive',
     'closed': 'Clôturée',
     'suspended': 'Suspendue',
+    'unknown': 'Inconnu',
   };
 
   @override
@@ -387,12 +457,22 @@ class _PortalStatusPill extends StatelessWidget {
       'open',
       'inProgress',
       'active',
+      'verified',
+      'validated',
+    ].contains(value);
+    final rejected = [
+      'inactive',
+      'suspended',
+      'rejected',
+      'cancelled',
     ].contains(value);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: active
             ? AppColors.secondary.withValues(alpha: .16)
+            : rejected
+            ? Theme.of(context).colorScheme.error.withValues(alpha: .12)
             : AppColors.background,
         borderRadius: BorderRadius.circular(20),
       ),
@@ -401,7 +481,9 @@ class _PortalStatusPill extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: AppColors.primary,
+          color: rejected
+              ? Theme.of(context).colorScheme.error
+              : AppColors.primary,
         ),
       ),
     );

@@ -6,6 +6,10 @@ import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/widgets/google_logo.dart';
 import 'package:salus/features/auth/presentation/pages/login_page.dart';
 import 'package:salus/features/home/presentation/pages/main_page.dart';
+import 'package:salus/features/help/data/public_organization_repository.dart';
+import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
+import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
+import 'package:salus/features/sos/presentation/providers/active_sos_provider.dart';
 import 'package:salus/features/risks/domain/repositories/safe_zone.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
 
@@ -39,7 +43,21 @@ void main() {
       ProviderScope(
         overrides: [
           riskZonesProvider.overrideWith((ref) async => const <Zone>[]),
-          safeZoneRepositoryProvider.overrideWithValue(_StubSafeZoneRepository()),
+          safeZoneRepositoryProvider.overrideWithValue(
+            _StubSafeZoneRepository(),
+          ),
+          activeRiskZonesProvider.overrideWith(
+            (ref) => Stream.value(const <Zone>[]),
+          ),
+          activeSosStreamProvider.overrideWith(
+            (ref) => Stream.value(const <SOSAlert>[]),
+          ),
+          validatedSheltersProvider.overrideWith(
+            (ref) => Stream.value(const <Shelter>[]),
+          ),
+          publicOrganizationsProvider.overrideWith(
+            (ref) => Stream.value(const <PublicOrganization>[]),
+          ),
         ],
         child: const MaterialApp(home: MainPage()),
       ),

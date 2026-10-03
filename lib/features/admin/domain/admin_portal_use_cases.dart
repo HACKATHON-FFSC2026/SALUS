@@ -56,7 +56,7 @@ class AdminPortalUseCases {
           .where((record) => !['resolved', 'cancelled'].contains(record.status))
           .length,
       organizations: organizations
-          .where((record) => record.verified && record.isActive != false)
+          .where((record) => record.verified && record.isActive == true)
           .length,
       shelters: records[AdminCollection.shelters]?.length ?? 0,
       users: records[AdminCollection.users]?.length ?? 0,
@@ -72,12 +72,12 @@ class AdminPortalUseCases {
     required String id,
     required String? currentStatus,
     required String? assignedOrganizationId,
-    required String uid,
+    required String? organizationId,
   }) => _repository.updateSos(
     id: id,
     status: currentStatus == 'waiting' ? 'inProgress' : 'resolved',
     assignedOrganizationId: assignedOrganizationId,
-    uid: uid,
+    organizationId: organizationId,
   );
 
   Future<void> updateReport({

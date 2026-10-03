@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/themes/app_theme.dart';
@@ -143,9 +144,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
     ),
     builder: (context, snapshot) {
       if (snapshot.hasError) {
-        return const _PortalMessage(
-          'Accès aux données refusé. Vérifiez les règles Firestore.',
-        );
+        return _PortalMessage(_portalReadError(snapshot.error));
       }
       if (!snapshot.hasData) {
         return const Padding(
@@ -196,6 +195,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
                 collection: collection,
                 record: record,
                 isAdmin: isAdmin,
+                organizationId: organizationId,
                 userId: userId,
                 useCases: useCases,
                 onEditOrganization: onEditOrganization,
@@ -229,4 +229,18 @@ class _PortalMessage extends StatelessWidget {
       style: const TextStyle(color: AppColors.inactive),
     ),
   );
+}
+
+String _portalReadError(Object? error) {
+  if (error is FirebaseException) {
+    return switch (error.code) {
+      'permission-denied' =>
+        'Accès refusé par les règles Firestore. Vérifie le rôle actif du compte.',
+      'failed-precondition' =>
+        'Index Firestore requis. Déploie les index du projet.',
+      'unavailable' => 'Firestore est indisponible. Vérifie la connexion.',
+      _ => 'Erreur Firestore (${error.code}).',
+    };
+  }
+  return 'Impossible de charger les données${error == null ? '.' : ' : $error'}';
 }

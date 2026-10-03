@@ -2,10 +2,11 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/app/routes/app_router.dart';
-import 'package:salus/core/entities/sos_alert_entity.dart';
+import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/map/presentation/widgets/salus_map_widget.dart';
+import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
 import 'package:salus/features/sos/presentation/providers/active_sos_provider.dart';
 
 class HomeTabPage extends ConsumerWidget {
@@ -14,15 +15,16 @@ class HomeTabPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sosAsync = ref.watch(activeSosStreamProvider);
-    final zonesAsync = ref.watch(activeRiskZonesProvider);
-    final zones = zonesAsync.asData?.value ?? const [];
-    final zoneText = zonesAsync.when(
-      loading: () => 'Chargement des alertes…',
-      error: (_, _) => 'Alertes momentanément indisponibles',
-      data: (items) => items.isEmpty
-          ? 'Aucune alerte catastrophe active'
-          : '${items.length} alerte${items.length == 1 ? '' : 's'} catastrophe active${items.length == 1 ? '' : 's'}',
-    );
+    final firestoreZonesAsync = ref.watch(activeRiskZonesProvider);
+    final externalZonesAsync = ref.watch(riskZonesProvider);
+    final zonesById = <String, Zone>{
+      for (final zone in externalZonesAsync.value ?? const <Zone>[])
+        if (zone.isActive && zone.type == ZoneType.risk) zone.id: zone,
+      for (final zone in firestoreZonesAsync.value ?? const <Zone>[])
+        if (zone.isActive && zone.type == ZoneType.risk) zone.id: zone,
+    };
+    final hasZoneData =
+        externalZonesAsync.hasValue || firestoreZonesAsync.hasValue;
 
     return Scaffold(
       body: Stack(
@@ -32,50 +34,14 @@ class HomeTabPage extends ConsumerWidget {
             top: MediaQuery.paddingOf(context).top + 12,
             left: 16,
             right: 16,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _NearbyAlertsBanner(count: _count(sosAsync)),
-                const SizedBox(height: 8),
-                Card(
-                  color: AppColors.surface.withValues(alpha: 0.96),
-                  elevation: 3,
-                  shadowColor: AppColors.primary.withValues(alpha: 0.15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 11,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          zones.isNotEmpty
-                              ? Icons.warning_amber_rounded
-                              : Icons.shield_outlined,
-                          color: zones.isNotEmpty
-                              ? Theme.of(context).colorScheme.error
-                              : AppColors.primary,
-                          size: 19,
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Text(
-                            zoneText,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            child: _SituationBanner(
+              sosCount: _count(sosAsync),
+              riskCount: hasZoneData ? zonesById.length : null,
+              sosUnavailable: sosAsync.hasError,
+              riskUnavailable:
+                  !hasZoneData &&
+                  externalZonesAsync.hasError &&
+                  firestoreZonesAsync.hasError,
             ),
           ),
         ],
@@ -83,25 +49,44 @@ class HomeTabPage extends ConsumerWidget {
     );
   }
 
-  /// Null means the stream is loading or unavailable.
-  static int? _count(AsyncValue<List<SOSAlert>> sosAsync) =>
-      sosAsync.maybeWhen(data: (alerts) => alerts.length, orElse: () => null);
+  static int? _count(AsyncValue<List<SOSAlert>> value) =>
+      value.maybeWhen(data: (alerts) => alerts.length, orElse: () => null);
 }
 
-class _NearbyAlertsBanner extends StatelessWidget {
-  const _NearbyAlertsBanner({required this.count});
+class _SituationBanner extends StatelessWidget {
+  const _SituationBanner({
+    required this.sosCount,
+    required this.riskCount,
+    required this.sosUnavailable,
+    required this.riskUnavailable,
+  });
 
-  final int? count;
+  final int? sosCount;
+  final int? riskCount;
+  final bool sosUnavailable;
+  final bool riskUnavailable;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, label) = switch (count) {
-      null => (Icons.help_outline, 'Chargement des SOS actifs…'),
-      0 => (Icons.check_circle_outline, 'Aucun SOS actif à proximité'),
-      final n => (
-        Icons.emergency_share_outlined,
-        '$n SOS actif${n > 1 ? 's' : ''} à proximité',
-      ),
+    final hasRisk = (riskCount ?? 0) > 0;
+    final hasSos = (sosCount ?? 0) > 0;
+    final icon = hasRisk
+        ? Icons.warning_amber_rounded
+        : hasSos
+        ? Icons.emergency_share_outlined
+        : Icons.shield_outlined;
+    final title = switch (sosCount) {
+      null when sosUnavailable => 'SOS actifs indisponibles',
+      null => 'SOS actifs en cours de chargement…',
+      0 => 'Aucun SOS actif',
+      final count => '$count SOS actif${count == 1 ? '' : 's'}',
+    };
+    final subtitle = switch (riskCount) {
+      null when riskUnavailable => 'Alertes catastrophe indisponibles',
+      null => 'Alertes catastrophe en cours de chargement',
+      0 => 'Aucune alerte catastrophe active',
+      final count =>
+        '$count alerte${count == 1 ? '' : 's'} catastrophe active${count == 1 ? '' : 's'}',
     };
 
     return Card(
@@ -116,21 +101,45 @@ class _NearbyAlertsBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           child: Row(
             children: [
-              Icon(icon, color: AppColors.primary, size: 19),
-              const SizedBox(width: 9),
+              Icon(
+                icon,
+                color: hasRisk
+                    ? Theme.of(context).colorScheme.error
+                    : AppColors.primary,
+                size: 22,
+              ),
+              const SizedBox(width: 11),
               Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.inactive,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 4),
               const Icon(
                 Icons.chevron_right,
                 color: AppColors.inactive,
-                size: 19,
+                size: 20,
               ),
             ],
           ),

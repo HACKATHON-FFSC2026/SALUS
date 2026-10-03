@@ -86,7 +86,7 @@ class _OrganizationMembershipDialogState
           final organizations = snapshot.data!
               .where(
                 (organization) =>
-                    organization.verified && organization.isActive != false,
+                    organization.verified && organization.isActive == true,
               )
               .toList();
           final currentId =

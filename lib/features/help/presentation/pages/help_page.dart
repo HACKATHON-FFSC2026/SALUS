@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/themes/app_theme.dart';
@@ -62,9 +65,10 @@ class HelpPage extends ConsumerWidget {
               padding: EdgeInsets.all(24),
               child: Center(child: CircularProgressIndicator()),
             ),
-            error: (_, _) => const _DirectoryMessage(
+            error: (error, _) => _DirectoryMessage(
               icon: Icons.cloud_off_outlined,
-              message: 'Impossible de charger les organisations.',
+              message: _organizationErrorMessage(error),
+              onRetry: () => ref.invalidate(publicOrganizationsProvider),
             ),
             data: (items) => items.isEmpty
                 ? const _DirectoryMessage(
@@ -185,10 +189,15 @@ class _ContactButton extends StatelessWidget {
 }
 
 class _DirectoryMessage extends StatelessWidget {
-  const _DirectoryMessage({required this.icon, required this.message});
+  const _DirectoryMessage({
+    required this.icon,
+    required this.message,
+    this.onRetry,
+  });
 
   final IconData icon;
   final String message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -202,9 +211,35 @@ class _DirectoryMessage extends StatelessWidget {
           textAlign: TextAlign.center,
           style: const TextStyle(color: AppColors.inactive),
         ),
+        if (onRetry != null) ...[
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Réessayer'),
+          ),
+        ],
       ],
     ),
   );
+}
+
+String _organizationErrorMessage(Object error) {
+  if (error is TimeoutException) {
+    return 'Le chargement prend trop de temps. Vérifie ta connexion puis réessaie.';
+  }
+  if (error is FirebaseException) {
+    return switch (error.code) {
+      'permission-denied' =>
+        'Firebase a refusé la lecture. Vérifie dans le projet salus-bd055 que les règles publiées autorisent la lecture des organisations vérifiées et actives.',
+      'failed-precondition' =>
+        'Index Firestore manquant. Déploie les index du projet puis réessaie.',
+      'unavailable' =>
+        'Firestore est momentanément indisponible. Réessaie dans un instant.',
+      _ => 'Impossible de charger les organisations (${error.code}).',
+    };
+  }
+  return 'Impossible de charger les organisations.';
 }
 
 String _organizationType(String value) => switch (value) {

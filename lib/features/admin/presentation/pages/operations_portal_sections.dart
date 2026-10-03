@@ -96,7 +96,24 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
                   .read(adminPortalUseCasesProvider)
                   .loadMetrics(admin: admin),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const LinearProgressIndicator();
+                if (snapshot.hasError) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Impossible de charger les indicateurs du dashboard.',
+                      ),
+                      TextButton.icon(
+                        onPressed: () => setState(() {}),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const LinearProgressIndicator();
+                }
                 return Wrap(
                   spacing: 14,
                   runSpacing: 14,
