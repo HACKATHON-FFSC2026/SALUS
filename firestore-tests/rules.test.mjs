@@ -288,5 +288,197 @@ await ok('un admin liste tout', () =>
 );
 await ok('un admin supprime', () => deleteDoc(alertAt(asUser(ADMIN), 'a5')));
 
+// ===========================================================================
+// help_responses + location_shares
+// ===========================================================================
+//
+// Ces deux collections portent le suivi d'intervention. Les payloads ci-dessous
+// recopient ce que le datasource Dart ecrit reellement, pour que le harnais
+// teste le contrat du client et pas une intention: `toJson()` a la creation,
+// et une ecriture brute `{status, updatedAt}` / `{isActive, updatedAt}` au
+// suivi, parce que les regles n'autorisent que `changedOnly`.
+const SEER = 'citizen-5';
+const STRANGER = 'user-6';
+
+await testEnv.withSecurityRulesDisabled(async (context) => {
+  const db = context.firestore();
+  await setDoc(doc(db, 'users', SEER), { roles: ['citizen'], isActive: true });
+  await setDoc(doc(db, 'users', STRANGER), { roles: ['citizen'], isActive: true });
+});
+const seerDb = asUser(SEER);
+const strangerDb = asUser(STRANGER);
+
+// -- help_responses ---------------------------------------------------------
+const responseAt = (db, id) => doc(db, 'help_responses', id);
+const RID = 'a3_r1'; // identifiant deterministe `${alertId}_${responderId}`
+
+const response = (id, overrides = {}) => ({
+  id,
+  responderId: CITIZEN,
+  sosAlertId: 'a3',
+  responseType: 'comingInPerson',
+  status: 'offered',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+  ...overrides,
+});
+
+await ok('un citoyen se declare intervenant sur une alerte active', () =>
+  setDoc(responseAt(citizenDb, RID), response(RID)),
+);
+await ok('la victime lit les reponses a son alerte', () =>
+  readOne(victimDb, 'help_responses', RID),
+);
+await ok('un aidant inscrit sur l\'alerte lit les reponses (role organizationMember)', () =>
+  readOne(responderDb, 'help_responses', RID),
+);
+await denied('un tiers ne lit pas les reponses', () =>
+  readOne(strangerDb, 'help_responses', RID),
+);
+await denied('on ne se declare pas au nom d\'un autre intervenant', () =>
+  setDoc(
+    responseAt(citizenDb, 'a3_r2'),
+    response('a3_r2', { responderId: VICTIM }),
+  ),
+);
+await denied('une reponse ne se cree pas deja en route', () =>
+  setDoc(
+    responseAt(citizenDb, 'a3_r3'),
+    response('a3_r3', { id: 'a3_r3', status: 'enRoute' }),
+  ),
+);
+await denied('un type de reponse hors nomenclature est refuse', () =>
+  setDoc(
+    responseAt(citizenDb, 'a3_r4'),
+    response('a3_r4', { responseType: 'driveThem' }),
+  ),
+);
+await denied('un compte suspendu ne se declare pas', () =>
+  setDoc(
+    responseAt(asUser(SUSPENDED), 'a3_r5'),
+    response('a3_r5', { responderId: SUSPENDED }),
+  ),
+);
+
+// Le suivi: ecriture brute {status, updatedAt}, ce que fait le datasource.
+await ok('l\'intervenant passe en route', () =>
+  updateDoc(responseAt(citizenDb, RID), {
+    status: 'enRoute',
+    updatedAt: new Date(),
+  }),
+);
+await ok('l\'intervenant signale son arrivee', () =>
+  updateDoc(responseAt(citizenDb, RID), {
+    status: 'arrived',
+    updatedAt: new Date(),
+  }),
+);
+await ok('l\'intervenant se retracte', () =>
+  updateDoc(responseAt(citizenDb, RID), {
+    status: 'cancelled',
+    updatedAt: new Date(),
+  }),
+);
+assert.strictEqual((await readOne(citizenDb, 'help_responses', RID)).data().status, 'cancelled');
+passed++;
+console.log('  OK      le retrait laisse le document, seul status change');
+await denied('le type de reponse est fige a la creation', () =>
+  updateDoc(responseAt(citizenDb, RID), { responseType: 'textAdvice' }),
+);
+await denied('on ne vole pas le suivi d\'un autre intervenant', () =>
+  updateDoc(responseAt(seerDb, RID), {
+    status: 'arrived',
+    updatedAt: new Date(),
+  }),
+);
+await denied('l\'intervenant ne se remplace pas par un autre uid', () =>
+  updateDoc(responseAt(citizenDb, RID), { responderId: VICTIM }),
+);
+await denied('l\'alertId est fige: pas de reponse orpheline', () =>
+  updateDoc(responseAt(citizenDb, RID), { sosAlertId: 'a1b' }),
+);
+
+// -- location_shares --------------------------------------------------------
+const shareAt = (db, id) => doc(db, 'location_shares', id);
+const SHARE = 'a3_r1';
+const share = (id, overrides = {}) => ({
+  id,
+  userId: CITIZEN,
+  sosAlertId: 'a3',
+  currentLocation: new GeoPoint(-18.88, 47.51),
+  isActive: true,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+  ...overrides,
+});
+
+await ok('l\'intervenant publie sa position', () =>
+  setDoc(shareAt(citizenDb, SHARE), share(SHARE)),
+);
+await ok('la victime voit la position de l\'intervenant', () =>
+  readOne(victimDb, 'location_shares', SHARE),
+);
+// Asymetrie deliberee: `help_responses` s'ouvre a tout aidant
+// (`isResponder()`), mais la position GPS exacte ne sort pas de l'alerte.
+await denied('un aidant non inscrit sur l\'alerte ne voit pas la position', () =>
+  readOne(responderDb, 'location_shares', SHARE),
+);
+await denied('un tiers ne voit pas la position', () =>
+  readOne(strangerDb, 'location_shares', SHARE),
+);
+// `joinsAsResponder` n'accepte que son propre uid, et un seul ajout par
+// update: la victime ne peut inscrire personne a la main.
+await denied('la victime ne peut inscrire un tiers elle-meme', () =>
+  updateDoc(alertAt(victimDb, 'a3'), { responderIds: [CITIZEN, SEER] }),
+);
+await ok('un citoyen inscrit sur l\'alerte lit la position', async () => {
+  await updateDoc(alertAt(seerDb, 'a3'), { responderIds: [CITIZEN, SEER] });
+  await readOne(seerDb, 'location_shares', SHARE);
+});
+await ok('l\'aidant inscrit sur l\'alerte lit la position', async () => {
+  await updateDoc(alertAt(responderDb, 'a3'), {
+    responderIds: [CITIZEN, SEER, RESPONDER],
+  });
+  await readOne(responderDb, 'location_shares', SHARE);
+});
+await denied('on ne publie pas la position d\'un autre', () =>
+  setDoc(shareAt(citizenDb, 'a3_r9'), share('a3_r9', { userId: VICTIM })),
+);
+await denied('une position sans latlng est refusee', () =>
+  setDoc(
+    shareAt(citizenDb, 'a3_r8'),
+    share('a3_r8', { currentLocation: { lat: -18.88, lng: 47.51 } }),
+  ),
+);
+await denied('un compte suspendu ne publie pas sa position', () =>
+  setDoc(
+    shareAt(asUser(SUSPENDED), 'a3_r7'),
+    share('a3_r7', { userId: SUSPENDED }),
+  ),
+);
+
+// Le suivi de position: seule la position bouge.
+await ok('la position avance', () =>
+  updateDoc(shareAt(citizenDb, SHARE), {
+    currentLocation: new GeoPoint(-18.885, 47.515),
+    updatedAt: new Date(),
+  }),
+);
+await ok('l\'intervenant fige sa position en fin d\'intervention', () =>
+  updateDoc(shareAt(citizenDb, SHARE), {
+    isActive: false,
+    updatedAt: new Date(),
+  }),
+);
+await denied('le proprietaire de la position ne change pas', () =>
+  updateDoc(shareAt(citizenDb, SHARE), { userId: VICTIM }),
+);
+await denied('un tiers ne deplace pas la position', () =>
+  updateDoc(shareAt(strangerDb, SHARE), {
+    currentLocation: new GeoPoint(0, 0),
+    updatedAt: new Date(),
+  }),
+);
+
 await testEnv.cleanup();
 console.log(`\n${passed} assertions sur firestore.rules : toutes passées.`);
