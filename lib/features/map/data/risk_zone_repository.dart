@@ -12,6 +12,7 @@ class FirestoreRiskZoneRepository {
   Stream<List<Zone>> watchActiveRiskZones() => _firestore
       .collection('zones')
       .where('type', isEqualTo: ZoneType.risk.name)
+      .where('isActive', isEqualTo: true)
       .snapshots()
       .map((snapshot) {
         final zones = <Zone>[];

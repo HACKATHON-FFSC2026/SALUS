@@ -76,9 +76,15 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
         displayName: data['displayName']?.toString(),
         description: data['description']?.toString(),
         email: data['email']?.toString(),
+        userId: data['userId']?.toString(),
+        responderCount:
+            (data['responderIds'] as List<dynamic>?)?.length ??
+            _integer(data['respondersCount']) ??
+            0,
         roles: (data['roles'] as List<dynamic>? ?? const [])
             .map((role) => role.toString())
             .toList(),
+        safetyStatus: data['safetyStatus']?.toString(),
         distressType: data['distressType']?.toString(),
         createdAt: _date(data['createdAt']),
         startedAt: _date(data['startedAt']),
@@ -129,6 +135,7 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
   Future<void> verifyOrganization(String id, String uid) =>
       _firestore.collection('organizations').doc(id).update({
         'verified': true,
+        'isActive': true,
         'verifiedBy': uid,
         'verifiedAt': FieldValue.serverTimestamp(),
       });
@@ -138,11 +145,12 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
     required String id,
     required String status,
     required String? assignedOrganizationId,
-    required String uid,
+    required String? organizationId,
   }) => _firestore.collection('sos_alerts').doc(id).update({
     'status': status,
-    if (status == 'inProgress')
-      'assignedOrganizationId': assignedOrganizationId ?? uid,
+    if (status == 'inProgress' &&
+        (assignedOrganizationId != null || organizationId != null))
+      'assignedOrganizationId': organizationId ?? assignedOrganizationId,
     if (status == 'resolved') 'resolvedAt': FieldValue.serverTimestamp(),
   });
 
@@ -169,7 +177,7 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
     String uid,
   ) => _firestore.collection('shelters').doc(id).update({
     'validationStatus': status,
-    'validatedBy': uid,
+    'validatedBy': status == 'pending' ? null : uid,
   });
 
   @override
@@ -263,7 +271,7 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
         throw StateError('Compte ou organisation introuvable.');
       }
       if (organizationData['verified'] != true ||
-          organizationData['isActive'] == false) {
+          organizationData['isActive'] != true) {
         throw StateError('L’organisation doit être vérifiée et active.');
       }
       final roles =

@@ -18,7 +18,7 @@ abstract interface class AdminPortalRepository {
     required String id,
     required String status,
     required String? assignedOrganizationId,
-    required String uid,
+    required String? organizationId,
   });
 
   Future<void> updateReport({

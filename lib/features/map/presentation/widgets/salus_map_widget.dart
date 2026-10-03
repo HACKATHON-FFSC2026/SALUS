@@ -309,22 +309,44 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           ),
         ),
 
-        // Bandeau d'alerte si l'utilisateur est dans une zone à risque.
+        // Alerte compacte sous le bandeau principal, près du haut de l'écran.
+        // On laisse une marge à droite pour le bouton de recentrage.
         if (userDanger.isNotEmpty)
           Positioned(
-            bottom: 160,
+            top: MediaQuery.paddingOf(context).top + 76,
             left: 16,
-            right: 16,
-            child: Card(
-              color: Colors.red.shade50,
-              child: ListTile(
-                dense: true,
-                leading: const Icon(
-                  Icons.warning_amber_rounded,
-                  color: Colors.red,
+            right: 72,
+            child: Material(
+              color: Colors.red.shade50.withValues(alpha: 0.96),
+              elevation: 3,
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 9,
                 ),
-                title: Text(
-                  'Vous êtes dans une zone à risque : ${userDanger.first.label}',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red,
+                      size: 19,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Zone à risque · ${userDanger.first.label}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xff8f2020),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

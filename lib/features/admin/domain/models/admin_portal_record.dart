@@ -7,7 +7,10 @@ class AdminPortalRecord {
     this.displayName,
     this.description,
     this.email,
+    this.userId,
+    this.responderCount = 0,
     this.roles = const [],
+    this.safetyStatus,
     this.distressType,
     this.createdAt,
     this.startedAt,
@@ -43,7 +46,10 @@ class AdminPortalRecord {
   final String? displayName;
   final String? description;
   final String? email;
+  final String? userId;
+  final int responderCount;
   final List<String> roles;
+  final String? safetyStatus;
   final String? distressType;
   final DateTime? createdAt;
   final DateTime? startedAt;

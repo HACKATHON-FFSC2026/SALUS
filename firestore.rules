@@ -72,7 +72,11 @@ service cloud.firestore {
     }
 
     function isOrganizationMember() {
-      return hasRole('organizationMember');
+      return hasRole('organizationMember')
+        && myUserData().organizationId is string
+        && exists(/databases/$(database)/documents/organizations/$(myUserData().organizationId))
+        && get(/databases/$(database)/documents/organizations/$(myUserData().organizationId)).data.verified == true
+        && get(/databases/$(database)/documents/organizations/$(myUserData().organizationId)).data.isActive == true;
     }
 
     // Le membre d'organisation est l'unique rôle opérationnel de terrain.
@@ -87,9 +91,10 @@ service cloud.firestore {
     // L'utilisateur appartient-il a cette organisation ? Un `organizationId`
     // null ou vide ne doit jamais donner acces a quoi que ce soit.
     function belongsTo(orgId) {
-      return orgId != null && orgId != ''
+      return orgId is string && orgId != ''
         && myOrganizationId() != null
-        && myOrganizationId() == orgId;
+        && myOrganizationId() == orgId
+        && isOrganizationMember();
     }
 
     function changedOnly(keys) {
@@ -372,6 +377,8 @@ service cloud.firestore {
         return isResponder()
           && isStillActive()
           && changedOnly(['status', 'assignedOrganizationId', 'resolvedAt'])
+          && (request.resource.data.status != 'inProgress'
+            || request.resource.data.assignedOrganizationId == myOrganizationId())
           && request.resource.data.status in ['inProgress', 'resolved'];
       }
 

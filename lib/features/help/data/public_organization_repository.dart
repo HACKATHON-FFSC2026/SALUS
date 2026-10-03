@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/sources/firestore_client.dart';
@@ -36,20 +38,36 @@ class PublicOrganizationRepository {
 
   final FirebaseFirestore _firestore;
 
-  Stream<List<PublicOrganization>> watchOrganizations() => _firestore
-      .collection('organizations')
-      .where('verified', isEqualTo: true)
-      .where('isActive', isEqualTo: true)
-      .snapshots()
-      .map((snapshot) {
-        final organizations = snapshot.docs
-            .map(PublicOrganization.fromDocument)
-            .toList();
-        organizations.sort(
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-        );
-        return organizations;
-      });
+  Stream<List<PublicOrganization>> watchOrganizations() {
+    var receivedFirstSnapshot = false;
+    var timeoutReported = false;
+    return _firestore
+        .collection('organizations')
+        .where('verified', isEqualTo: true)
+        .where('isActive', isEqualTo: true)
+        .snapshots()
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: (sink) {
+            if (!receivedFirstSnapshot && !timeoutReported) {
+              timeoutReported = true;
+              sink.addError(
+                TimeoutException('Le chargement des organisations a expiré.'),
+              );
+            }
+          },
+        )
+        .map((snapshot) {
+          receivedFirstSnapshot = true;
+          final organizations = snapshot.docs
+              .map(PublicOrganization.fromDocument)
+              .toList();
+          organizations.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
+          return organizations;
+        });
+  }
 }
 
 final publicOrganizationRepositoryProvider =

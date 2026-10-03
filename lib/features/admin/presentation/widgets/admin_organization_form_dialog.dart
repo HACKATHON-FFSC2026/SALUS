@@ -286,7 +286,7 @@ class _AdminOrganizationFormDialogState
   Widget _statusCard(BuildContext context) {
     final organization = widget.organization;
     final verified = organization?.verified ?? false;
-    final active = organization?.isActive != false;
+    final active = organization?.isActive == true;
     final createdAt = organization?.createdAt;
     return _OrganizationSection(
       title: 'Statut et suivi',
