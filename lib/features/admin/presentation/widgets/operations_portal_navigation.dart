@@ -21,16 +21,6 @@ class OperationsPortalSideNavigation extends StatelessWidget {
   final ValueChanged<int> onSelect;
   final VoidCallback onSignOut;
 
-  static const _icons = [
-    Icons.dashboard_outlined,
-    Icons.apartment,
-    Icons.home_work_outlined,
-    Icons.people_outline,
-    Icons.sos,
-    Icons.report_gmailerrorred_outlined,
-    Icons.map_outlined,
-  ];
-
   @override
   Widget build(BuildContext context) => Container(
     width: 248,
@@ -60,11 +50,7 @@ class OperationsPortalSideNavigation extends StatelessWidget {
             selected: selectedIndex == i,
             selectedTileColor: AppColors.primary.withValues(alpha: .78),
             leading: Icon(
-              _icons[i == 0
-                  ? 0
-                  : isAdmin
-                  ? i
-                  : i + 3],
+              _sectionIcon(sections[i]),
               color: selectedIndex == i ? AppColors.secondary : Colors.white70,
             ),
             title: Text(
@@ -168,16 +154,6 @@ class OperationsPortalBottomNavigation extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelect;
 
-  static const _icons = [
-    Icons.dashboard_outlined,
-    Icons.apartment,
-    Icons.home_work_outlined,
-    Icons.people_outline,
-    Icons.sos,
-    Icons.report_gmailerrorred_outlined,
-    Icons.map_outlined,
-  ];
-
   @override
   Widget build(BuildContext context) => NavigationBar(
     selectedIndex: selectedIndex,
@@ -185,15 +161,20 @@ class OperationsPortalBottomNavigation extends StatelessWidget {
     destinations: [
       for (var i = 0; i < sections.length; i++)
         NavigationDestination(
-          icon: Icon(
-            _icons[i == 0
-                ? 0
-                : sections.length == 5 && sections[1] == 'Organisations'
-                ? i
-                : i + 3],
-          ),
+          icon: Icon(_sectionIcon(sections[i])),
           label: sections[i],
         ),
     ],
   );
 }
+
+IconData _sectionIcon(String section) => switch (section) {
+  'Vue générale' => Icons.dashboard_outlined,
+  'Organisations' => Icons.apartment,
+  'Refuges' => Icons.home_work_outlined,
+  'Utilisateurs' => Icons.people_outline,
+  'SOS' => Icons.sos,
+  'Signalements' => Icons.report_gmailerrorred_outlined,
+  'Zones' => Icons.map_outlined,
+  _ => Icons.dashboard_outlined,
+};

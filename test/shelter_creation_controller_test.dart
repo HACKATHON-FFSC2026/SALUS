@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/features/shelters/data/shelter_repository.dart';
 import 'package:salus/features/shelters/domain/models/shelter_creation_state.dart';

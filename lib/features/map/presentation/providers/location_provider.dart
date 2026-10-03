@@ -1,12 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:salus/features/map/data/geolocator_location_repository.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/features/map/domain/location.dart';
-import 'package:salus/features/map/domain/location_repository.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
-
-final locationRepositoryProvider = Provider<LocationRepository>(
-  (ref) => const GeolocatorLocationRepository(),
-);
 
 final locationProvider =
     NotifierProvider<LocationNotifier, LocationState>(LocationNotifier.new);

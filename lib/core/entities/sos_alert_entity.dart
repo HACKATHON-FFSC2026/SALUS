@@ -7,11 +7,13 @@ enum DistressType { medical, security, accident, fire, other }
 
 enum SOSStatus {
   waiting,
+  assigned,
   inProgress,
   resolved,
   cancelled;
 
-  bool get isActive => this == waiting || this == inProgress;
+  bool get isActive =>
+      this == waiting || this == assigned || this == inProgress;
   bool get isOver => !isActive;
 }
 
@@ -25,6 +27,7 @@ class SOSAlert {
     required this.createdAt,
     this.description,
     this.responderIds = const [],
+    this.assignedOrganizationId,
     this.locationUpdatedAt,
     this.distanceInKm,
   });
@@ -40,6 +43,9 @@ class SOSAlert {
   /// qu'une fois (`arrayUnion`) et se retire en se désistant (`arrayRemove`,
   /// ±1 exigé côté `firestore.rules`): un désisté ne compte plus.
   final List<String> responderIds;
+
+  /// Organisation désignée par l'admin avant qu'elle confirme l'intervention.
+  final String? assignedOrganizationId;
 
   final DateTime createdAt;
 
@@ -63,6 +69,7 @@ class SOSAlert {
     String? description,
     bool clearDescription = false,
     List<String>? responderIds,
+    String? assignedOrganizationId,
     DateTime? locationUpdatedAt,
     double? distanceInKm,
     bool clearDistance = false,
@@ -75,6 +82,8 @@ class SOSAlert {
       description: clearDescription ? null : description ?? this.description,
       status: status ?? this.status,
       responderIds: responderIds ?? this.responderIds,
+      assignedOrganizationId:
+          assignedOrganizationId ?? this.assignedOrganizationId,
       createdAt: createdAt ?? this.createdAt,
       locationUpdatedAt: locationUpdatedAt ?? this.locationUpdatedAt,
       distanceInKm: clearDistance ? null : distanceInKm ?? this.distanceInKm,
@@ -90,7 +99,9 @@ class SOSAlert {
 
     final rawLocation = json['location'];
     if (rawLocation is! GeoPoint) {
-      throw FormatException('Document SOS sans position exploitable: $rawLocation');
+      throw FormatException(
+        'Document SOS sans position exploitable: $rawLocation',
+      );
     }
 
     return SOSAlert(
@@ -103,12 +114,9 @@ class SOSAlert {
         DistressType.other,
       ),
       description: json['description'] as String?,
-      status: _enumByName(
-        SOSStatus.values,
-        json['status'],
-        SOSStatus.waiting,
-      ),
+      status: _enumByName(SOSStatus.values, json['status'], SOSStatus.waiting),
       responderIds: _stringList(json['responderIds']),
+      assignedOrganizationId: json['assignedOrganizationId']?.toString(),
       createdAt: _timestamp(json['createdAt']) ?? DateTime.now(),
       locationUpdatedAt: _timestamp(json['locationUpdatedAt']),
     );
@@ -127,6 +135,7 @@ class SOSAlert {
       'description': description,
       'status': status.name,
       'responderIds': responderIds,
+      'assignedOrganizationId': assignedOrganizationId,
       'createdAt': Timestamp.fromDate(createdAt),
       'locationUpdatedAt': locationUpdatedAt == null
           ? null
@@ -135,7 +144,10 @@ class SOSAlert {
   }
 
   /// Distance orthodromique depuis [origin], pour le tri par proximité.
-  SOSAlert withDistanceFrom({required double latitude, required double longitude}) {
+  SOSAlert withDistanceFrom({
+    required double latitude,
+    required double longitude,
+  }) {
     const earthRadiusKm = 6371.0;
     final dLat = _radians(latitude - location.latitude);
     final dLon = _radians(longitude - location.longitude);

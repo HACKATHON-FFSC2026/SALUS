@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/features/auth/domain/auth_repository.dart';
 import 'package:salus/features/auth/domain/user_profile.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';

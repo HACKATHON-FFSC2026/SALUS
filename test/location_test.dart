@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/features/map/domain/location.dart';
 import 'package:salus/features/map/domain/location_repository.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';

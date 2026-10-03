@@ -1,7 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
+import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_data_row.dart';
 
@@ -14,6 +16,12 @@ class OperationsPortalCollection extends StatelessWidget {
     required this.userId,
     required this.useCases,
     required this.onCreateOrganization,
+    required this.onEditOrganization,
+    required this.onManageOrganizationMembership,
+    required this.onViewReport,
+    required this.onCreateShelter,
+    required this.onCreateRiskZone,
+    required this.onEditRiskZone,
   });
 
   final AdminCollection collection;
@@ -22,6 +30,12 @@ class OperationsPortalCollection extends StatelessWidget {
   final String userId;
   final AdminPortalUseCases useCases;
   final VoidCallback onCreateOrganization;
+  final ValueChanged<AdminPortalRecord> onEditOrganization;
+  final ValueChanged<AdminPortalRecord> onManageOrganizationMembership;
+  final ValueChanged<AdminPortalRecord> onViewReport;
+  final VoidCallback onCreateShelter;
+  final VoidCallback onCreateRiskZone;
+  final ValueChanged<AdminPortalRecord> onEditRiskZone;
 
   String get _title => switch (collection) {
     AdminCollection.organizations => 'Organisations',
@@ -61,6 +75,18 @@ class OperationsPortalCollection extends StatelessWidget {
                 icon: const Icon(Icons.add),
                 label: const Text('Ajouter'),
               ),
+            if (isAdmin && collection == AdminCollection.shelters)
+              FilledButton.icon(
+                onPressed: onCreateShelter,
+                icon: const Icon(Icons.add),
+                label: const Text('Ajouter un refuge'),
+              ),
+            if (collection == AdminCollection.zones)
+              FilledButton.icon(
+                onPressed: onCreateRiskZone,
+                icon: const Icon(Icons.add_location_alt_outlined),
+                label: const Text('Créer une alerte / zone à risque'),
+              ),
           ],
         ),
         const SizedBox(height: 20),
@@ -71,6 +97,10 @@ class OperationsPortalCollection extends StatelessWidget {
           organizationId: organizationId,
           userId: userId,
           useCases: useCases,
+          onEditOrganization: onEditOrganization,
+          onManageOrganizationMembership: onManageOrganizationMembership,
+          onViewReport: onViewReport,
+          onEditRiskZone: onEditRiskZone,
         ),
       ],
     ),
@@ -86,6 +116,10 @@ class OperationsPortalDataTable extends ConsumerWidget {
     required this.organizationId,
     required this.userId,
     required this.useCases,
+    required this.onEditOrganization,
+    required this.onManageOrganizationMembership,
+    required this.onViewReport,
+    required this.onEditRiskZone,
     this.limit,
   });
 
@@ -95,6 +129,10 @@ class OperationsPortalDataTable extends ConsumerWidget {
   final String? organizationId;
   final String userId;
   final AdminPortalUseCases useCases;
+  final ValueChanged<AdminPortalRecord> onEditOrganization;
+  final ValueChanged<AdminPortalRecord> onManageOrganizationMembership;
+  final ValueChanged<AdminPortalRecord> onViewReport;
+  final ValueChanged<AdminPortalRecord> onEditRiskZone;
   final int? limit;
 
   @override
@@ -106,9 +144,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
     ),
     builder: (context, snapshot) {
       if (snapshot.hasError) {
-        return const _PortalMessage(
-          'Accès aux données refusé. Vérifiez les règles Firestore.',
-        );
+        return _PortalMessage(_portalReadError(snapshot.error));
       }
       if (!snapshot.hasData) {
         return const Padding(
@@ -117,9 +153,32 @@ class OperationsPortalDataTable extends ConsumerWidget {
         );
       }
       var records = snapshot.data!;
+      if (collection == AdminCollection.reports) {
+        const statusPriority = {'open': 0, 'reviewed': 1, 'resolved': 2};
+        records.sort((a, b) {
+          final priority = (statusPriority[a.status] ?? 3).compareTo(
+            statusPriority[b.status] ?? 3,
+          );
+          if (priority != 0) return priority;
+          return (b.createdAt ?? DateTime(0)).compareTo(
+            a.createdAt ?? DateTime(0),
+          );
+        });
+      }
       if (limit != null) records = records.take(limit!).toList();
       if (records.isEmpty) {
-        return const _PortalMessage('Aucun élément à afficher pour le moment.');
+        final message = !isAdmin
+            ? switch (collection) {
+                AdminCollection.sosAlerts =>
+                  'Aucun SOS n’est affecté à votre organisation.',
+                AdminCollection.reports =>
+                  'Aucun signalement n’est affecté à votre organisation.',
+                AdminCollection.shelters =>
+                  'Aucune proposition de refuge n’est affectée à votre organisation.',
+                _ => 'Aucun élément à afficher pour le moment.',
+              }
+            : 'Aucun élément à afficher pour le moment.';
+        return _PortalMessage(message);
       }
       return Container(
         width: double.infinity,
@@ -147,8 +206,13 @@ class OperationsPortalDataTable extends ConsumerWidget {
                 collection: collection,
                 record: record,
                 isAdmin: isAdmin,
+                organizationId: organizationId,
                 userId: userId,
                 useCases: useCases,
+                onEditOrganization: onEditOrganization,
+                onManageOrganizationMembership: onManageOrganizationMembership,
+                onViewReport: onViewReport,
+                onEditRiskZone: onEditRiskZone,
               ),
           ],
         ),
@@ -176,4 +240,18 @@ class _PortalMessage extends StatelessWidget {
       style: const TextStyle(color: AppColors.inactive),
     ),
   );
+}
+
+String _portalReadError(Object? error) {
+  if (error is FirebaseException) {
+    return switch (error.code) {
+      'permission-denied' =>
+        'Accès refusé par les règles Firestore. Vérifie le rôle actif du compte.',
+      'failed-precondition' =>
+        'Index Firestore requis. Déploie les index du projet.',
+      'unavailable' => 'Firestore est indisponible. Vérifie la connexion.',
+      _ => 'Erreur Firestore (${error.code}).',
+    };
+  }
+  return 'Impossible de charger les données${error == null ? '.' : ' : $error'}';
 }
