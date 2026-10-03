@@ -59,15 +59,19 @@ class ActiveSosListPage extends ConsumerWidget {
               final sos = alerts[index];
               // Sa propre alerte n'a pas d'action « Je réponds ».
               final isMine = sos.userId == myUid;
-              // Déjà intervenant: les règles refusent une écriture
-              // identique, on affiche l'état plutôt qu'une erreur.
+              // Déjà intervenant (présent dans le registre, avec un suivi
+              // non désisté): le bouton rouvre la fiche d'intervention au
+              // lieu de griser.
               final alreadyResponding = sos.responderIds.contains(myUid);
               return _SosCard(
                 sos: sos,
                 label: _labels[sos.distressType] ?? sos.distressType.name,
                 isResponding: alreadyResponding,
-                onRespond: (isMine || alreadyResponding)
+                onRespond: isMine
                     ? null
+                    : alreadyResponding
+                    ? () =>
+                          context.router.push(SosResponseDetailRoute(sosAlert: sos))
                     : () => _respond(context, ref, sos),
               );
             },

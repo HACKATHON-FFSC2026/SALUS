@@ -389,6 +389,19 @@ service cloud.firestore {
                resource.data.responderIds.concat([request.auth.uid]));
       }
 
+      // Un intervenant se retire (« Je ne peux plus venir ») : son propre uid
+      // et exactement un de moins, sans quoi le compte « X personne(s) en
+      // route » resterait a jamais faux. L'uid retire doit etre le sien: la
+      // liste consommee ne peut contenir que la nouvelle liste plus son uid.
+      function leavesAsResponder() {
+        return signedIn()
+          && changedOnly(['responderIds'])
+          && request.resource.data.responderIds.size()
+               == resource.data.responderIds.size() - 1
+          && resource.data.responderIds.hasOnly(
+               request.resource.data.responderIds.concat([request.auth.uid]));
+      }
+
       // La victime annule, ou partage sa position tant que l'alerte est active.
       function victimUpdates() {
         return isOwner()
@@ -436,6 +449,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         || victimUpdates()
         || joinsAsResponder()
+        || leavesAsResponder()
         || responderUpdates();
 
       allow delete: if isAdmin();

@@ -27,6 +27,22 @@ class ActiveSosListRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [ArViewPage]
+class ArViewRoute extends PageRouteInfo<void> {
+  const ArViewRoute({List<PageRouteInfo>? children})
+    : super(ArViewRoute.name, initialChildren: children);
+
+  static const String name = 'ArViewRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const ArViewPage();
+    },
+  );
+}
+
+/// generated route for
 /// [CreateShelterPage]
 class CreateShelterRoute extends PageRouteInfo<void> {
   const CreateShelterRoute({List<PageRouteInfo>? children})

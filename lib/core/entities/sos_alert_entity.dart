@@ -36,8 +36,9 @@ class SOSAlert {
   final String? description;
   final SOSStatus status;
 
-  /// Source de vérité du nombre d'intervenants. Un uid n'y entre qu'une fois:
-  /// `arrayUnion` côté écriture, `hasOnly` côté règles Firestore.
+  /// Source de vérité du nombre d'intervenants en route. Un uid n'y entre
+  /// qu'une fois (`arrayUnion`) et se retire en se désistant (`arrayRemove`,
+  /// ±1 exigé côté `firestore.rules`): un désisté ne compte plus.
   final List<String> responderIds;
 
   final DateTime createdAt;

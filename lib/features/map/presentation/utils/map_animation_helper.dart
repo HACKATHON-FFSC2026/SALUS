@@ -3,8 +3,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 extension MapAnimation on MapController {
-  /// Anime la carte vers une nouvelle position avec un zoom spécifique
-  void animatedMove({
+  /// Anime la carte vers une nouvelle position avec un zoom spécifique.
+  /// Retourne le controller : l'appelant le possède (stop/dispose), ce qui
+  /// permet d'annuler une animation en cours (double-tap) et d'éviter tout
+  /// `move()` après dispose de la carte.
+  AnimationController animatedMove({
     required TickerProvider vsync,
     required LatLng destLocation,
     required double destZoom,
@@ -44,12 +47,7 @@ extension MapAnimation on MapController {
       );
     });
 
-    animation.addStatusListener((status) {
-      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
-        controller.dispose();
-      }
-    });
-
     controller.forward();
+    return controller;
   }
 }
