@@ -17,5 +17,10 @@ class AdminPortalUser {
 
   bool get isAdmin => roles.contains('admin');
   bool get isResponder => roles.contains('organizationMember');
-  bool get canAccess => isActive && (isAdmin || isResponder);
+  bool get canAccess =>
+      isActive &&
+      (isAdmin ||
+          (isResponder &&
+              organizationId != null &&
+              organizationId!.trim().isNotEmpty));
 }

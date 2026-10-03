@@ -1,16 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/zone_entity.dart';
-import 'package:salus/features/alerts/data/repositories/alert_read_repository.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
-import '../../data/repositories/shared_prefs_alert_read_repository.dart';
 import '../../domain/entities/disaster_alert.dart';
 import '../../domain/usecases/build_alerts_for_user.dart';
- 
-final alertReadRepositoryProvider = Provider<AlertReadRepository>(
-  (ref) => SharedPrefsAlertReadRepository(),
-);
  
 final buildAlertsProvider = Provider<BuildAlertsForUser>(
   (ref) => BuildAlertsForUser(ref.watch(geofenceServiceProvider)),

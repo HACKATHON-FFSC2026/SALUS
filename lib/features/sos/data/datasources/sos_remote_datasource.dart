@@ -70,11 +70,9 @@ abstract class ISosRemoteDataSource {
 }
 
 class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
-  SosRemoteDataSourceImpl({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _auth = auth ?? FirebaseAuth.instance;
+  SosRemoteDataSourceImpl({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   /// `sos_alerts` et non `alerts`: c'est le nom couvert par `firestore.rules`.
   static const alertsCollection = 'sos_alerts';
@@ -121,16 +119,14 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
 
   @override
   Stream<SOSAlert?> watchSosAlert(String alertId) {
-    return _firestore
-        .collection(alertsCollection)
-        .doc(alertId)
-        .snapshots()
-        .map((snapshot) {
-      final data = snapshot.data();
-      if (!snapshot.exists || data == null) return null;
-      // L'id du document fait foi: le champ `id` peut diverger ou manquer.
-      return SOSAlert.fromJson(data).copyWith(id: snapshot.id);
-    });
+    return _firestore.collection(alertsCollection).doc(alertId).snapshots().map(
+      (snapshot) {
+        final data = snapshot.data();
+        if (!snapshot.exists || data == null) return null;
+        // L'id du document fait foi: le champ `id` peut diverger ou manquer.
+        return SOSAlert.fromJson(data).copyWith(id: snapshot.id);
+      },
+    );
   }
 
   @override
@@ -142,23 +138,28 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
 
   @override
   Stream<List<SOSAlert>> watchActiveSosAlerts({List<String>? geoCells}) {
-    Query<Map<String, dynamic>> query = _firestore.collection(alertsCollection).where(
-      'status',
-      whereIn: [SOSStatus.waiting.name, SOSStatus.inProgress.name],
-    );
+    Query<Map<String, dynamic>> query = _firestore
+        .collection(alertsCollection)
+        .where(
+          'status',
+          whereIn: [SOSStatus.waiting.name, SOSStatus.inProgress.name],
+        );
 
     if (geoCells != null && geoCells.isNotEmpty) {
       query = query.where('geoCell', whereIn: geoCells);
     }
 
-    return query.limit(_maxAlertsPerRead).snapshots().map(
-      (snapshot) => _decode(snapshot.docs),
-    );
+    return query
+        .limit(_maxAlertsPerRead)
+        .snapshots()
+        .map((snapshot) => _decode(snapshot.docs));
   }
 
   /// Un document illisible est ignoré, jamais fatal: une alerte corrompue ne
   /// doit pas priver les autres récepteurs de la liste.
-  List<SOSAlert> _decode(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
+  List<SOSAlert> _decode(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
     final alerts = <SOSAlert>[];
     for (final doc in docs) {
       try {
@@ -177,7 +178,11 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
         .where('userId', isEqualTo: _requireUid())
         .where(
           'status',
-          whereIn: [SOSStatus.waiting.name, SOSStatus.inProgress.name],
+          whereIn: [
+            SOSStatus.waiting.name,
+            SOSStatus.assigned.name,
+            SOSStatus.inProgress.name,
+          ],
         )
         .limit(10)
         .snapshots()
@@ -201,9 +206,9 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
     String? message,
   }) async {
     final uid = _requireUid();
-    final docRef = _firestore.collection(helpResponsesCollection).doc(
-      responderDocumentId(alertId: alertId, responderId: uid),
-    );
+    final docRef = _firestore
+        .collection(helpResponsesCollection)
+        .doc(responderDocumentId(alertId: alertId, responderId: uid));
     final existing = await docRef.get();
     if (existing.exists) {
       // Ne pas écraser un suivi en cours: le create fige `status` à `offered`,
@@ -242,9 +247,9 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
     required String responseId,
     required HelpResponseStatus status,
   }) async {
-    final docRef = _firestore.collection(helpResponsesCollection).doc(
-      responseId,
-    );
+    final docRef = _firestore
+        .collection(helpResponsesCollection)
+        .doc(responseId);
 
     // Un désistement retire aussi l'uid du registre de l'alerte: sans ça, le
     // compte « X personne(s) en route » côté victime resterait gonflé pour
@@ -291,9 +296,9 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
     required double longitude,
   }) async {
     final uid = _requireUid();
-    final docRef = _firestore.collection(locationSharesCollection).doc(
-      responderDocumentId(alertId: alertId, responderId: uid),
-    );
+    final docRef = _firestore
+        .collection(locationSharesCollection)
+        .doc(responderDocumentId(alertId: alertId, responderId: uid));
     final location = LocationShare(
       id: docRef.id,
       userId: uid,
@@ -309,9 +314,9 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
   @override
   Future<void> stopResponderLocation(String alertId) async {
     final uid = _requireUid();
-    final docRef = _firestore.collection(locationSharesCollection).doc(
-      responderDocumentId(alertId: alertId, responderId: uid),
-    );
+    final docRef = _firestore
+        .collection(locationSharesCollection)
+        .doc(responderDocumentId(alertId: alertId, responderId: uid));
     // Le document reste: les règles interdisent de modifier autre chose que
     // la position, et `isActive: false` dit à la victime que le point est
     // figé plutôt que disparu.
@@ -367,7 +372,9 @@ HelpResponse? _decodeHelpResponse(DocumentSnapshot<Map<String, dynamic>> doc) {
   }
 }
 
-LocationShare? _decodeLocationShare(DocumentSnapshot<Map<String, dynamic>> doc) {
+LocationShare? _decodeLocationShare(
+  DocumentSnapshot<Map<String, dynamic>> doc,
+) {
   try {
     return LocationShare.fromJson({...?doc.data(), 'id': doc.id});
   } on Object catch (e) {

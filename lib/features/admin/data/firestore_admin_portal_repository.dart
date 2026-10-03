@@ -29,19 +29,35 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
       });
 
   @override
-  Stream<List<AdminPortalRecord>> watchCollection(AdminCollection collection) =>
-      _firestore
-          .collection(collection.firestoreName)
-          .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map((doc) => _recordFromMap(doc.id, doc.data()))
-                .toList(),
-          );
+  Stream<List<AdminPortalRecord>> watchCollection(
+    AdminCollection collection, {
+    String? organizationId,
+  }) {
+    Query<Map<String, dynamic>> query = _firestore.collection(
+      collection.firestoreName,
+    );
+    if (organizationId != null &&
+        (collection == AdminCollection.sosAlerts ||
+            collection == AdminCollection.reports ||
+            collection == AdminCollection.shelters)) {
+      query = query.where(
+        collection == AdminCollection.shelters
+            ? 'organizationId'
+            : 'assignedOrganizationId',
+        isEqualTo: organizationId,
+      );
+    }
+    return query.snapshots().map(
+      (snapshot) => snapshot.docs
+          .map((doc) => _recordFromMap(doc.id, doc.data()))
+          .toList(),
+    );
+  }
 
   @override
   Future<Map<AdminCollection, List<AdminPortalRecord>>> loadDashboardRecords({
     required bool admin,
+    String? organizationId,
   }) async {
     final collections = admin
         ? const [
@@ -57,9 +73,24 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
             AdminCollection.zones,
           ];
     final snapshots = await Future.wait(
-      collections.map(
-        (collection) => _firestore.collection(collection.firestoreName).get(),
-      ),
+      collections.map((collection) {
+        Query<Map<String, dynamic>> query = _firestore.collection(
+          collection.firestoreName,
+        );
+        if (!admin &&
+            organizationId != null &&
+            (collection == AdminCollection.sosAlerts ||
+                collection == AdminCollection.reports ||
+                collection == AdminCollection.shelters)) {
+          query = query.where(
+            collection == AdminCollection.shelters
+                ? 'organizationId'
+                : 'assignedOrganizationId',
+            isEqualTo: organizationId,
+          );
+        }
+        return query.get();
+      }),
     );
     return {
       for (var i = 0; i < collections.length; i++)
@@ -88,6 +119,13 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
         distressType: data['distressType']?.toString(),
         createdAt: _date(data['createdAt']),
         startedAt: _date(data['startedAt']),
+        locationLatitude: data['location'] is GeoPoint
+            ? (data['location'] as GeoPoint).latitude
+            : null,
+        locationLongitude: data['location'] is GeoPoint
+            ? (data['location'] as GeoPoint).longitude
+            : null,
+        locationUpdatedAt: _date(data['locationUpdatedAt']),
         address: data['address']?.toString(),
         capacityOccupied: _integer(data['capacityOccupied']),
         capacityTotal: _integer(data['capacityTotal']),
@@ -155,6 +193,13 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
   });
 
   @override
+  Future<void> assignSosToOrganization(String id, String organizationId) =>
+      _firestore.collection('sos_alerts').doc(id).update({
+        'status': 'assigned',
+        'assignedOrganizationId': organizationId,
+      });
+
+  @override
   Future<void> updateReport({
     required String id,
     required String status,
@@ -163,6 +208,18 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
     'status': status,
     'reviewedBy': uid,
   });
+
+  @override
+  Future<void> assignReportToOrganization(String id, String organizationId) =>
+      _firestore.collection('reports').doc(id).update({
+        'assignedOrganizationId': organizationId,
+      });
+
+  @override
+  Future<void> assignShelterToOrganization(String id, String organizationId) =>
+      _firestore.collection('shelters').doc(id).update({
+        'organizationId': organizationId,
+      });
 
   @override
   Future<void> validateShelter(String id, String uid) => _firestore

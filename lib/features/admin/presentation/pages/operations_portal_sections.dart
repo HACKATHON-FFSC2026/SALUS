@@ -94,7 +94,7 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
             return FutureBuilder<AdminDashboardMetrics>(
               future: ref
                   .read(adminPortalUseCasesProvider)
-                  .loadMetrics(admin: admin),
+                  .loadMetrics(admin: admin, organizationId: orgId),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Column(
@@ -104,7 +104,7 @@ extension _OperationsPortalSections on _OperationsPortalPageState {
                         'Impossible de charger les indicateurs du dashboard.',
                       ),
                       TextButton.icon(
-                        onPressed: () => setState(() {}),
+                        onPressed: _retryOverviewMetrics,
                         icon: const Icon(Icons.refresh),
                         label: const Text('Réessayer'),
                       ),

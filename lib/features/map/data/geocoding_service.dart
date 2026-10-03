@@ -1,7 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:salus/core/sources/remote_client.dart';
 import 'package:salus/features/map/domain/models/geocoding_result.dart';
 
 /// Recherche de lieu et geocoding inverse.
@@ -77,7 +75,3 @@ class GeocodingService {
     return label;
   }
 }
-
-final geocodingServiceProvider = Provider<GeocodingService>(
-  (ref) => GeocodingService(ref.watch(remoteClientProvider)),
-);

@@ -14,6 +14,9 @@ class AdminPortalRecord {
     this.distressType,
     this.createdAt,
     this.startedAt,
+    this.locationLatitude,
+    this.locationLongitude,
+    this.locationUpdatedAt,
     this.address,
     this.capacityOccupied,
     this.capacityTotal,
@@ -53,6 +56,9 @@ class AdminPortalRecord {
   final String? distressType;
   final DateTime? createdAt;
   final DateTime? startedAt;
+  final double? locationLatitude;
+  final double? locationLongitude;
+  final DateTime? locationUpdatedAt;
   final String? address;
   final int? capacityOccupied;
   final int? capacityTotal;

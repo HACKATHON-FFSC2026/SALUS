@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/entities.dart';
-import 'package:salus/core/sources/firestore_client.dart';
 import 'package:salus/core/utils/log.dart';
 
 class FirestoreRiskZoneRepository {
@@ -34,7 +32,3 @@ class FirestoreRiskZoneRepository {
     }
   }
 }
-
-final riskZoneRepositoryProvider = Provider<FirestoreRiskZoneRepository>(
-  (ref) => FirestoreRiskZoneRepository(ref.watch(firestoreProvider)),
-);

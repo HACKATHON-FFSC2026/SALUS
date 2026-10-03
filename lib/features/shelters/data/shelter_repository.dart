@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/entities.dart';
-import 'package:salus/core/sources/firestore_client.dart';
 import 'package:salus/core/utils/log.dart';
 import 'package:salus/features/shelters/domain/shelter_repository.dart';
 
@@ -71,7 +69,3 @@ class FirestoreShelterRepository implements ShelterRepository {
       ..sort((a, b) => a.name.compareTo(b.name));
   }
 }
-
-final shelterRepositoryProvider = Provider<ShelterRepository>(
-  (ref) => FirestoreShelterRepository(ref.watch(firestoreProvider)),
-);
