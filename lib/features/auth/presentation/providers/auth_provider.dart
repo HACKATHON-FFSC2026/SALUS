@@ -16,10 +16,27 @@ final hasAccountProvider = FutureProvider<bool>((ref) async {
 final authProvider =
     NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
 
+/// uid Firebase de l'utilisateur connecté, `null` s'il est invité.
+///
+/// Les features qui écrivent dans Firestore sous l'identité de l'utilisateur
+/// (SOS, signalements) le lisent ici plutôt que d'instancier leur propre
+/// FirebaseAuth.
+final currentUidProvider = Provider<String?>((ref) {
+  return ref.watch(authProvider).user?.uid;
+});
+
 /// Règles de connexion. La page ne fait que refléter l'état.
 class AuthNotifier extends Notifier<AuthState> {
   @override
-  AuthState build() => const AuthState();
+  AuthState build() {
+    // Firebase restaure sa session sur disque avant le premier frame. Sans cette
+    // réhydratation, relancer l'app rebasculait en « non connecté » alors que
+    // l'utilisateur ne s'était jamais déconnecté : la page SOS lui redemandait
+    // de se connecter et masquait le bouton d'envoi.
+    final user = ref.read(authRepositoryProvider).currentProfile;
+    if (user == null) return const AuthState();
+    return AuthState(status: AuthStatus.authenticated, user: user);
+  }
 
   AuthRepository get _repository => ref.read(authRepositoryProvider);
 

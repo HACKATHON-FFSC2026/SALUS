@@ -6,6 +6,8 @@
 		<string>Salus a besoin de votre position pour afficher la carte et vous alerter en cas de zone à risque proche.</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 		<string>Salus utilise votre position pour vous informer en temps réel des zones sûres et des risques.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>Salus utilise la caméra pour afficher les refuges et zones autour de vous en réalité augmentée.</string>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>

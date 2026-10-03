@@ -10,14 +10,35 @@
 
 part of 'app_router.dart';
 
-/// generated route for [OperationsPortalPage]
-class OperationsPortalRoute extends PageRouteInfo<void> {
-  const OperationsPortalRoute({List<PageRouteInfo>? children})
-    : super(OperationsPortalRoute.name, initialChildren: children);
-  static const String name = 'OperationsPortalRoute';
+/// generated route for
+/// [ActiveSosListPage]
+class ActiveSosListRoute extends PageRouteInfo<void> {
+  const ActiveSosListRoute({List<PageRouteInfo>? children})
+    : super(ActiveSosListRoute.name, initialChildren: children);
+
+  static const String name = 'ActiveSosListRoute';
+
   static PageInfo page = PageInfo(
     name,
-    builder: (data) => const OperationsPortalPage(),
+    builder: (data) {
+      return const ActiveSosListPage();
+    },
+  );
+}
+
+/// generated route for
+/// [ArViewPage]
+class ArViewRoute extends PageRouteInfo<void> {
+  const ArViewRoute({List<PageRouteInfo>? children})
+    : super(ArViewRoute.name, initialChildren: children);
+
+  static const String name = 'ArViewRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const ArViewPage();
+    },
   );
 }
 
@@ -65,6 +86,22 @@ class MainRoute extends PageRouteInfo<void> {
     name,
     builder: (data) {
       return const MainPage();
+    },
+  );
+}
+
+/// generated route for
+/// [OperationsPortalPage]
+class OperationsPortalRoute extends PageRouteInfo<void> {
+  const OperationsPortalRoute({List<PageRouteInfo>? children})
+    : super(OperationsPortalRoute.name, initialChildren: children);
+
+  static const String name = 'OperationsPortalRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const OperationsPortalPage();
     },
   );
 }
@@ -135,6 +172,69 @@ class ShelterLocationPickerRouteArgs {
   @override
   int get hashCode =>
       key.hashCode ^ initialLocation.hashCode ^ initialAddress.hashCode;
+}
+
+/// generated route for
+/// [SosPage]
+class SosRoute extends PageRouteInfo<void> {
+  const SosRoute({List<PageRouteInfo>? children})
+    : super(SosRoute.name, initialChildren: children);
+
+  static const String name = 'SosRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const SosPage();
+    },
+  );
+}
+
+/// generated route for
+/// [SosResponseDetailPage]
+class SosResponseDetailRoute extends PageRouteInfo<SosResponseDetailRouteArgs> {
+  SosResponseDetailRoute({
+    Key? key,
+    required SOSAlert sosAlert,
+    List<PageRouteInfo>? children,
+  }) : super(
+         SosResponseDetailRoute.name,
+         args: SosResponseDetailRouteArgs(key: key, sosAlert: sosAlert),
+         initialChildren: children,
+       );
+
+  static const String name = 'SosResponseDetailRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      final args = data.argsAs<SosResponseDetailRouteArgs>();
+      return SosResponseDetailPage(key: args.key, sosAlert: args.sosAlert);
+    },
+  );
+}
+
+class SosResponseDetailRouteArgs {
+  const SosResponseDetailRouteArgs({this.key, required this.sosAlert});
+
+  final Key? key;
+
+  final SOSAlert sosAlert;
+
+  @override
+  String toString() {
+    return 'SosResponseDetailRouteArgs{key: $key, sosAlert: $sosAlert}';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! SosResponseDetailRouteArgs) return false;
+    return key == other.key && sosAlert == other.sosAlert;
+  }
+
+  @override
+  int get hashCode => key.hashCode ^ sosAlert.hashCode;
 }
 
 /// generated route for

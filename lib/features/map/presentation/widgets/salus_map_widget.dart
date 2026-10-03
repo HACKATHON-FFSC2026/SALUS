@@ -1,31 +1,46 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/app/routes/app_router.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:salus/features/map/domain/location.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
+import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
+import 'package:salus/features/risks/presentation/widgets/disaster_marker_pin.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
+import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
 
 class SalusMapWidget extends ConsumerStatefulWidget {
-  const SalusMapWidget({super.key});
+  const SalusMapWidget({super.key, this.tileProvider});
+
+  /// Seam de test: les tuiles OSM demandent le réseau, ce qui laisse des
+  /// timers en vol et fait échouer le moindre test de widget. Les tests
+  /// injectent `ErrorTileProvider`; en production on garde le réseau.
+  final TileProvider? tileProvider;
 
   @override
   ConsumerState<SalusMapWidget> createState() => _SalusMapWidgetState();
 }
 
 class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final MapController _mapController = MapController();
+  // ponytail: une seule animation à la fois, l'ancienne est annulée.
+  // Sans ça, double-tap = 2 tickers sur SingleTickerProvider = crash.
+  AnimationController? _anim;
 
   // Position par défaut (Antananarivo) avant la première fixation GPS
   static const LatLng _defaultLocation = LatLng(-18.8792, 47.5079);
@@ -42,18 +57,35 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     });
   }
 
-  /// Action du clic sur le FAB : Recentrer la carte avec animation
-  void _onRecenterPressed(LocationState locationState) {
-    final position = locationState.position;
+  @override
+  void dispose() {
+    _anim?.stop();
+    _anim?.dispose();
+    _mapController.dispose();
+    super.dispose();
+  }
 
+  /// Action du clic sur le FAB : Recentrer la carte avec animation
+  void _onRecenterPressed(GeoPoint? position) {
     if (position != null) {
-      // 1. Position disponible -> Animation vers les coordonnées GPS
-      _mapController.animatedMove(
+      // 1. Position disponible -> Animation vers les coordonnées GPS.
+      // L'animation précédente est annulée avant d'en lancer une autre.
+      _anim?.stop();
+      _anim?.dispose();
+      final controller = _mapController.animatedMove(
         vsync: this,
         destLocation: LatLng(position.latitude, position.longitude),
         destZoom: 16.0,
         duration: const Duration(milliseconds: 1000),
       );
+      _anim = controller;
+      controller.addStatusListener((status) {
+        if (status == AnimationStatus.completed ||
+            status == AnimationStatus.dismissed) {
+          controller.dispose();
+          if (_anim == controller) _anim = null;
+        }
+      });
     } else {
       // 2. Position non encore chargée -> Demander / Relancer le GPS
       ref.read(locationProvider.notifier).refresh();
@@ -69,11 +101,41 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
 
   @override
   Widget build(BuildContext context) {
-    final locationState = ref.watch(locationProvider);
+    // ponytail: selects ciblés, un changement de statut seul (loading →
+    // error, même position) ne reconstruit pas les polygones/markers.
+    final locationPosition = ref.watch(
+      locationProvider.select((s) => s.position),
+    );
+    final locationStatus = ref.watch(locationProvider.select((s) => s.status));
     final sheltersAsync = ref.watch(validatedSheltersProvider);
     final shelters = sheltersAsync.value ?? const <Shelter>[];
-    final riskZonesAsync = ref.watch(activeRiskZonesProvider);
-    final riskZones = riskZonesAsync.value ?? const <Zone>[];
+    final externalRiskZones =
+        ref.watch(riskZonesProvider).value ?? const <Zone>[];
+    final streamedRiskZones =
+        ref.watch(activeRiskZonesProvider).value ?? const <Zone>[];
+    final riskZonesById = <String, Zone>{
+      for (final zone in externalRiskZones)
+        if (zone.isActive && zone.geometry.isNotEmpty) zone.id: zone,
+      // Firestore zones take precedence when both sources use the same ID.
+      for (final zone in streamedRiskZones)
+        if (zone.isActive && zone.geometry.isNotEmpty) zone.id: zone,
+    };
+    final riskZones = riskZonesById.values.toList();
+    final safeZones =
+        (ref.watch(filteredSafeZonesProvider).value ?? const <Zone>[])
+            .where((z) => z.geometry.isNotEmpty)
+            .toList();
+    final position = locationPosition;
+    final geofence = ref.watch(geofenceServiceProvider);
+    final userDanger = position == null
+        ? const <Zone>[]
+        : riskZones.where((zone) {
+            return zone.type == ZoneType.risk &&
+                geofence.isUserInZone(
+                  firestore.GeoPoint(position.latitude, position.longitude),
+                  zone,
+                );
+          }).toList();
 
     return Stack(
       fit: StackFit.expand,
@@ -90,28 +152,37 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.salus.app',
+              tileProvider: widget.tileProvider,
             ),
-            if (riskZones.isNotEmpty)
+            if (safeZones.isNotEmpty || riskZones.isNotEmpty)
               PolygonLayer(
                 polygons: [
-                  for (final zone in riskZones)
-                    Polygon(
-                      points: [
-                        for (final point in zone.geometry)
-                          LatLng(point.latitude, point.longitude),
-                      ],
-                      color: _zoneColor(zone.severity).withValues(alpha: .22),
-                      borderColor: _zoneColor(zone.severity),
-                      borderStrokeWidth: 2.5,
-                    ),
+                  for (final zone in safeZones) zone.toPolygon(),
+                  for (final zone in riskZones) zone.toPolygon(),
                 ],
               ),
+
+            MarkerLayer(
+              markers: [
+                for (final z in riskZones)
+                  Marker(
+                    key: ValueKey('risk-marker-${z.id}'),
+                    point: z.center,
+                    width: 40,
+                    height: 40,
+                    child: DisasterMarkerPin(zone: z),
+                  ),
+              ],
+            ),
 
             // ponytail: CurrentLocationLayer ouvre son propre flux geolocator.
             // Le recentrage passe par notre port, la pastille par le plugin.
             // Brancher les deux sur LocationRepository quand un suivi continu
             // est requis (widget dissocié de sa pastille).
-            if (locationState.status == LocationStatus.success)
+            // ponytail: la pastille suit la dernière position connue, même
+            // après une erreur transitoire (le status repasse en loading
+            // au retry, la position est conservée par le provider).
+            if (locationPosition != null)
               CurrentLocationLayer(
                 alignPositionOnUpdate:
                     AlignOnUpdate.never, // Pas de centrage forcé auto
@@ -191,6 +262,16 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             children: [
               if (_showLegend) const _MapLegend(),
               const SizedBox(width: 6),
+              // Vue AR des refuges et des zones proches.
+              FloatingActionButton.small(
+                heroTag: 'ar_view_fab',
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.primary,
+                tooltip: 'Vue caméra des refuges et zones proches',
+                onPressed: () => context.router.push(const ArViewRoute()),
+                child: const Icon(Icons.view_in_ar_outlined),
+              ),
+              const SizedBox(width: 6),
               FloatingActionButton.small(
                 heroTag: 'shelter_legend_fab',
                 backgroundColor: AppColors.surface,
@@ -214,8 +295,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             backgroundColor: AppColors.surface,
             foregroundColor: AppColors.primary,
             elevation: 3,
-            onPressed: () => _onRecenterPressed(locationState),
-            child: locationState.status == LocationStatus.loading
+            onPressed: () => _onRecenterPressed(locationPosition),
+            child: locationStatus == LocationStatus.loading
                 ? const SizedBox(
                     width: 24,
                     height: 24,
@@ -227,6 +308,27 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                 : const Icon(Icons.my_location),
           ),
         ),
+
+        // Bandeau d'alerte si l'utilisateur est dans une zone à risque.
+        if (userDanger.isNotEmpty)
+          Positioned(
+            bottom: 160,
+            left: 16,
+            right: 16,
+            child: Card(
+              color: Colors.red.shade50,
+              child: ListTile(
+                dense: true,
+                leading: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.red,
+                ),
+                title: Text(
+                  'Vous êtes dans une zone à risque : ${userDanger.first.label}',
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

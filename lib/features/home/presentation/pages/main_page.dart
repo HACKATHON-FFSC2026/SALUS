@@ -1,11 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/alerts/presentation/pages/alerts_page.dart';
 import 'package:salus/features/help/presentation/pages/help_page.dart';
 import 'package:salus/features/home/presentation/pages/home_tab_page.dart';
 import 'package:salus/features/shelters/presentation/pages/shelters_page.dart';
-import 'package:toastification/toastification.dart';
 
 /// Un onglet = un icône, un libellé, une page. Ajouter un onglet ne touche
 /// que cette liste.
@@ -42,12 +42,7 @@ class _MainPageState extends State<MainPage> {
   void _select(int index) => setState(() => _index = index);
 
   void _onSosPressed() {
-    toastification.show(
-      context: context,
-      title: const Text('SOS bientôt disponible'),
-      type: ToastificationType.warning,
-      autoCloseDuration: const Duration(seconds: 3),
-    );
+    context.router.push(const SosRoute());
   }
 
   @override
