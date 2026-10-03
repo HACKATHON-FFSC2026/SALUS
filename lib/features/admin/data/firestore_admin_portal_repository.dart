@@ -169,8 +169,7 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
     String uid,
   ) => _firestore.collection('shelters').doc(id).update({
     'validationStatus': status,
-    'validatedBy': status == 'validated' ? uid : null,
-    'updatedAt': FieldValue.serverTimestamp(),
+    'validatedBy': uid,
   });
 
   @override
@@ -201,12 +200,16 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
 
   @override
   Future<void> toggleZone(String id, {required bool isActive}) =>
-      _firestore.collection('zones').doc(id).update({'isActive': isActive});
+      _firestore.collection('zones').doc(id).update({
+        'isActive': isActive,
+        'endedAt': isActive ? null : FieldValue.serverTimestamp(),
+      });
 
   @override
   Future<void> saveManualRiskZone({
     required String? id,
     required String name,
+    required String description,
     required String disasterType,
     required String severity,
     required List<AdminZonePoint> geometry,
@@ -219,6 +222,7 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
       'type': 'risk',
       'origin': 'manual',
       'source': name,
+      'description': description,
       'disasterType': disasterType,
       'severity': severity,
       'geometry': [

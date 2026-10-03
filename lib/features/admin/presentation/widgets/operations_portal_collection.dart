@@ -84,7 +84,7 @@ class OperationsPortalCollection extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onCreateRiskZone,
                 icon: const Icon(Icons.add_location_alt_outlined),
-                label: const Text('Tracer une zone à risque'),
+                label: const Text('Créer une alerte / zone à risque'),
               ),
           ],
         ),

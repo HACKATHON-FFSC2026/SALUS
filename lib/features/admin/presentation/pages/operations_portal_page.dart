@@ -70,7 +70,7 @@ class _OperationsPortalPageState extends ConsumerState<OperationsPortalPage> {
                 'SOS',
                 'Zones',
               ]
-            : const ['Vue générale', 'SOS', 'Signalements', 'Zones'];
+            : const ['Vue générale', 'SOS', 'Signalements', 'Refuges', 'Zones'];
         final index = _section.clamp(0, sections.length - 1);
         return Scaffold(
           backgroundColor: AppColors.background,

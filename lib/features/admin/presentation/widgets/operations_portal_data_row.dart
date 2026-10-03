@@ -44,7 +44,9 @@ class OperationsPortalDataRow extends StatelessWidget {
   };
 
   String get _status => collection == AdminCollection.zones
-      ? (record.isActive == false ? 'inactive' : 'active')
+      ? record.zoneType == 'risk' && record.zoneOrigin == 'manual'
+            ? (record.isActive == false ? 'closed' : 'active')
+            : (record.isActive == false ? 'inactive' : 'active')
       : collection == AdminCollection.shelters
       ? record.validationStatus ?? 'pending'
       : collection == AdminCollection.organizations
@@ -137,17 +139,23 @@ class OperationsPortalDataRow extends StatelessWidget {
               color: AppColors.primary,
             ),
           ),
-        if (isAdmin && collection == AdminCollection.shelters)
+        if (collection == AdminCollection.shelters &&
+            (isAdmin || record.validationStatus == 'pending'))
           PopupMenuButton<String>(
-            tooltip: 'Changer le statut',
+            tooltip: isAdmin ? 'Changer le statut' : 'Examiner la proposition',
             initialValue: record.validationStatus ?? 'pending',
             onSelected: (status) =>
                 useCases.setShelterValidationStatus(record.id, status, userId),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'validated', child: Text('Validé')),
-              PopupMenuItem(value: 'pending', child: Text('En attente')),
-              PopupMenuItem(value: 'rejected', child: Text('Rejeté')),
-            ],
+            itemBuilder: (context) => isAdmin
+                ? const [
+                    PopupMenuItem(value: 'validated', child: Text('Validé')),
+                    PopupMenuItem(value: 'pending', child: Text('En attente')),
+                    PopupMenuItem(value: 'rejected', child: Text('Rejeté')),
+                  ]
+                : const [
+                    PopupMenuItem(value: 'validated', child: Text('Valider')),
+                    PopupMenuItem(value: 'rejected', child: Text('Rejeter')),
+                  ],
             child: const Padding(
               padding: EdgeInsets.all(8),
               child: Icon(Icons.edit_outlined, color: AppColors.primary),
@@ -156,13 +164,8 @@ class OperationsPortalDataRow extends StatelessWidget {
         if (collection == AdminCollection.zones &&
             (isAdmin || record.createdBy == userId))
           IconButton(
-            tooltip: record.isActive == true
-                ? 'Désactiver la zone'
-                : 'Réactiver la zone',
-            onPressed: () => useCases.toggleZone(
-              record.id,
-              isActive: record.isActive != true,
-            ),
+            tooltip: _zoneToggleLabel(record),
+            onPressed: () => _confirmZoneToggle(context),
             icon: Icon(
               record.isActive == true
                   ? Icons.visibility_off_outlined
@@ -251,6 +254,61 @@ class OperationsPortalDataRow extends StatelessWidget {
       ],
     ),
   );
+
+  String _zoneToggleLabel(AdminPortalRecord zone) {
+    if (zone.zoneType == 'risk' && zone.zoneOrigin == 'manual') {
+      return zone.isActive == true ? 'Clôturer l’alerte' : 'Réactiver l’alerte';
+    }
+    return zone.isActive == true ? 'Désactiver la zone' : 'Réactiver la zone';
+  }
+
+  Future<void> _confirmZoneToggle(BuildContext context) async {
+    final closing = record.isActive == true;
+    final isManualRiskAlert =
+        record.zoneType == 'risk' && record.zoneOrigin == 'manual';
+    final title = isManualRiskAlert
+        ? closing
+              ? 'Clôturer cette alerte ?'
+              : 'Réactiver cette alerte ?'
+        : closing
+        ? 'Désactiver cette zone ?'
+        : 'Réactiver cette zone ?';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(
+          isManualRiskAlert
+              ? closing
+                    ? 'L’alerte sera retirée de la carte et de l’écran Alertes des citoyens.'
+                    : 'L’alerte réapparaîtra sur la carte et dans l’écran Alertes.'
+              : closing
+              ? 'Cette zone ne sera plus affichée aux citoyens.'
+              : 'Cette zone sera de nouveau affichée aux citoyens.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(closing ? 'Confirmer' : 'Réactiver'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await useCases.toggleZone(record.id, isActive: !closing);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de modifier cette zone.')),
+        );
+      }
+    }
+  }
 }
 
 String _disasterLabel(String? value) => switch (value) {
@@ -317,6 +375,7 @@ class _PortalStatusPill extends StatelessWidget {
     'rejected': 'Rejeté',
     'active': 'Active',
     'inactive': 'Inactive',
+    'closed': 'Clôturée',
     'suspended': 'Suspendue',
   };
 
