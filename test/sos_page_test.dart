@@ -308,6 +308,86 @@ void main() {
     expect(find.text('position inconnue'), findsOneWidget);
   });
 
+  testWidgets('la victime distingue une position figée d\'un point en direct', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final alert = SOSAlert(
+      id: 'a1',
+      userId: 'victim',
+      distressType: DistressType.other,
+      status: SOSStatus.waiting,
+      location: const GeoPoint(-18.8792, 47.5079),
+      createdAt: DateTime(2026, 3, 1),
+      responderIds: const ['live', 'frozen'],
+    );
+    final when = DateTime(2026, 3, 1);
+    repo = _FakeSosRepository(
+      myAlert: alert,
+      responses: [
+        HelpResponse(
+          id: 'a1_live',
+          sosAlertId: 'a1',
+          responderId: 'live',
+          responseType: ResponseType.comingInPerson,
+          status: HelpResponseStatus.enRoute,
+          createdAt: when,
+          updatedAt: when,
+        ),
+        HelpResponse(
+          id: 'a1_frozen',
+          sosAlertId: 'a1',
+          responderId: 'frozen',
+          responseType: ResponseType.comingInPerson,
+          status: HelpResponseStatus.enRoute,
+          createdAt: when,
+          updatedAt: when,
+        ),
+      ],
+      locations: [
+        LocationShare(
+          id: 'a1_live',
+          sosAlertId: 'a1',
+          userId: 'live',
+          currentLocation: const GeoPoint(-18.8702, 47.5079),
+          updatedAt: when,
+        ),
+        LocationShare(
+          id: 'a1_frozen',
+          sosAlertId: 'a1',
+          userId: 'frozen',
+          // ~2 km au nord, GPS coupé: le point reste affiché mais n'est plus
+          // un point en direct.
+          currentLocation: const GeoPoint(-18.8612, 47.5079),
+          isActive: false,
+          updatedAt: when,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(_GuestAuthRepository()),
+          sosRepositoryProvider.overrideWithValue(repo),
+          sendSosUseCaseProvider.overrideWithValue(_FakeSendSosUseCase(repo)),
+        ],
+        child: const MaterialApp(home: SosPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Le point vif s'affiche nu. Le point figé porte la mention, sinon la
+    // victime lit « 2.0 km » pour quelqu'un dont le GPS est coupé depuis
+    // longtemps.
+    expect(find.text('1.0 km'), findsOneWidget);
+    expect(find.text('2.0 km'), findsNothing);
+    expect(find.text('2.0 km (position figée)'), findsOneWidget);
+  });
+
   testWidgets('l\'invitation à se connecter est visible et cliquable', (
     tester,
   ) async {
