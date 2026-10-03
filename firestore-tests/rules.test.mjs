@@ -401,13 +401,14 @@ await denied('l\'alertId est fige: pas de reponse orpheline', () =>
 // -- location_shares --------------------------------------------------------
 const shareAt = (db, id) => doc(db, 'location_shares', id);
 const SHARE = 'a3_r1';
+// Champs de `LocationShare` au 1:1. Pas de `createdAt`: l'entite n'en a pas,
+// et le payload doit rester la copie exacte de ce que `toJson()` ecrit.
 const share = (id, overrides = {}) => ({
   id,
   userId: CITIZEN,
   sosAlertId: 'a3',
   currentLocation: new GeoPoint(-18.88, 47.51),
   isActive: true,
-  createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
   ...overrides,
 });
@@ -464,12 +465,21 @@ await ok('la position avance', () =>
     updatedAt: new Date(),
   }),
 );
-await ok('l\'intervenant fige sa position en fin d\'intervention', () =>
-  updateDoc(shareAt(citizenDb, SHARE), {
+await ok('l\'intervenant fige sa position en fin d\'intervention', async () => {
+  await updateDoc(shareAt(citizenDb, SHARE), {
     isActive: false,
     updatedAt: new Date(),
-  }),
+  });
+});
+// `isActive: false` doit rester lisible par la victime: c'est ce qui lui
+// permet de distinguer un point fige d'un point en direct.
+assert.strictEqual(
+  (await readOne(victimDb, 'location_shares', SHARE)).data().isActive,
+  false,
+  'la victime doit voir que la position est figee',
 );
+passed++;
+console.log('  OK      la victime voit que la position est figee');
 await denied('le proprietaire de la position ne change pas', () =>
   updateDoc(shareAt(citizenDb, SHARE), { userId: VICTIM }),
 );

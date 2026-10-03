@@ -8,6 +8,7 @@ import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/auth/presentation/state/auth_state.dart';
 import '../../domain/entities/emergency_numbers.dart';
 import 'package:salus/core/entities/help_response_entity.dart';
+import 'package:salus/core/entities/location_share_entity.dart';
 import '../../domain/usecases/send_sos_usecase.dart';
 import '../providers/responder_controller.dart';
 import '../providers/sos_provider.dart';
@@ -280,6 +281,7 @@ class _RespondersPanel extends ConsumerWidget {
                 for (final response in items)
                   _ResponderRow(
                     response: response,
+                    share: locationByUid[response.responderId],
                     meters: distanceInMeters(
                       alert: alert,
                       location: locationByUid[response.responderId],
@@ -295,10 +297,20 @@ class _RespondersPanel extends ConsumerWidget {
 }
 
 class _ResponderRow extends StatelessWidget {
-  const _ResponderRow({required this.response, required this.meters});
+  const _ResponderRow({
+    required this.response,
+    required this.meters,
+    required this.share,
+  });
 
   final HelpResponse response;
   final double? meters;
+
+  /// Position publiee par l'intervenant. Vaut `null` s'il n'a jamais partage,
+  /// et porte `isActive: false` s'il a arrete: le point reste affiche, mais
+  /// fige. Sans cette distinction la victime lit « 1.0 km » pour un
+  /// intervenant dont le GPS est coupe, exactement comme pour un point vif.
+  final LocationShare? share;
 
   static const _labels = {
     HelpResponseStatus.offered: 'A proposé son aide',
@@ -310,11 +322,14 @@ class _ResponderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onSite = response.status == HelpResponseStatus.arrived;
+    // `null` n'est pas « figée »: c'est « jamais publié ». La mention ne
+    // concerne que les cas où un point existe et a été figé.
+    final isFrozen = share != null && !share!.isActive;
     final distance = meters == null
         ? 'position inconnue'
         : meters! < 950
-            ? '${meters!.round()} m'
-            : '${(meters! / 1000).toStringAsFixed(1)} km';
+        ? '${meters!.round()} m'
+        : '${(meters! / 1000).toStringAsFixed(1)} km';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -339,7 +354,7 @@ class _ResponderRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  distance,
+                  isFrozen ? '$distance (position figée)' : distance,
                   style: const TextStyle(color: AppColors.inactive, fontSize: 12),
                 ),
               ],
