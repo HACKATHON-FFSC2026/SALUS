@@ -1,11 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:salus/features/auth/data/firebase_auth_repository.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/features/auth/domain/auth_repository.dart';
 import 'package:salus/features/auth/presentation/state/auth_state.dart';
-
-final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => const FirebaseAuthRepository(),
-);
 
 /// Décision du splash. Le délai laisse le logo s'afficher avant de trancher.
 final hasAccountProvider = FutureProvider<bool>((ref) async {

@@ -4,12 +4,15 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/app/di/app_dependencies.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:salus/features/map/domain/location.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
+import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
@@ -39,7 +42,6 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
   // ponytail: une seule animation à la fois, l'ancienne est annulée.
   // Sans ça, double-tap = 2 tickers sur SingleTickerProvider = crash.
   AnimationController? _anim;
-  
 
   // Position par défaut (Antananarivo) avant la première fixation GPS
   static const LatLng _defaultLocation = LatLng(-18.8792, 47.5079);
@@ -98,26 +100,43 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     }
   }
 
-  
-
   @override
   Widget build(BuildContext context) {
     // ponytail: selects ciblés, un changement de statut seul (loading →
     // error, même position) ne reconstruit pas les polygones/markers.
-    final locationPosition =
-        ref.watch(locationProvider.select((s) => s.position));
-    final locationStatus =
-        ref.watch(locationProvider.select((s) => s.status));
+    final locationPosition = ref.watch(
+      locationProvider.select((s) => s.position),
+    );
+    final locationStatus = ref.watch(locationProvider.select((s) => s.status));
     final sheltersAsync = ref.watch(validatedSheltersProvider);
     final shelters = sheltersAsync.value ?? const <Shelter>[];
-    final riskZones = (ref.watch(riskZonesProvider).value ?? const <Zone>[])
-      .where((z) => z.isActive && z.geometry.isNotEmpty)
-      .toList();
+    final externalRiskZones =
+        ref.watch(riskZonesProvider).value ?? const <Zone>[];
+    final streamedRiskZones =
+        ref.watch(activeRiskZonesProvider).value ?? const <Zone>[];
+    final riskZonesById = <String, Zone>{
+      for (final zone in externalRiskZones)
+        if (zone.isActive && zone.geometry.isNotEmpty) zone.id: zone,
+      // Firestore zones take precedence when both sources use the same ID.
+      for (final zone in streamedRiskZones)
+        if (zone.isActive && zone.geometry.isNotEmpty) zone.id: zone,
+    };
+    final riskZones = riskZonesById.values.toList();
     final safeZones =
-      (ref.watch(filteredSafeZonesProvider).value ?? const <Zone>[])
-          .where((z) => z.geometry.isNotEmpty)
-          .toList();
-    final userDanger = ref.watch(dangerousZonesProvider);
+        (ref.watch(filteredSafeZonesProvider).value ?? const <Zone>[])
+            .where((z) => z.geometry.isNotEmpty)
+            .toList();
+    final position = locationPosition;
+    final geofence = ref.watch(geofenceServiceProvider);
+    final userDanger = position == null
+        ? const <Zone>[]
+        : riskZones.where((zone) {
+            return zone.type == ZoneType.risk &&
+                geofence.isUserInZone(
+                  firestore.GeoPoint(position.latitude, position.longitude),
+                  zone,
+                );
+          }).toList();
 
     return Stack(
       fit: StackFit.expand,
@@ -136,24 +155,26 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
               userAgentPackageName: 'com.salus.app',
               tileProvider: widget.tileProvider,
             ),
-
-
-            PolygonLayer(polygons: [for (final z in safeZones) z.toPolygon()]),
-            PolygonLayer(polygons: [for (final z in riskZones) z.toPolygon()]),
+            if (safeZones.isNotEmpty || riskZones.isNotEmpty)
+              PolygonLayer(
+                polygons: [
+                  for (final zone in safeZones) zone.toPolygon(),
+                  for (final zone in riskZones) zone.toPolygon(),
+                ],
+              ),
 
             MarkerLayer(
               markers: [
                 for (final z in riskZones)
-                Marker(
-                  key: ValueKey('risk-marker-${z.id}'),
-                  point: z.center,
-                  width: 40,
-                 height: 40,
-              child: DisasterMarkerPin(zone: z),
-      ),
-  ],
-),
-
+                  Marker(
+                    key: ValueKey('risk-marker-${z.id}'),
+                    point: z.center,
+                    width: 40,
+                    height: 40,
+                    child: DisasterMarkerPin(zone: z),
+                  ),
+              ],
+            ),
 
             // ponytail: CurrentLocationLayer ouvre son propre flux geolocator.
             // Le recentrage passe par notre port, la pastille par le plugin.
@@ -240,25 +261,25 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_showLegend) const _ShelterLegend(),
-               const SizedBox(width: 6),
-               // Vue AR des POI autour de l'utilisateur (spec §1.1 SHOULD).
-               FloatingActionButton.small(
-                 heroTag: 'ar_view_fab',
-                 backgroundColor: AppColors.surface,
-                 foregroundColor: AppColors.primary,
-                 tooltip: 'Vue caméra des refuges et zones proches',
-                 onPressed: () => context.router.push(const ArViewRoute()),
-                 child: const Icon(Icons.view_in_ar_outlined),
-               ),
-               const SizedBox(width: 6),
-               FloatingActionButton.small(
+              if (_showLegend) const _MapLegend(),
+              const SizedBox(width: 6),
+              // Vue AR des refuges et des zones proches.
+              FloatingActionButton.small(
+                heroTag: 'ar_view_fab',
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.primary,
+                tooltip: 'Vue caméra des refuges et zones proches',
+                onPressed: () => context.router.push(const ArViewRoute()),
+                child: const Icon(Icons.view_in_ar_outlined),
+              ),
+              const SizedBox(width: 6),
+              FloatingActionButton.small(
                 heroTag: 'shelter_legend_fab',
                 backgroundColor: AppColors.surface,
                 foregroundColor: AppColors.primary,
                 tooltip: _showLegend
                     ? 'Masquer la légende'
-                    : 'Légende des refuges',
+                    : 'Légende de la carte',
                 onPressed: () => setState(() => _showLegend = !_showLegend),
                 child: Icon(_showLegend ? Icons.close : Icons.info_outline),
               ),
@@ -289,22 +310,48 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           ),
         ),
 
-        // Bandeau d'alerte si l'utilisateur est dans une zone à risque.
-        //Alerte Temporaire
-          if (userDanger.isNotEmpty)
-            Positioned(
-              bottom: 160,
-              left: 16,
-              right: 16,
-              child: Card(
-              color: Colors.red.shade50,
-              child: ListTile(
-              dense: true,
-              leading: const Icon(Icons.warning_amber_rounded, color: Colors.red),
-              title: Text('Vous êtes dans une zone à risque : ${userDanger.first.label}'),
-      ),
-    ),
-  ),
+        // Alerte compacte sous le bandeau principal, près du haut de l'écran.
+        // On laisse une marge à droite pour le bouton de recentrage.
+        if (userDanger.isNotEmpty)
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + 76,
+            left: 16,
+            right: 72,
+            child: Material(
+              color: Colors.red.shade50.withValues(alpha: 0.96),
+              elevation: 3,
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 9,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red,
+                      size: 19,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Zone à risque · ${userDanger.first.label}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xff8f2020),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -332,8 +379,16 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
   }
 }
 
-class _ShelterLegend extends StatelessWidget {
-  const _ShelterLegend();
+Color _zoneColor(Severity? severity) => switch (severity) {
+  Severity.low => const Color(0xffe9a23b),
+  Severity.medium => const Color(0xffe47736),
+  Severity.high => const Color(0xffc94b4b),
+  Severity.critical => const Color(0xff8f2020),
+  null => const Color(0xffc94b4b),
+};
+
+class _MapLegend extends StatelessWidget {
+  const _MapLegend();
 
   @override
   Widget build(BuildContext context) {
@@ -343,24 +398,48 @@ class _ShelterLegend extends StatelessWidget {
       ShelterStatus.full,
       ShelterStatus.closed,
     ];
-    return Card(
-      color: AppColors.surface.withValues(alpha: 0.92),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 4,
-          children: [
-            for (final status in statuses)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(status.icon, size: 13, color: status.foregroundColor),
-                  const SizedBox(width: 4),
-                  Text(status.label, style: const TextStyle(fontSize: 11)),
-                ],
-              ),
-          ],
+    const severities = {
+      Severity.low: 'Risque faible',
+      Severity.medium: 'Risque modéré',
+      Severity.high: 'Risque élevé',
+      Severity.critical: 'Risque critique',
+    };
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width - 90,
+      ),
+      child: Card(
+        color: AppColors.surface.withValues(alpha: 0.92),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: [
+              for (final entry in severities.entries)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 13,
+                      color: _zoneColor(entry.key),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(entry.value, style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+              for (final status in statuses)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(status.icon, size: 13, color: status.foregroundColor),
+                    const SizedBox(width: 4),
+                    Text(status.label, style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );

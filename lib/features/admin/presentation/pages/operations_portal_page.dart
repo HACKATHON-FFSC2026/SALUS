@@ -1,15 +1,20 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_dashboard_metrics.dart';
+import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/presentation/providers/admin_portal_providers.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_navigation.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_collection.dart';
-import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
+import 'package:salus/features/admin/presentation/widgets/operations_portal_zone_editor.dart';
+import 'package:salus/features/admin/presentation/widgets/admin_shelter_form_dialog.dart';
+import 'package:salus/features/admin/presentation/widgets/admin_organization_form_dialog.dart';
+import 'package:salus/features/admin/presentation/widgets/organization_membership_dialog.dart';
 
 part 'operations_portal_sections.dart';
 part 'operations_portal_actions.dart';
@@ -40,6 +45,8 @@ class _OperationsPortalPageState extends ConsumerState<OperationsPortalPage> {
 
   void _selectSection(int index) => setState(() => _section = index);
 
+  void _retryOverviewMetrics() => setState(() {});
+
   @override
   Widget build(BuildContext context) {
     if (_uid.isEmpty) return _signedOut(context);
@@ -61,9 +68,11 @@ class _OperationsPortalPageState extends ConsumerState<OperationsPortalPage> {
                 'Organisations',
                 'Refuges',
                 'Utilisateurs',
+                'Signalements',
                 'SOS',
+                'Zones',
               ]
-            : const ['Vue générale', 'SOS', 'Signalements', 'Zones'];
+            : const ['Vue générale', 'SOS', 'Signalements', 'Refuges', 'Zones'];
         final index = _section.clamp(0, sections.length - 1);
         return Scaffold(
           backgroundColor: AppColors.background,

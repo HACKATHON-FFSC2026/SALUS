@@ -1,39 +1,12 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/core/entities/zone_entity.dart';
 import 'package:salus/core/utils/geo_math.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
-import 'package:salus/features/risks/data/datasources/elevation_api_service.dart';
-import 'package:salus/features/risks/data/datasources/gdacs_api_service.dart';
-import 'package:salus/features/risks/data/repositories/risk_zone_repository_impl.dart';
-import 'package:salus/features/risks/data/repositories/safe_zone_repository_impl.dart';
-import 'package:salus/features/risks/data/services/turf_geofonce_service.dart';
-import 'package:salus/features/risks/domain/repositories/risk_zone_repository.dart';
-import 'package:salus/features/risks/domain/repositories/safe_zone.dart';
-import 'package:salus/features/risks/domain/services/zone_geofence_service.dart';
 import 'package:salus/features/risks/domain/usecases/get_dangerous_zone.dart';
-
-final dioProvider = Provider<Dio>((ref) => Dio());
-
-final gdacsApiServiceProvider =
-    Provider((ref) => GdacsApiService(ref.watch(dioProvider)));
-
-final riskZoneRepositoryProvider = Provider<RiskZoneRepository>(
-  (ref) => RiskZoneRepositoryImpl(ref.watch(gdacsApiServiceProvider)),
-);
-
-final elevationApiServiceProvider =
-    Provider((ref) => ElevationApiService(ref.watch(dioProvider)));
-
-final safeZoneRepositoryProvider = Provider<SafeZoneRepository>(
-  (ref) => SafeZoneRepositoryImpl(ref.watch(elevationApiServiceProvider)),
-);
-
-final geofenceServiceProvider =
-    Provider<ZoneGeofenceService>((ref) => TurfGeofenceService());
 
 final getDangerousZonesProvider = Provider(
   (ref) => GetDangerousZonesForUser(ref.watch(geofenceServiceProvider)),

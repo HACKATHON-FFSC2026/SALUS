@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/utils/log.dart';
-import '../../data/repositories/sos_repository_impl.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import '../../domain/usecases/cancel_sos_usecase.dart';
 import '../../domain/usecases/respond_to_sos_usecase.dart';
 import '../../domain/usecases/send_sos_usecase.dart';

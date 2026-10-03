@@ -1,17 +1,8 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/features/sos/data/datasources/sos_remote_datasource.dart';
 import 'package:salus/core/entities/help_response_entity.dart';
 import 'package:salus/core/entities/location_share_entity.dart';
 import 'package:salus/features/sos/domain/repositories/sos_repository.dart';
-
-final sosRemoteDataSourceProvider = Provider<ISosRemoteDataSource>((ref) {
-  return SosRemoteDataSourceImpl();
-});
-
-final sosRepositoryProvider = Provider<ISosRepository>((ref) {
-  return SosRepositoryImpl(ref.watch(sosRemoteDataSourceProvider));
-});
 
 class SosRepositoryImpl implements ISosRepository {
   const SosRepositoryImpl(this._remoteDataSource);

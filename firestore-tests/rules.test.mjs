@@ -51,7 +51,25 @@ await testEnv.withSecurityRulesDisabled(async (context) => {
   const put = (uid, data) => setDoc(doc(db, 'users', uid), data);
   await put(VICTIM, { roles: ['citizen'], isActive: true });
   await put(CITIZEN, { roles: ['citizen'], isActive: true });
-  await put(RESPONDER, { roles: ['organizationMember'], isActive: true });
+  await put(RESPONDER, {
+    roles: ['organizationMember'],
+    organizationId: 'org-1',
+    isActive: true,
+  });
+  await setDoc(doc(db, 'organizations', 'org-1'), {
+    verified: true,
+    isActive: true,
+  });
+  await setDoc(doc(db, 'organizations', 'public-org'), {
+    name: 'Organisation publique',
+    verified: true,
+    isActive: true,
+  });
+  await setDoc(doc(db, 'organizations', 'pending-org'), {
+    name: 'Organisation en attente',
+    verified: false,
+    isActive: true,
+  });
   await put(ADMIN, { roles: ['admin'], isActive: true });
   await put(SUSPENDED, { roles: ['organizationMember'], isActive: false });
 });
@@ -109,6 +127,23 @@ const readAlert = (db, id) => readOne(db, 'sos_alerts', id);
 const victimDb = asUser(VICTIM);
 const citizenDb = asUser(CITIZEN);
 const responderDb = asUser(RESPONDER);
+const adminDb = asUser(ADMIN);
+
+// --------------------------------------------------- répertoire public Aide
+const publicDb = testEnv.unauthenticatedContext().firestore();
+await ok('Aide lit les organisations vérifiées et actives sans connexion', async () => {
+  const result = await getDocs(
+    query(
+      collection(publicDb, 'organizations'),
+      where('verified', '==', true),
+      where('isActive', '==', true),
+    ),
+  );
+  assert.ok(result.docs.some((organization) => organization.id === 'public-org'));
+});
+await denied('Aide ne lit pas toute la collection, y compris les organisations non vérifiées', () =>
+  getDocs(collection(publicDb, 'organizations')),
+);
 
 // ---------------------------------------------------------------- création
 await ok('la victime émet une alerte dont elle est userId', () =>
@@ -194,8 +229,17 @@ console.log('  OK      responderIds reste à [citizen-2]: ni doublon ni perte');
 
 // ---------------------------------------------------------- aidant identifié
 await setDoc(alertAt(victimDb, 'a4'), payload('a4'));
-await ok('un aidant prend en charge', () =>
-  updateDoc(alertAt(responderDb, 'a4'), { status: 'inProgress' }),
+await ok('un admin affecte le SOS sans annoncer une intervention commencée', () =>
+  updateDoc(alertAt(adminDb, 'a4'), {
+    status: 'assigned',
+    assignedOrganizationId: 'org-1',
+  }),
+);
+await ok('l’organisation confirme la prise en charge qui lui est affectée', () =>
+  updateDoc(alertAt(responderDb, 'a4'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-1',
+  }),
 );
 assert.strictEqual(
   (await readAlert(victimDb, 'a4')).get('status'),

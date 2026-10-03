@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/widgets/salus_map_widget.dart';
 import 'package:salus/features/risks/domain/repositories/safe_zone.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
+import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/shelters/data/shelter_repository.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 
@@ -82,6 +84,9 @@ Future<void> _pumpMap(WidgetTester tester, ShelterRepository repository) async {
         // vol et fait échouer le test au démontage. `riskZonesProvider` pose en
         // plus un `Timer` de 15 min pour son auto-refresh.
         riskZonesProvider.overrideWith((ref) async => const <Zone>[]),
+        activeRiskZonesProvider.overrideWith(
+          (ref) => Stream.value(const <Zone>[]),
+        ),
         safeZoneRepositoryProvider.overrideWithValue(_StubSafeZoneRepository()),
       ],
       child: _mapApp(),
@@ -97,9 +102,8 @@ class _StubSafeZoneRepository implements SafeZoneRepository {
   Future<List<Zone>> getSafeZonesAround(GeoPoint center) async => const [];
 }
 
-Widget _mapApp() => MaterialApp(
-      home: SalusMapWidget(tileProvider: _FakeTileProvider()),
-    );
+Widget _mapApp() =>
+    MaterialApp(home: SalusMapWidget(tileProvider: _FakeTileProvider()));
 
 void main() {
   testWidgets('affiche un marker par refuge validé', (tester) async {
