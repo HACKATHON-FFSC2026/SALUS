@@ -109,10 +109,19 @@ void main() {
     await tester.tap(find.text('Voir le refuge'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Localisation'), findsOneWidget);
-    expect(find.text('-18.87920, 47.50790'), findsOneWidget);
-    expect(find.text('01/01/2026 08:30'), findsOneWidget);
-    expect(find.text('02/01/2026 09:45'), findsOneWidget);
-    expect(find.text('12 / 50 personnes'), findsOneWidget);
+    // La fiche complète remplace la fiche courte.
+    expect(find.text('Voir le refuge'), findsNothing);
+    expect(find.text('Refuge Mahamasina'), findsOneWidget);
+    expect(find.text('Disponibilité'), findsOneWidget);
+    // 50 - 12 = 38 places, énoncé en toutes lettres.
+    expect(find.text('38'), findsOneWidget);
+    expect(find.text('disponibles sur 50'), findsOneWidget);
+    expect(find.text('ÉQUIPEMENTS'), findsOneWidget);
+    expect(find.text('Eau'), findsOneWidget);
+
+    // Ni latitude/longitude brutes ni horodatages d'audit: l'adresse suffit à
+    // un utilisateur, et `createdAt`/`updatedAt` sont des champs d'administration.
+    expect(find.text('-18.87920, 47.50790'), findsNothing);
+    expect(find.text('01/01/2026 08:30'), findsNothing);
   });
 }

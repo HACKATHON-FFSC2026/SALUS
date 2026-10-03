@@ -25,13 +25,15 @@ dependencies:
   pretty_dio_logger: ^1.4.0
   riverpod: ^3.4.3
   toastification: ^3.0.3
-  flutter_map: ^7.0.2              
+  flutter_map: 8.2.2              
   latlong2: ^0.9.1                   
-  geolocator: ^13.0.2              
-  flutter_map_location_marker: ^9.0.0 
-  flutter_map_marker_cluster: ^1.4.0 
+  geolocator: 14.0.2              
+  flutter_map_location_marker: 10.3.0 
+  flutter_map_marker_cluster: 8.2.2 
   url_launcher: ^6.3.1
-  turf: ^0.0.9                       
+  turf: ^0.0.9                    
+  shared_preferences: ^2.5.5   
+  ar_location_view: ^3.0.0
 
 dev_dependencies:
   flutter_test:

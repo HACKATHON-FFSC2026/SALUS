@@ -7,6 +7,13 @@ abstract class AuthRepository {
   /// Identifiant Firebase de l'utilisateur connecté, null en mode invité.
   String? get currentUserId;
 
+  /// Profil de la session déjà ouverte, null si aucun compte Firebase.
+  ///
+  /// Synchrone à dessein : Firebase restaure sa session sur disque avant le
+  /// premier frame, l'état applicatif doit donc pouvoir se réhydrater sans
+  /// attente. `null` pour un invité, qui n'a pas de compte Firebase.
+  UserProfile? get currentProfile;
+
   /// null si l'authentification Google a échoué (refus, réseau, compte nul).
   Future<UserProfile?> signInWithGoogle();
 

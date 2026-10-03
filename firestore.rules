@@ -1,175 +1,680 @@
 rules_version = '2';
 
-// A user owns their profile and may edit only the fields listed in
-// `_selfWritable`. roles / organizationId / isActive are administrative:
-// leaving them out of the whitelist stops a client from self-promoting to
-// admin. createdAt is pinned on first write.
+// =============================================================================
+// SALUS — regles de securite Firestore
+// =============================================================================
+//
+// Ce fichier couvre tout le modele de donnees decrit dans docs/spec_details.md,
+// y compris les collections dont le client n'a pas encore le code
+// (notifications, role_requests, emergency_contacts, shelter_restock_requests,
+// activity_logs). Les regles sont ecrites pour que l'implementation puisse
+// arriver plus tard sans rouvrir la securite.
+//
+// Trois principes, par ordre d'importance :
+//
+//  1. Un client ne s'attribue jamais un privilege. `roles`, `organizationId`,
+//     `isActive`, `validationStatus` et `verified` sont des champs de confiance :
+//     seul un admin les ecrit, ou le SDK Admin depuis une Cloud Function.
+//
+//  2. Les donnees publiques le sont vraiment. La spec §1.1 est le parcours
+//     « sans connexion » : carte, zones, refuges valides et numeros d'urgence
+//     doivent se lire sans compte. Une alerte SOS, elle, reste privee.
+//
+//  3. Moins de `get()` que possible : chaque lecture coute une operation. Les
+//     predicats de role sont definis une seule fois, en tete de fichier.
+//
+// Les requetes de liste non filtrees (tableau de bord admin, liste des refuges
+// d'un gestionnaire) ne sont acceptables que si une branche de la regle les
+// autorise sans contrainte sur `resource`. C'est volontaire : ces ecrans sont
+// reserves a des roles habilites.
+//
+// ponytail: les assertions qui verrouillent ce fichier vivent dans
+// firestore-tests/rules.test.mjs. Toute modification ici doit y passer.
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // =========================================================================
+    // Helpers globaux
+    // =========================================================================
 
     function signedIn() {
       return request.auth != null;
     }
 
-    function hasRole(role) {
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function myUserData() {
+      return userDoc(request.auth.uid).data;
+    }
+
+    // Un compte suspendu (`isActive: false`) perd tous ses droits, y compris
+    // ceux acquis via ses roles. C'est la porte de sortie de l'admin en cas de
+    // compromission d'un compte organisation.
+    function isActiveAccount() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive != false
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny([role]);
+        && myUserData().isActive != false;
     }
 
-    function isAdmin() { return hasRole('admin'); }
-    function isCitizen() { return hasRole('citizen'); }
+    function hasRole(role) {
+      return isActiveAccount() && myUserData().roles.hasAny([role]);
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isCitizen() {
+      return hasRole('citizen');
+    }
+
     function isOrganizationMember() {
-      return hasRole('organizationMember')
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId is string
-        && exists(/databases/$(database)/documents/organizations/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId))
-        && get(/databases/$(database)/documents/organizations/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId)).data.verified == true
-        && get(/databases/$(database)/documents/organizations/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId)).data.isActive != false;
+      return hasRole('organizationMember');
     }
 
-    // =========================
-    // USERS
-    // =========================
+    // Le membre d'organisation est l'unique rôle opérationnel de terrain.
+    function isResponder() {
+      return isOrganizationMember();
+    }
+
+    function myOrganizationId() {
+      return isActiveAccount() ? myUserData().organizationId : null;
+    }
+
+    // L'utilisateur appartient-il a cette organisation ? Un `organizationId`
+    // null ou vide ne doit jamais donner acces a quoi que ce soit.
+    function belongsTo(orgId) {
+      return orgId != null && orgId != ''
+        && myOrganizationId() != null
+        && myOrganizationId() == orgId;
+    }
+
+    function changedOnly(keys) {
+      return request.resource.data
+        .diff(resource.data)
+        .affectedKeys()
+        .hasOnly(keys);
+    }
+
+    function hasFields(names) {
+      return request.resource.data.keys().hasAll(names);
+    }
+
+    // Les rules ne savent pas lire `point.latitude` : l'acces membre sur un
+// `latlng` echoue avec « Type error. Received: [latlng] Expected: [map,path] ».
+// Le controle se limite donc au type, pas aux bornes du globe.
+    // ponytail: la validation des coordonnees (-90..90 / -180..180) revient au
+    // validateur Dart; si un backend devient la source d'ecriture, c'est la que
+    // elle doit vivre.
+    function validGeoPoint(value) {
+      return value is latlng;
+    }
+
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0 && value.size() <= 4096;
+    }
+
+    // =========================================================================
+    // users
+    // =========================================================================
+    //
+    // `roles`, `organizationId` et `isActive` sont des champs de confiance
+    // (spec §4 « Gestion des roles et permissions »). Ils ne sont jamais
+    // ecrits par le client : ni a la creation, ni dans la liste blanche de
+    // mise a jour. Un whitelist trop large est la faille classique qui permet
+    // a un utilisateur de se promouvoir lui-meme.
     match /users/{userId} {
 
       function isSelf() {
-        return request.auth != null
-          && request.auth.uid == userId;
+        return signedIn() && request.auth.uid == userId;
       }
 
-      function onlySelfWritable() {
-        return request.resource.data
-          .diff(resource.data)
-          .affectedKeys()
-          .hasOnly([
-            'displayName',
-            'email',
-            'phoneNumber',
-            'lastActiveAt',
-            'safetyStatus',
-            'safetyStatusUpdatedAt',
-            'competencyTag'
-          ]);
+      function selfWritableFields() {
+        return [
+          'displayName',
+          'email',
+          'phoneNumber',
+          'lastActiveAt',
+          'safetyStatus',
+          'safetyStatusUpdatedAt',
+          'competencyTag'
+        ];
       }
 
-      function validCreate() {
-        return request.resource.data.keys().hasAll([
+      function validSelfProfile() {
+        return hasFields([
+            'id',
             'displayName',
             'email',
             'authProvider',
             'roles',
+            'organizationId',
+            'competencyTag',
             'safetyStatus',
             'safetyStatusUpdatedAt',
+            'isActive',
             'lastActiveAt',
             'createdAt'
           ])
-          && request.resource.data.roles == ['citizen'];
+          && request.resource.data.id == userId
+          && isNonEmptyString(request.resource.data.displayName)
+          && request.resource.data.authProvider in ['google', 'apple']
+          // Un nouvel arrivant est citoyen, sans organisation et actif.
+          && request.resource.data.roles == ['citizen']
+          && request.resource.data.organizationId == null
+          && request.resource.data.isActive == true
+          && request.resource.data.safetyStatus in ['safe', 'inDistress', 'unknown']
+          && (request.resource.data.competencyTag == null
+            || request.resource.data.competencyTag in [
+              'firstAidTrained',
+              'healthProfessional'
+            ]);
       }
 
-      allow read: if isSelf() || isAdmin();
+      // Un profil contient email et telephone: pas de lecture en liste pour le
+      // grand public. Le dashboard admin en a besoin, et lui seul.
+      allow get: if isSelf() || isAdmin() || isResponder();
+      allow list: if isAdmin();
 
-      allow create: if isSelf() && validCreate();
+      allow create: if isSelf() && validSelfProfile();
 
-      // Admins can approve role requests and manage account roles. Users can
-      // only edit their own profile fields from the allowlist above.
+      // `set()` avec merge sur un document existant passe ici : le refresh de
+      // connexion (displayName / email / lastActiveAt) est dans la liste.
       allow update: if isAdmin()
-        || (isSelf() && onlySelfWritable());
+        || (isSelf() && changedOnly(selfWritableFields())
+            && request.resource.data.id == userId
+            && request.resource.data.safetyStatus in ['safe', 'inDistress', 'unknown']
+            && (request.resource.data.competencyTag == null
+              || request.resource.data.competencyTag in [
+                'firstAidTrained',
+                'healthProfessional'
+              ]));
 
       allow delete: if isAdmin();
     }
 
-
-    // =========================
-    // SHELTERS
-    // =========================
+    // =========================================================================
+    // shelters
+    // =========================================================================
+    //
+    // Spec §1.1 : la liste des refuges et leur fiche (adresse, capacite,
+    // ressources) se consultent sans connexion. Spec §2 : un citoyen en
+    // propose un, un admin le valide.
     match /shelters/{shelterId} {
-
-      // Shelter details are public so citizens can find help without signing in.
       allow read: if true;
 
-      // Citizens can submit a proposal, which always starts pending.
-      // Admins can add official, already validated shelters.
+      // Les citoyens soumettent une proposition en attente. L'admin peut
+      // ajouter directement un refuge officiel déjà validé.
       allow create: if isAdmin()
-        || (signedIn()
-          && isCitizen()
-          && request.resource.data.createdBy == request.auth.uid
+        || (isCitizen()
+        && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.validationStatus == 'pending');
 
-      // Organization members validate citizen proposals without changing
-      // operational or ownership fields. Admins manage all shelter fields.
+      // L'organisation peut trancher une proposition sans modifier les autres
+      // informations du refuge. La gestion globale appartient à l'admin.
       allow update: if isAdmin()
         || (isOrganizationMember()
           && resource.data.validationStatus == 'pending'
-          && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['validationStatus', 'validatedBy'])
+          && changedOnly(['validationStatus', 'validatedBy'])
           && request.resource.data.validationStatus in ['validated', 'rejected']
           && request.resource.data.validatedBy == request.auth.uid);
 
       allow delete: if isAdmin();
     }
 
+    // =========================================================================
+    // organizations
+    // =========================================================================
     match /organizations/{organizationId} {
-      // Verified active organizations are listed in the public Help directory.
-      // Their contact details are intentionally public for emergency assistance.
-      allow read: if signedIn()
+
+      function hasValidContact() {
+        return isNonEmptyString(request.resource.data.name)
+          && isNonEmptyString(request.resource.data.contactEmail)
+          && request.resource.data.contactPhone is string
+          && request.resource.data.type in [
+            'ngo',
+            'government',
+            'emergencyServices',
+            'other'
+          ];
+      }
+
+      // Les organisations verifiees et actives sont visibles dans le repertoire
+      // public de l'onglet Aide. Les autres restent privees aux comptes habilites.
+      allow read: if isAdmin()
+        || belongsTo(organizationId)
         || (resource.data.verified == true && resource.data.isActive == true);
-      allow create, update, delete: if isAdmin();
+
+      // `createOrganization` ecrit verified:false : la validation passe par
+      // `verifyOrganization`, jamais par le createur.
+      allow create: if isAdmin()
+        && request.resource.data.verified == false
+        && hasValidContact();
+
+      allow update: if isAdmin();
+
+      allow delete: if isAdmin();
     }
 
+    // =========================================================================
+    // zones
+    // =========================================================================
+    //
+    // Spec §1.1 : la carte affiche zones a risque et zones sures sans
+    // connexion. Spec §3 : l'organisation gere les zones, l'admin arbitre.
+    match /zones/{zoneId} {
+
+      function validGeometry() {
+        return request.resource.data.geometry is list
+          && request.resource.data.type in ['risk', 'safe']
+          && (request.resource.data.disasterType == null
+            || request.resource.data.disasterType in [
+              'earthquake',
+              'tsunami',
+              'cyclone',
+              'flood',
+              'landslide',
+              'volcano',
+              'other'
+            ])
+          && (request.resource.data.severity == null
+            || request.resource.data.severity in [
+              'low',
+              'medium',
+              'high',
+              'critical'
+            ]);
+      }
+
+      // Public pour une zone active, complet pour un compte connecte : les
+      // zones cloturees gardent leur geometrie pour l'historique des crises
+      // (spec §3) et ne sortent pas de la carte publique.
+      allow read: if signedIn() || resource.data.isActive == true;
+
+      // `origin: 'manual'` obligatoire cote client : les zones automatiques
+      // viennent du backend et sont marquees comme telles.
+      allow create: if isAdmin()
+        || (isResponder()
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.origin == 'manual'
+          && validGeometry());
+
+      allow update: if isAdmin()
+        || (isResponder()
+          && resource.data.createdBy == request.auth.uid
+          && validGeometry());
+
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // sos_alerts
+    // =========================================================================
+    //
+    // Regles ecrites avec firestore-tests/rules.test.mjs : qui voit l'alerte,
+    // qui peut l'annuler, qui peut repondre, et l'impossibilite de se declarer
+    // faux intervenant.
     match /sos_alerts/{alertId} {
-      // Responders need a shared live queue to coordinate incoming distress calls.
-      allow read: if isAdmin() || isOrganizationMember()
-        || (signedIn() && resource.data.userId == request.auth.uid);
-      allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin() || (isOrganizationMember()
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'assignedOrganizationId', 'resolvedAt', 'respondersCount'])
-        && request.resource.data.status in ['inProgress', 'resolved', 'cancelled']);
+
+      function isOwner() {
+        return signedIn() && resource.data.userId == request.auth.uid;
+      }
+
+      function isStillActive() {
+        return resource.data.status in ['waiting', 'inProgress'];
+      }
+
+      // La victime se declare intervenant. Uniquement son propre uid, et
+      // exactement un de plus : deux « Je reponds » ne doivent pas compter
+      // deux fois la meme personne.
+      function joinsAsResponder() {
+        return signedIn()
+          && isStillActive()
+          && changedOnly(['responderIds'])
+          && request.resource.data.responderIds.size()
+               == resource.data.responderIds.size() + 1
+          && request.resource.data.responderIds.hasOnly(
+               resource.data.responderIds.concat([request.auth.uid]));
+      }
+
+      // Un intervenant se retire (« Je ne peux plus venir ») : son propre uid
+      // et exactement un de moins, sans quoi le compte « X personne(s) en
+      // route » resterait a jamais faux. L'uid retire doit etre le sien: la
+      // liste consommee ne peut contenir que la nouvelle liste plus son uid.
+      function leavesAsResponder() {
+        return signedIn()
+          && changedOnly(['responderIds'])
+          && request.resource.data.responderIds.size()
+               == resource.data.responderIds.size() - 1
+          && resource.data.responderIds.hasOnly(
+               request.resource.data.responderIds.concat([request.auth.uid]));
+      }
+
+      // La victime annule, ou partage sa position tant que l'alerte est active.
+      function victimUpdates() {
+        return isOwner()
+          && (
+            (changedOnly(['status'])
+              && request.resource.data.status == 'cancelled')
+            || (isStillActive()
+              && changedOnly(['location', 'geoCell', 'locationUpdatedAt']))
+          );
+      }
+
+      // Un aidant identifie prend en charge ou clot l'alerte. Seul lui peut
+      // passer en `inProgress` / `resolved` : un citoyen qui repond garde
+      // l'alerte en attente, sinon un simple tap ferait croire a la victime
+      // que des secours sont en route.
+      function responderUpdates() {
+        return isResponder()
+          && isStillActive()
+          && changedOnly(['status', 'assignedOrganizationId', 'resolvedAt'])
+          && request.resource.data.status in ['inProgress', 'resolved'];
+      }
+
+      // Les alertes actives sont visibles par tout utilisateur connecte : c'est
+      // la file communautaire dans laquelle un citoyen repond (spec §1
+      // « Repondre a une detresse »). Une alerte terminee ne reste lisible que
+      // par la victime, les intervenants et l'admin : elle contient une
+      // position et un motif de detresse qui n'ont plus lieu d'etre exposes.
+      allow read: if isAdmin() || isOwner() || isResponder()
+        || (signedIn() && resource.data.status in ['waiting', 'inProgress']);
+
+      // Une alerte ne peut naitre que comme une demande d'aide en attente.
+      allow create: if isActiveAccount()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'waiting'
+        && request.resource.data.responderIds.size() == 0
+        && request.resource.data.distressType in [
+          'medical',
+          'security',
+          'accident',
+          'fire',
+          'other'
+        ]
+        && validGeoPoint(request.resource.data.location);
+
+      allow update: if isAdmin()
+        || victimUpdates()
+        || joinsAsResponder()
+        || leavesAsResponder()
+        || responderUpdates();
+
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // location_shares
+    // =========================================================================
+    //
+    // Position partagee en continu pendant une intervention (spec §1.2
+    // « Partager sa position en temps reel »). Le client ecrit aujourd'hui la
+    // position directement dans `sos_alerts` ; cette collection existe pour le
+    // suivi rapproche sans alerter, et suit les memes proprietaires.
+    match /location_shares/{shareId} {
+
+      function alertIsOwnedByMe() {
+        return exists(/databases/$(database)/documents/sos_alerts/$(resource.data.sosAlertId))
+          && get(/databases/$(database)/documents/sos_alerts/$(resource.data.sosAlertId)).data.userId
+             == request.auth.uid;
+      }
+
+      function alertHasResponder() {
+        return exists(/databases/$(database)/documents/sos_alerts/$(resource.data.sosAlertId))
+          && get(/databases/$(database)/documents/sos_alerts/$(resource.data.sosAlertId))
+               .data.responderIds.hasAny([request.auth.uid]);
+      }
+
+      // Meme raison que `help_responses`: le client peut tester l'existence d'un
+      // point avant de l'ecrire, et une regle false sur un document absent
+      // lui renverrait PERMISSION_DENIED au lieu de « inexistant ».
+      allow read: if isAdmin()
+        || resource == null
+        || (signedIn()
+          && (resource.data.userId == request.auth.uid
+            || alertHasResponder()
+            || alertIsOwnedByMe()));
+
+      allow create: if isActiveAccount()
+        && request.resource.data.userId == request.auth.uid
+        && validGeoPoint(request.resource.data.currentLocation);
+
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'updatedAt'])
-        && request.resource.data.status == 'cancelled';
-      allow delete: if isAdmin();
+        && changedOnly(['currentLocation', 'updatedAt', 'isActive']);
+
+      allow delete: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
     }
 
-    match /reports/{reportId} {
-      allow read: if isAdmin() || isOrganizationMember()
-        || (signedIn() && resource.data.reporterId == request.auth.uid);
-      allow create: if signedIn() && request.resource.data.reporterId == request.auth.uid;
-      allow update: if isAdmin() || (isOrganizationMember()
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'reviewedBy'])
-        && request.resource.data.status in ['reviewed', 'resolved']);
-      allow delete: if isAdmin();
-    }
-
-    match /zones/{zoneId} {
-      // Citizens need map data before logging in.
-      allow read: if true;
-      allow create: if isAdmin() || (isOrganizationMember()
-        && request.resource.data.createdBy == request.auth.uid);
-      allow update, delete: if isAdmin() || (isOrganizationMember()
-        && resource.data.createdBy == request.auth.uid);
-    }
-
+    // =========================================================================
+    // help_responses
+    // =========================================================================
+    //
+    // Spec §1.2 : indiquer qu'on se deplace, ou envoyer un conseil texte. La
+    // victime choisit parmi les propositions, donc elle doit lire les
+    // reponses a son alerte.
     match /help_responses/{responseId} {
-      allow read: if isAdmin() || isOrganizationMember();
-      allow create: if isOrganizationMember()
-        && request.resource.data.responderId == request.auth.uid;
-      allow update: if isAdmin() || (isOrganizationMember()
-        && resource.data.responderId == request.auth.uid);
+
+      function responsePath(alertId) {
+        return /databases/$(database)/documents/sos_alerts/$(alertId);
+      }
+
+      function alertIsMine(alertId) {
+        return exists(responsePath(alertId))
+          && get(responsePath(alertId)).data.userId == request.auth.uid;
+      }
+
+      function alertIsActive(alertId) {
+        return exists(responsePath(alertId))
+          && get(responsePath(alertId)).data.status in ['waiting', 'inProgress'];
+      }
+
+      function isResponseOwner() {
+        return signedIn() && resource.data.responderId == request.auth.uid;
+      }
+
+      // `resource` est null quand le document n'existe pas encore, et une regle qui
+      // rend false sur un `get` absent renvoie PERMISSION_DENIED — pas
+      // « inexistant ». Le datasource teste l'existence avant d'ecrire pour ne
+      // pas regresser un suivi en cours; sans `resource == null` ce test echoue
+      // et « Je reponds » est casse pour quiconque n'a pas deja de suivi.
+      // Autoriser la lecture d'un document inexistant ne divulgue rien: il n'y
+      // a rien a lire.
+      allow read: if isAdmin()
+        || isResponder()
+        || resource == null
+        || isResponseOwner()
+        || (signedIn() && alertIsMine(resource.data.sosAlertId));
+
+      // On ne repond qu'a une detresse en cours, et sous son vrai uid.
+      allow create: if isActiveAccount()
+        && request.resource.data.responderId == request.auth.uid
+        && request.resource.data.status == 'offered'
+        && request.resource.data.responseType in ['comingInPerson', 'textAdvice']
+        && alertIsActive(request.resource.data.sosAlertId);
+
+      // L'intervenant fait avancer son propre suivi : en route, sur place,
+      // ou il se retracte. Le type de reponse est fige a la creation.
+      allow update: if isAdmin()
+        || (isResponseOwner()
+          && changedOnly(['status', 'message', 'updatedAt'])
+          && request.resource.data.status in [
+            'offered',
+            'enRoute',
+            'arrived',
+            'cancelled'
+          ]);
+
+      allow delete: if isAdmin() || isResponseOwner();
+    }
+
+    // =========================================================================
+    // reports
+    // =========================================================================
+    //
+    // Spec §2 : signaler un refugedangereux, une route bloquee, une zone
+    // qui n'est plus a jour. Spec §3 : l'organisation invalide.
+    match /reports/{reportId} {
+
+      function isReporter() {
+        return signedIn() && resource.data.reporterId == request.auth.uid;
+      }
+
+      allow read: if isAdmin() || isResponder() || isReporter();
+
+      // Un signalement est « open » a sa creation : un citoyen ne peut pas
+      // s'auto-marquer « resolu » pour faire disparaitre son signalement du
+      // tableau de bord.
+      allow create: if isActiveAccount()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.reviewedBy == null
+        && request.resource.data.targetType in ['shelter', 'zone', 'road', 'other']
+        && request.resource.data.reason in [
+          'unsafe',
+          'unavailable',
+          'blocked',
+          'other'
+        ];
+
+      // Le traitement n'ecrit que la decision : ni la cible, ni le motif.
+      allow update: if isAdmin()
+        || (isResponder()
+          && changedOnly(['status', 'reviewedBy'])
+          && request.resource.data.status in ['reviewed', 'resolved']);
+
       allow delete: if isAdmin();
     }
 
+    // =========================================================================
+    // notifications
+    // =========================================================================
+    //
+    // Spec §1.2 « Notification : alerte catastrophe imminente », §2
+    // « Notification au refuge en cas de danger », §3 « diffuser l'alerte aux
+    // citoyens concernes ». En pratique les envois partent du backend ; ces
+    // regles autorisent le cas restant, la lecture cote application.
+    match /notifications/{notificationId} {
 
-    // =========================
+      function isRecipient() {
+        return signedIn() && resource.data.recipientId == request.auth.uid;
+      }
+
+      allow read: if isAdmin() || isRecipient();
+
+      allow create: if isAdmin() || isResponder();
+
+      // Marquer comme lu, ou l'expier une fois traite.
+      allow update: if isAdmin()
+        || (isRecipient() && changedOnly(['read', 'readAt']));
+
+      allow delete: if isAdmin() || isRecipient();
+    }
+
+    // =========================================================================
+    // role_requests
+    // =========================================================================
+    //
+    // Spec §2 « Demande d'acces gestionnaire », §4 « Validation des demandes
+    // de role ». La decision appartient a l'admin ; un utilisateur ne peut pas
+    // s'accorder un role, meme via sa propre demande.
+    match /role_requests/{requestId} {
+
+      function isRequester() {
+        return signedIn() && resource.data.requesterId == request.auth.uid;
+      }
+
+      allow read: if isAdmin() || isRequester();
+
+      allow create: if isActiveAccount()
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reviewedBy == null
+        // `admin` n'est pas demangeable : ce role se donne hors application.
+        && request.resource.data.requestedRole == 'organizationMember';
+
+      allow update: if isAdmin();
+
+      allow delete: if isAdmin() || (isRequester() && resource.data.status == 'pending');
+    }
+
+    // =========================================================================
+    // emergency_contacts
+    // =========================================================================
+    //
+    // Spec §1.1 : numeros d'urgence par pays (police, ambulance, inclus
+    // localement), consultables sans connexion. Ecriture admin uniquement : la
+    // table ne se deploie pas depuis l'application.
+    match /emergency_contacts/{contactId} {
+
+      function hasValidNumbers() {
+        return request.resource.data.police is string
+          && request.resource.data.ambulance is string
+          && request.resource.data.fire is string
+          && request.resource.data.countryCode is string;
+      }
+
+      allow read: if true;
+
+      allow create, update: if isAdmin() && hasValidNumbers();
+
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // shelter_restock_requests
+    // =========================================================================
+    //
+    // Spec §2 « Demande de reapprovisionnement envoyee au dashboard
+    // Organisation ». Le refuge signale, l'organisation ou ladmin traite.
+    match /shelter_restock_requests/{requestId} {
+
+      function isRequester() {
+        return signedIn() && resource.data.requesterId == request.auth.uid;
+      }
+
+      function belongsToOwningOrg() {
+        return belongsTo(resource.data.organizationId);
+      }
+
+      allow read: if isAdmin() || isRequester() || belongsToOwningOrg();
+
+      allow create: if isResponder()
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.organizationId == myOrganizationId();
+
+      // Seuls l'etat de traitement et le traitement lui-meme bougent.
+      allow update: if isAdmin()
+        || (belongsToOwningOrg()
+          && changedOnly(['status', 'reviewedBy', 'reviewedAt']));
+
+      allow delete: if isAdmin() || isRequester();
+    }
+
+    // =========================================================================
+    // activity_logs
+    // =========================================================================
+    //
+    // Spec §4 « Journal d'activite » : journal d'audit, lecture admin. Il
+    // s'alimente cote serveur ; un client ne le recrit ni ne le supprime.
+    match /activity_logs/{logId} {
+
+      allow read: if isAdmin();
+
+      allow create: if isAdmin() || isResponder();
+
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
     // DEFAULT DENY
-    // =========================
-    // Nothing else is readable or writable from a client yet.
+    // =========================================================================
+    // Tout ce qui n'est pas decrit ci-dessus reste inaccessible depuis un
+    // client. Une collection ajoutee au modele est donc fermee par defaut
+    // plutot qu'exposee par megarde.
     match /{document=**} {
       allow read, write: if false;
     }

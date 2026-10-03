@@ -23,6 +23,10 @@ class LocationNotifier extends Notifier<LocationState> {
   /// l'écran pendant le dialogue de permission, et Riverpod lève sur une
   /// écriture dans `state` d'un notifier déjà disposé.
   Future<void> refresh() async {
+    // ponytail: un seul GPS à la fois. Sans ça, initState + tap FAB lancent
+    // 2 dialogues permission + 2 fixations en parallèle.
+    if (state.status == LocationStatus.loading) return;
+    final previousPosition = state.position;
     _publish(state.copyWith(status: LocationStatus.loading));
     try {
       final position = await ref
@@ -37,8 +41,11 @@ class LocationNotifier extends Notifier<LocationState> {
       );
     } on LocationFailureException catch (e) {
       _publish(
+        // ponytail: on garde la dernière position connue, un timeout
+        // transitoire ne doit pas faire disparaître la pastille bleue.
         LocationState(
           status: _statusOf(e.failure),
+          position: previousPosition,
           errorMessage: _messageOf(e.failure),
         ),
       );
@@ -46,6 +53,7 @@ class LocationNotifier extends Notifier<LocationState> {
       _publish(
         LocationState(
           status: LocationStatus.error,
+          position: previousPosition,
           errorMessage: 'Erreur lors de la récupération du GPS : $e',
         ),
       );
