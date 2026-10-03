@@ -137,6 +137,7 @@ class _SosResponseDetailPageState extends ConsumerState<SosResponseDetailPage> {
     });
 
     final withdrawn = _myResponse?.status == HelpResponseStatus.cancelled;
+    final arrived = _myResponse?.status == HelpResponseStatus.arrived;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -190,16 +191,45 @@ class _SosResponseDetailPageState extends ConsumerState<SosResponseDetailPage> {
             ),
             const SizedBox(height: 12),
             if (!withdrawn) ...[
-              OutlinedButton.icon(
-                onPressed: _myResponse == null ? null : _markArrived,
-                icon: const Icon(Icons.where_to_vote, color: AppColors.primary),
-                label: const Text('JE SUIS ARRIVÉ(E) SUR PLACE'),
-              ),
+              if (arrived)
+                // État, pas bouton: repartir de « à venir » après une arrivée
+                // annoncée ferait retomber la victime dans l'attente.
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade700.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.green.shade700, width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.where_to_vote, color: Colors.green.shade700),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Arrivée signalée. Vous êtes sur place.',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: _myResponse == null ? null : _markArrived,
+                  icon: const Icon(Icons.where_to_vote, color: AppColors.primary),
+                  label: const Text('JE SUIS ARRIVÉ(E) SUR PLACE'),
+                ),
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: _myResponse == null ? null : _withdraw,
                 icon: const Icon(Icons.undo, color: AppColors.inactive),
-                label: const Text('Je ne peux plus venir'),
+                label: Text(
+                  arrived ? 'Me retirer (appui par erreur ?)' : 'Je ne peux plus venir',
+                ),
               ),
             ],
           ],

@@ -2,6 +2,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/widgets.dart';
 import 'package:salus/app/presentation/pages/splash_page.dart';
+import 'package:salus/features/ar/presentation/pages/ar_view_page.dart';
 import 'package:salus/features/auth/presentation/pages/login_page.dart';
 import 'package:salus/features/home/presentation/pages/main_page.dart';
 import 'package:salus/features/admin/presentation/pages/operations_portal_page.dart';
@@ -28,5 +29,6 @@ AutoRoute(page: OperationsPortalRoute.page),
     AutoRoute(page: SosResponseDetailRoute.page),
     AutoRoute(page: CreateShelterRoute.page),
     AutoRoute(page: ShelterLocationPickerRoute.page),
+    AutoRoute(page: ArViewRoute.page),
   ];
 }

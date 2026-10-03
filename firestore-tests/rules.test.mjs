@@ -177,16 +177,12 @@ await ok('un citoyen se déclare intervenant', () =>
 await denied('un citoyen ne forge pas un autre uid', () =>
   updateDoc(alertAt(citizenDb, 'a3'), { responderIds: [CITIZEN, VICTIM] }),
 );
-await denied('un citoyen ne vide pas la liste', () =>
+await ok('un intervenant se retire du registre (désistement)', () =>
   updateDoc(alertAt(citizenDb, 'a3'), { responderIds: [] }),
 );
-// Firestore refuse l'écriture identique: peu importe, l'important est qu'elle
-// ne puisse ni dupliquer ni perdre l'intervenant.
-try {
-  await updateDoc(alertAt(citizenDb, 'a3'), { responderIds: [CITIZEN] });
-} catch {
-  // refus attendu
-}
+await ok('il se redéclare intervenant', () =>
+  updateDoc(alertAt(citizenDb, 'a3'), { responderIds: [CITIZEN] }),
+);
 const a3 = await readAlert(victimDb, 'a3');
 assert.deepStrictEqual(
   a3.get('responderIds'),

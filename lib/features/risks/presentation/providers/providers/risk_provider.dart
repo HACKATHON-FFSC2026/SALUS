@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/zone_entity.dart';
+import 'package:salus/core/utils/geo_math.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/risks/data/datasources/elevation_api_service.dart';
 import 'package:salus/features/risks/data/datasources/gdacs_api_service.dart';
@@ -66,11 +67,10 @@ final filteredSafeZonesProvider = Provider<AsyncValue<List<Zone>>>((ref) {
 
   return ref.watch(_rawSafeZonesProvider).whenData((safe) {
     return safe.where((z) {
-      final g = z.geometry;
-      final centroid = GeoPoint(
-        g.map((p) => p.latitude).reduce((a, b) => a + b) / g.length,
-        g.map((p) => p.longitude).reduce((a, b) => a + b) / g.length,
-      );
+      // ponytail: géométrie vide => pas de centroïde, zone inexploitable sur carte.
+      if (z.geometry.isEmpty) return false;
+      final c = GeoMath.centroid(z.geometry);
+      final centroid = GeoPoint(c.latitude, c.longitude);
       return !risks.any((r) =>
           r.isActive && r.type == ZoneType.risk && geofence.isUserInZone(centroid, r));
     }).toList();

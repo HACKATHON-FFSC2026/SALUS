@@ -242,10 +242,30 @@ class SosRemoteDataSourceImpl implements ISosRemoteDataSource {
     required String responseId,
     required HelpResponseStatus status,
   }) async {
+    final docRef = _firestore.collection(helpResponsesCollection).doc(
+      responseId,
+    );
+
+    // Un désistement retire aussi l'uid du registre de l'alerte: sans ça, le
+    // compte « X personne(s) en route » côté victime resterait gonflé pour
+    // toujours (les règles n'acceptent que ±1 sur `responderIds`). Écrit
+    // avant le statut: si le retrait échoue, le statut n'a pas encore bougé
+    // et l'utilisateur peut réessayer proprement.
+    if (status == HelpResponseStatus.cancelled) {
+      final info = (await docRef.get()).data();
+      final alertId = info?['sosAlertId'] as String?;
+      final responderId = info?['responderId'] as String?;
+      if (alertId != null && responderId != null) {
+        await _firestore.collection(alertsCollection).doc(alertId).update({
+          'responderIds': FieldValue.arrayRemove([responderId]),
+        });
+      }
+    }
+
     // Écriture brute, pas `toJson`: les règles n'autorisent que
     // `changedOnly(['status','message','updatedAt'])`, donc réécrire `id` ou
     // `createdAt` se ferait refuser.
-    await _firestore.collection(helpResponsesCollection).doc(responseId).update({
+    await docRef.update({
       'status': status.name,
       'updatedAt': FieldValue.serverTimestamp(),
     });

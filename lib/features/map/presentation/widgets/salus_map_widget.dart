@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
@@ -5,7 +6,9 @@ import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/app/routes/app_router.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:salus/features/map/domain/location.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
@@ -31,8 +34,11 @@ class SalusMapWidget extends ConsumerStatefulWidget {
 }
 
 class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final MapController _mapController = MapController();
+  // ponytail: une seule animation à la fois, l'ancienne est annulée.
+  // Sans ça, double-tap = 2 tickers sur SingleTickerProvider = crash.
+  AnimationController? _anim;
   
 
   // Position par défaut (Antananarivo) avant la première fixation GPS
@@ -50,18 +56,35 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     });
   }
 
-  /// Action du clic sur le FAB : Recentrer la carte avec animation
-  void _onRecenterPressed(LocationState locationState) {
-    final position = locationState.position;
+  @override
+  void dispose() {
+    _anim?.stop();
+    _anim?.dispose();
+    _mapController.dispose();
+    super.dispose();
+  }
 
+  /// Action du clic sur le FAB : Recentrer la carte avec animation
+  void _onRecenterPressed(GeoPoint? position) {
     if (position != null) {
-      // 1. Position disponible -> Animation vers les coordonnées GPS
-      _mapController.animatedMove(
+      // 1. Position disponible -> Animation vers les coordonnées GPS.
+      // L'animation précédente est annulée avant d'en lancer une autre.
+      _anim?.stop();
+      _anim?.dispose();
+      final controller = _mapController.animatedMove(
         vsync: this,
         destLocation: LatLng(position.latitude, position.longitude),
         destZoom: 16.0,
         duration: const Duration(milliseconds: 1000),
       );
+      _anim = controller;
+      controller.addStatusListener((status) {
+        if (status == AnimationStatus.completed ||
+            status == AnimationStatus.dismissed) {
+          controller.dispose();
+          if (_anim == controller) _anim = null;
+        }
+      });
     } else {
       // 2. Position non encore chargée -> Demander / Relancer le GPS
       ref.read(locationProvider.notifier).refresh();
@@ -79,14 +102,21 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
 
   @override
   Widget build(BuildContext context) {
-    final locationState = ref.watch(locationProvider);
+    // ponytail: selects ciblés, un changement de statut seul (loading →
+    // error, même position) ne reconstruit pas les polygones/markers.
+    final locationPosition =
+        ref.watch(locationProvider.select((s) => s.position));
+    final locationStatus =
+        ref.watch(locationProvider.select((s) => s.status));
     final sheltersAsync = ref.watch(validatedSheltersProvider);
     final shelters = sheltersAsync.value ?? const <Shelter>[];
     final riskZones = (ref.watch(riskZonesProvider).value ?? const <Zone>[])
-      .where((z) => z.isActive)
+      .where((z) => z.isActive && z.geometry.isNotEmpty)
       .toList();
     final safeZones =
-      ref.watch(filteredSafeZonesProvider).value ?? const <Zone>[];
+      (ref.watch(filteredSafeZonesProvider).value ?? const <Zone>[])
+          .where((z) => z.geometry.isNotEmpty)
+          .toList();
     final userDanger = ref.watch(dangerousZonesProvider);
 
     return Stack(
@@ -129,7 +159,10 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             // Le recentrage passe par notre port, la pastille par le plugin.
             // Brancher les deux sur LocationRepository quand un suivi continu
             // est requis (widget dissocié de sa pastille).
-            if (locationState.status == LocationStatus.success)
+            // ponytail: la pastille suit la dernière position connue, même
+            // après une erreur transitoire (le status repasse en loading
+            // au retry, la position est conservée par le provider).
+            if (locationPosition != null)
               CurrentLocationLayer(
                 alignPositionOnUpdate:
                     AlignOnUpdate.never, // Pas de centrage forcé auto
@@ -208,8 +241,18 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             mainAxisSize: MainAxisSize.min,
             children: [
               if (_showLegend) const _ShelterLegend(),
-              const SizedBox(width: 6),
-              FloatingActionButton.small(
+               const SizedBox(width: 6),
+               // Vue AR des POI autour de l'utilisateur (spec §1.1 SHOULD).
+               FloatingActionButton.small(
+                 heroTag: 'ar_view_fab',
+                 backgroundColor: AppColors.surface,
+                 foregroundColor: AppColors.primary,
+                 tooltip: 'Vue caméra des refuges et zones proches',
+                 onPressed: () => context.router.push(const ArViewRoute()),
+                 child: const Icon(Icons.view_in_ar_outlined),
+               ),
+               const SizedBox(width: 6),
+               FloatingActionButton.small(
                 heroTag: 'shelter_legend_fab',
                 backgroundColor: AppColors.surface,
                 foregroundColor: AppColors.primary,
@@ -232,8 +275,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             backgroundColor: AppColors.surface,
             foregroundColor: AppColors.primary,
             elevation: 3,
-            onPressed: () => _onRecenterPressed(locationState),
-            child: locationState.status == LocationStatus.loading
+            onPressed: () => _onRecenterPressed(locationPosition),
+            child: locationStatus == LocationStatus.loading
                 ? const SizedBox(
                     width: 24,
                     height: 24,
