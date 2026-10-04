@@ -128,9 +128,41 @@ extension _OperationsPortalActions on _OperationsPortalPageState {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Fermer'),
           ),
+          if (report.targetLocationLatitude != null &&
+              report.targetLocationLongitude != null)
+            FilledButton.icon(
+              onPressed: () => _openReportLocation(
+                report.targetLocationLatitude!,
+                report.targetLocationLongitude!,
+              ),
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('Ouvrir la position'),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _openReportLocation(double latitude, double longitude) async {
+    final uri = Uri.https('www.google.com', '/maps/search/', {
+      'api': '1',
+      'query': '$latitude,$longitude',
+    });
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d’ouvrir la position.')),
+        );
+      }
+    } catch (error) {
+      debugPrint('Échec ouverture de la position du signalement: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d’ouvrir la position.')),
+        );
+      }
+    }
   }
 
   Widget _reportDetail(String label, String value) => Padding(

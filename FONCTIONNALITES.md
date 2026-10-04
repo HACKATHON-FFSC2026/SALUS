@@ -173,7 +173,8 @@ organisation vérifiée et active.
   position connue sur une carte avec marqueur) puis d’ouvrir un itinéraire
   externe vers cette position.
 - **Signalements** : consulter, affecter à une organisation, marquer comme
-  examiné ou résolu.
+  examiné ou résolu. Les signalements routiers avec position GPS ont une action
+  pour ouvrir leurs coordonnées dans une application cartographique externe.
 - **Zones** : dessiner une zone d’alerte manuelle avec nom, message, type de
   risque, gravité et polygone ; modifier, clôturer ou réactiver les zones.
 
