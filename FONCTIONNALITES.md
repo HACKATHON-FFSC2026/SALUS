@@ -226,6 +226,8 @@ présente dans l’application décrite par ce dépôt.
 - **Itinéraires d’évacuation** : l’application ouvre une navigation externe
   vers le refuge ; elle écarte les destinations connues dans une zone à risque,
   mais ne calcule pas un trajet sûr évitant les risques sur le parcours routier.
+  Une confirmation avertit l’utilisateur que le trajet externe n’est pas vérifié ;
+  elle précise aussi si les données de risque sont indisponibles ou incomplètes.
 - **Tests** : les tests Flutter présents couvrent des contrôleurs, pages,
   données SOS, carte et refuges. `firestore-tests/rules.test.mjs` couvre les
   règles via l’émulateur si sa configuration et ses dépendances sont installées.
