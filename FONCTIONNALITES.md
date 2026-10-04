@@ -121,8 +121,10 @@ pour les organisations utilise `organizationMember`.
    victime voit les suivis associés à son alerte.
 5. Un admin peut affecter un SOS à une organisation. Le membre de cette
    organisation confirme la prise en charge (`inProgress`) puis peut le clore
-   (`resolved`). Le tableau de bord affiche le statut et l’organisation
-   affectée ; l’écran SOS de la victime affiche aussi l’organisation.
+   (`resolved`). La clôture enregistre son horodatage ; seules les personnes
+   de l’organisation affectée peuvent effectuer ces transitions. Le tableau de
+   bord affiche le statut et l’organisation affectée ; l’écran SOS de la
+   victime affiche aussi l’organisation.
 
 Le flux GPS d’un SOS est géré par l’application au premier plan. Ce dépôt ne
 met pas en place un service mobile permanent garantissant le partage après

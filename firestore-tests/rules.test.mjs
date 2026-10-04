@@ -39,6 +39,7 @@ const testEnv = await initializeTestEnvironment({
 const VICTIM = 'victim-1';
 const CITIZEN = 'citizen-2';
 const RESPONDER = 'responder-3';
+const OTHER_RESPONDER = 'responder-7';
 const ADMIN = 'admin-0';
 const SUSPENDED = 'suspended-4';
 
@@ -56,7 +57,16 @@ await testEnv.withSecurityRulesDisabled(async (context) => {
     organizationId: 'org-1',
     isActive: true,
   });
+  await put(OTHER_RESPONDER, {
+    roles: ['organizationMember'],
+    organizationId: 'org-2',
+    isActive: true,
+  });
   await setDoc(doc(db, 'organizations', 'org-1'), {
+    verified: true,
+    isActive: true,
+  });
+  await setDoc(doc(db, 'organizations', 'org-2'), {
     verified: true,
     isActive: true,
   });
@@ -127,6 +137,7 @@ const readAlert = (db, id) => readOne(db, 'sos_alerts', id);
 const victimDb = asUser(VICTIM);
 const citizenDb = asUser(CITIZEN);
 const responderDb = asUser(RESPONDER);
+const otherResponderDb = asUser(OTHER_RESPONDER);
 const adminDb = asUser(ADMIN);
 
 const reportAt = (db, id) => doc(db, 'reports', id);
@@ -402,6 +413,59 @@ console.log('  OK      la clôture est bien enregistrée');
 await denied('une alerte close ne se rouvre pas', () =>
   updateDoc(alertAt(responderDb, 'a4'), { status: 'inProgress' }),
 );
+
+await setDoc(alertAt(victimDb, 'a7'), payload('a7'));
+await denied('une organisation ne démarre pas un SOS non affecté', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-1',
+  }),
+);
+await updateDoc(alertAt(adminDb, 'a7'), {
+  status: 'assigned',
+  assignedOrganizationId: 'org-1',
+});
+await denied('une alerte affectée doit être démarrée avant sa clôture', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'resolved',
+    resolvedAt: new Date(),
+  }),
+);
+await denied('une autre organisation ne démarre pas le SOS affecté', () =>
+  updateDoc(alertAt(otherResponderDb, 'a7'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-2',
+  }),
+);
+await denied('une prise en charge ne peut pas porter un horodatage de clôture', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-1',
+    resolvedAt: new Date(),
+  }),
+);
+await ok('l’organisation affectée confirme la prise en charge', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-1',
+  }),
+);
+await denied('la clôture sans horodatage est refusée', () =>
+  updateDoc(alertAt(responderDb, 'a7'), { status: 'resolved' }),
+);
+await denied('une autre organisation ne clôt pas le SOS', () =>
+  updateDoc(alertAt(otherResponderDb, 'a7'), {
+    status: 'resolved',
+    resolvedAt: new Date(),
+  }),
+);
+await ok('l’organisation affectée clôt le SOS avec un horodatage', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'resolved',
+    resolvedAt: new Date('2026-01-03T00:00:00Z'),
+  }),
+);
+
 await denied('personne ne supprime une alerte sans rôle admin', () =>
   deleteDoc(alertAt(responderDb, 'a1')),
 );

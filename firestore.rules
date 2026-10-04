@@ -404,22 +404,24 @@ service cloud.firestore {
           );
       }
 
-      // Un aidant identifie prend en charge ou clot l'alerte. Seul lui peut
-      // passer en `inProgress` / `resolved` : un citoyen qui repond garde
-      // l'alerte en attente, sinon un simple tap ferait croire a la victime
-      // que des secours sont en route.
+      // Une organisation ne prend en charge qu'une alerte préalablement
+      // affectée par un admin. Seule l'organisation affectée peut la démarrer
+      // puis la clôturer, avec un horodatage de résolution.
       function responderUpdates() {
         return isResponder()
-          && changedOnly(['status', 'assignedOrganizationId', 'resolvedAt'])
           && (
-            (resource.data.status in ['assigned', 'waiting']
+            (resource.data.status == 'assigned'
+              && changedOnly(['status', 'assignedOrganizationId'])
               && resource.data.assignedOrganizationId == myOrganizationId()
               && request.resource.data.status == 'inProgress'
-              && request.resource.data.assignedOrganizationId == myOrganizationId())
+              && request.resource.data.assignedOrganizationId == myOrganizationId()
+              && !request.resource.data.keys().hasAny(['resolvedAt']))
             || (resource.data.status == 'inProgress'
+              && changedOnly(['status', 'resolvedAt'])
               && resource.data.assignedOrganizationId == myOrganizationId()
               && request.resource.data.status == 'resolved'
-              && request.resource.data.assignedOrganizationId == myOrganizationId())
+              && request.resource.data.assignedOrganizationId == myOrganizationId()
+              && request.resource.data.resolvedAt is timestamp)
           );
       }
 
