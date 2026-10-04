@@ -100,6 +100,12 @@ extension _OperationsPortalActions on _OperationsPortalPageState {
                   'Élément concerné',
                   report.targetId ?? 'Non précisé',
                 ),
+                if (report.targetLocationLatitude != null &&
+                    report.targetLocationLongitude != null)
+                  _reportDetail(
+                    'Position GPS',
+                    '${report.targetLocationLatitude!.toStringAsFixed(5)}, ${report.targetLocationLongitude!.toStringAsFixed(5)}',
+                  ),
                 _reportDetail('Auteur (UID)', report.reporterId ?? 'Inconnu'),
                 _reportDetail('Date', _reportDate(report.createdAt)),
                 const SizedBox(height: 8),

@@ -24,6 +24,7 @@ import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_shee
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
 import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
+import 'package:salus/features/reports/presentation/widgets/report_issue_action.dart';
 
 class SalusMapWidget extends ConsumerStatefulWidget {
   const SalusMapWidget({super.key, this.tileProvider});
@@ -287,6 +288,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                 onPressed: () => context.router.push(const ArViewRoute()),
                 child: const Icon(Icons.view_in_ar_outlined),
               ),
+              const SizedBox(width: 6),
+              const RoadReportAction(),
               const SizedBox(width: 6),
               FloatingActionButton.small(
                 heroTag: 'recenter_gps_fab',

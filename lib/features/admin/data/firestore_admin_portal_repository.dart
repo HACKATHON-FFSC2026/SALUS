@@ -139,6 +139,12 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
         type: data['type']?.toString(),
         targetType: data['targetType']?.toString(),
         targetId: data['targetId']?.toString(),
+        targetLocationLatitude: data['targetLocation'] is GeoPoint
+            ? (data['targetLocation'] as GeoPoint).latitude
+            : null,
+        targetLocationLongitude: data['targetLocation'] is GeoPoint
+            ? (data['targetLocation'] as GeoPoint).longitude
+            : null,
         reporterId: data['reporterId']?.toString(),
         reason: data['reason']?.toString(),
         status: data['status']?.toString(),

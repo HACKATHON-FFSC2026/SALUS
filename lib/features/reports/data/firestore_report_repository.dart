@@ -30,6 +30,12 @@ class FirestoreReportRepository implements ReportRepository {
         ReportReason.other => core.ReportReason.other,
       },
       description: submission.description,
+      targetLocation: submission.targetLocation == null
+          ? null
+          : GeoPoint(
+              submission.targetLocation!.latitude,
+              submission.targetLocation!.longitude,
+            ),
       createdAt: submission.createdAt,
     );
     await document.set(report.toJson());

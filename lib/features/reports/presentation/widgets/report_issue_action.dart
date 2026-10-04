@@ -2,8 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
+import 'package:salus/app/di/app_dependencies.dart';
+import 'package:salus/features/map/domain/location.dart';
 import 'package:salus/features/reports/domain/models/report_submission.dart';
 import 'package:salus/features/reports/presentation/providers/report_providers.dart';
+
+Future<void> showReportIssueDialog(
+  BuildContext context, {
+  required String reporterId,
+  required ReportTarget targetType,
+  required String targetId,
+  ReportLocation? targetLocation,
+  ReportReason initialReason = ReportReason.other,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => _ReportIssueDialog(
+      reporterId: reporterId,
+      targetType: targetType,
+      targetId: targetId,
+      targetLocation: targetLocation,
+      initialReason: initialReason,
+    ),
+  );
+}
 
 class ReportIssueAction extends ConsumerWidget {
   const ReportIssueAction({
@@ -27,13 +49,11 @@ class ReportIssueAction extends ConsumerWidget {
         );
         return;
       }
-      showDialog<void>(
-        context: context,
-        builder: (_) => _ReportIssueDialog(
-          reporterId: reporterId,
-          targetType: targetType,
-          targetId: targetId,
-        ),
+      showReportIssueDialog(
+        context,
+        reporterId: reporterId,
+        targetType: targetType,
+        targetId: targetId,
       );
     },
     icon: const Icon(Icons.flag_outlined),
@@ -41,16 +61,91 @@ class ReportIssueAction extends ConsumerWidget {
   );
 }
 
+class RoadReportAction extends ConsumerWidget {
+  const RoadReportAction({super.key});
+
+  Future<void> _report(BuildContext context, WidgetRef ref) async {
+    final reporterId = ref.read(currentUidProvider);
+    if (reporterId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connectez-vous pour signaler un incident routier.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final position = await ref
+          .read(locationRepositoryProvider)
+          .currentPosition();
+      if (!context.mounted) return;
+      await showReportIssueDialog(
+        context,
+        reporterId: reporterId,
+        targetType: ReportTarget.road,
+        targetId: 'Position GPS',
+        targetLocation: ReportLocation(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        ),
+        initialReason: ReportReason.blocked,
+      );
+    } on LocationFailureException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Position GPS indisponible : ${_locationFailureMessage(error.failure)}',
+          ),
+          backgroundColor: AppColors.sos,
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Impossible de récupérer la position GPS : $error'),
+          backgroundColor: AppColors.sos,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => FloatingActionButton.small(
+    heroTag: 'report_road_fab',
+    backgroundColor: AppColors.surface,
+    foregroundColor: AppColors.primary,
+    tooltip: 'Signaler un incident routier à ma position',
+    onPressed: () => _report(context, ref),
+    child: const Icon(Icons.report_problem_outlined),
+  );
+}
+
+String _locationFailureMessage(LocationFailure failure) => switch (failure) {
+  LocationFailure.serviceDisabled => 'le service de localisation est désactivé.',
+  LocationFailure.permissionDenied => 'permission de localisation refusée.',
+  LocationFailure.permissionDeniedForever =>
+    'permission de localisation bloquée dans les paramètres.',
+  LocationFailure.timeout => 'aucun signal GPS.',
+  LocationFailure.unknown => 'erreur de localisation.',
+};
+
 class _ReportIssueDialog extends ConsumerStatefulWidget {
   const _ReportIssueDialog({
     required this.reporterId,
     required this.targetType,
     required this.targetId,
+    this.targetLocation,
+    required this.initialReason,
   });
 
   final String reporterId;
   final ReportTarget targetType;
   final String targetId;
+  final ReportLocation? targetLocation;
+  final ReportReason initialReason;
 
   @override
   ConsumerState<_ReportIssueDialog> createState() => _ReportIssueDialogState();
@@ -59,7 +154,7 @@ class _ReportIssueDialog extends ConsumerStatefulWidget {
 class _ReportIssueDialogState extends ConsumerState<_ReportIssueDialog> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
-  ReportReason _reason = ReportReason.other;
+  late ReportReason _reason = widget.initialReason;
   bool _isSubmitting = false;
 
   @override
@@ -79,6 +174,7 @@ class _ReportIssueDialogState extends ConsumerState<_ReportIssueDialog> {
         targetId: widget.targetId,
         reason: _reason,
         description: _descriptionController.text,
+        targetLocation: widget.targetLocation,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -99,7 +195,11 @@ class _ReportIssueDialogState extends ConsumerState<_ReportIssueDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Signaler un problème'),
+    title: Text(
+      widget.targetType == ReportTarget.road
+          ? 'Signaler un incident routier'
+          : 'Signaler un problème',
+    ),
     content: Form(
       key: _formKey,
       child: SizedBox(
@@ -107,6 +207,12 @@ class _ReportIssueDialogState extends ConsumerState<_ReportIssueDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.targetLocation != null) ...[
+              const Text(
+                'Votre position GPS actuelle sera jointe à ce signalement.',
+              ),
+              const SizedBox(height: 12),
+            ],
             DropdownButtonFormField<ReportReason>(
               initialValue: _reason,
               decoration: const InputDecoration(labelText: 'Motif'),
