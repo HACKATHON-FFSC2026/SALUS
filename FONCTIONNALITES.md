@@ -175,6 +175,8 @@ organisation vérifiée et active.
 - **Signalements** : consulter, affecter à une organisation, marquer comme
   examiné ou résolu. Les signalements routiers avec position GPS ont une action
   pour ouvrir leurs coordonnées dans une application cartographique externe.
+  La liste affiche aussi une carte des incidents routiers affectés ; toucher un
+  repère ouvre le détail du signalement.
 - **Zones** : dessiner une zone d’alerte manuelle avec nom, message, type de
   risque, gravité et polygone ; modifier, clôturer ou réactiver les zones.
 
@@ -217,8 +219,9 @@ présente dans l’application décrite par ce dépôt.
   l’application lit Firestore ; aucun push ne réveille l’application.
 - **Signalements routiers** : un citoyen connecté peut signaler un incident
   depuis la carte en choisissant le point concerné à partir de sa position
-  GPS. La visualisation des signalements d’autres personnes reste absente ;
-  ses propres incidents non résolus sont visibles sur sa carte.
+  GPS. Ses propres incidents non résolus sont visibles sur sa carte ; ceux
+  affectés à une organisation sont visibles sur la carte du portail réservée à
+  cette organisation.
 - **Assistant IA, chat ou assistance vocale** : absents.
 - **Escalade automatique d’un SOS vers les services d’urgence** : absente ; le
   traitement passe par les aidants et l’affectation manuelle aux organisations.
