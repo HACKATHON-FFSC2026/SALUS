@@ -51,6 +51,26 @@ class GeocodingService {
     return parseReverseLabel(Map<String, dynamic>.from(data));
   }
 
+  /// Nom du quartier et/ou de la ville pour [point], ex. « Mahamasina,
+  /// Antananarivo ». `null` si introuvable.
+  Future<String?> reverseArea(LatLng point) async {
+    final response = await _dio.get<dynamic>(
+      '$baseUrl/reverse',
+      queryParameters: {
+        'lat': point.latitude,
+        'lon': point.longitude,
+        'format': 'jsonv2',
+        'zoom': 18,
+        'addressdetails': 1,
+      },
+      options: Options(headers: _headers),
+    );
+
+    final data = response.data;
+    if (data is! Map) return null;
+    return parseAreaLabel(Map<String, dynamic>.from(data));
+  }
+
   static const _headers = {
     'User-Agent': userAgent,
     'Accept': 'application/json',
@@ -73,5 +93,41 @@ class GeocodingService {
     final label = data?['display_name'];
     if (label is! String || label.isEmpty) return null;
     return label;
+  }
+
+  /// Extrait « quartier, ville » d'une réponse `/reverse` (`addressdetails=1`).
+  /// Replie sur [parseReverseLabel] si Nominatim ne fournit pas
+  /// d'administration locale (mer, zone sans adresse...).
+  static String? parseAreaLabel(Map<String, dynamic>? data) {
+    final address = data?['address'];
+    if (address is Map) {
+      final fields = Map<String, dynamic>.from(address);
+      final area = _firstNonEmpty(fields, const [
+        'neighbourhood',
+        'suburb',
+        'quarter',
+        'city_district',
+        'hamlet',
+        'village',
+      ]);
+      final city = _firstNonEmpty(fields, const [
+        'city',
+        'town',
+        'municipality',
+        'county',
+        'state',
+      ]);
+      final parts = <String>{?area, ?city};
+      if (parts.isNotEmpty) return parts.join(', ');
+    }
+    return parseReverseLabel(data);
+  }
+
+  static String? _firstNonEmpty(Map<String, dynamic> map, List<String> keys) {
+    for (final key in keys) {
+      final value = map[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
   }
 }

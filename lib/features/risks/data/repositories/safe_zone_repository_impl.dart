@@ -45,6 +45,9 @@ class SafeZoneRepositoryImpl implements SafeZoneRepository {
         ],
         origin: ZoneOrigin.automatic,
         source: 'Open-Meteo Elevation (heuristique)',
+        description:
+            'Point haut : ~${elevations[k].round()} m d\'altitude, '
+            'au-dessus du point le plus bas alentour.',
         startedAt: now,
       ));
     }

@@ -38,4 +38,26 @@ void main() {
     );
     expect(GeocodingService.parseReverseLabel(null), isNull);
   });
+
+  test('parseAreaLabel extrait le quartier et la ville', () {
+    expect(
+      GeocodingService.parseAreaLabel({
+        'address': {'suburb': 'Mahamasina', 'city': 'Antananarivo'},
+      }),
+      'Mahamasina, Antananarivo',
+    );
+    // Quartier seul, ville absente.
+    expect(
+      GeocodingService.parseAreaLabel({
+        'address': {'neighbourhood': 'Analakely'},
+      }),
+      'Analakely',
+    );
+    // Pas d'adresse exploitable : repli sur display_name.
+    expect(
+      GeocodingService.parseAreaLabel({'display_name': 'Madagascar'}),
+      'Madagascar',
+    );
+    expect(GeocodingService.parseAreaLabel(null), isNull);
+  });
 }
