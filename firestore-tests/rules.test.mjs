@@ -195,6 +195,20 @@ await ok('un signalement routier inclut sa position GPS', () =>
     }),
   ),
 );
+await ok('un citoyen lit ses propres signalements routiers', () =>
+  getDocs(
+    query(
+      collection(citizenDb, 'reports'),
+      where('reporterId', '==', CITIZEN),
+      where('targetType', '==', 'road'),
+    ),
+  ),
+);
+await denied('un citoyen ne liste pas les signalements routiers des autres', () =>
+  getDocs(
+    query(collection(citizenDb, 'reports'), where('targetType', '==', 'road')),
+  ),
+);
 await denied('un signalement routier sans position GPS est refuse', () =>
   setDoc(
     reportAt(citizenDb, 'road-report-no-location'),

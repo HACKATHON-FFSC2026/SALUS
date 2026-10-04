@@ -599,7 +599,8 @@ service cloud.firestore {
           || request.resource.data.assignedOrganizationId == null)
         && request.resource.data.targetType in ['shelter', 'zone', 'road', 'other']
         && (request.resource.data.targetType != 'road'
-          || request.resource.data.targetLocation is latlng)
+          || (request.resource.data.keys().hasAny(['targetLocation'])
+            && request.resource.data.targetLocation is latlng))
         && request.resource.data.reason in [
           'unsafe',
           'unavailable',

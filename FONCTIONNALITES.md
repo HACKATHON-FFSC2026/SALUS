@@ -217,7 +217,8 @@ présente dans l’application décrite par ce dépôt.
   l’application lit Firestore ; aucun push ne réveille l’application.
 - **Signalements routiers** : un citoyen connecté peut signaler un incident
   depuis la carte à sa position GPS actuelle. Le choix manuel d’un point et la
-  visualisation géographique des incidents sur la carte restent absents.
+  visualisation des signalements d’autres personnes restent absentes ; ses
+  propres incidents non résolus sont visibles sur sa carte.
 - **Assistant IA, chat ou assistance vocale** : absents.
 - **Escalade automatique d’un SOS vers les services d’urgence** : absente ; le
   traitement passe par les aidants et l’affectation manuelle aux organisations.

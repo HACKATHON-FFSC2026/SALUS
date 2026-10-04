@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salus/features/reports/domain/models/report_submission.dart';
+import 'package:salus/features/reports/domain/models/road_incident.dart';
 import 'package:salus/features/reports/domain/report_repository.dart';
 import 'package:salus/features/reports/domain/submit_report_use_case.dart';
 
@@ -10,6 +11,10 @@ class _ReportRepositoryFake implements ReportRepository {
   Future<void> createReport(ReportSubmission report) async {
     submitted = report;
   }
+
+  @override
+  Stream<List<RoadIncident>> watchMyRoadIncidents(String reporterId) =>
+      const Stream.empty();
 }
 
 void main() {
