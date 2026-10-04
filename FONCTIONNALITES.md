@@ -214,8 +214,9 @@ présente dans l’application décrite par ce dépôt.
 
 - **Notifications push FCM** : absentes. Le suivi fonctionne lorsque
   l’application lit Firestore ; aucun push ne réveille l’application.
-- **Signalements routiers** : le modèle accepte une cible `road`, mais aucun
-  point d’entrée de signalement routier n’est encore exposé dans l’interface.
+- **Signalements routiers** : un citoyen connecté peut signaler un incident
+  depuis la carte à sa position GPS actuelle. Le choix manuel d’un point et la
+  visualisation géographique des incidents sur la carte restent absents.
 - **Assistant IA, chat ou assistance vocale** : absents.
 - **Escalade automatique d’un SOS vers les services d’urgence** : absente ; le
   traitement passe par les aidants et l’affectation manuelle aux organisations.
