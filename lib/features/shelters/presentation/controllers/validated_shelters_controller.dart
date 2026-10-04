@@ -2,6 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/core/utils/log.dart';
+import 'package:salus/features/shelters/domain/usecases/find_shelters_in_risk_zones.dart';
+
+final findSheltersInRiskZonesProvider = Provider<FindSheltersInRiskZones>(
+  (ref) => FindSheltersInRiskZones(ref.watch(geofenceServiceProvider)),
+);
 
 /// Refuges validés affichés sur la carte, alimentés en temps réel par
 /// Firestore.
