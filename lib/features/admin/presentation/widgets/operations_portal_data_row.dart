@@ -163,30 +163,17 @@ class OperationsPortalDataRow extends StatelessWidget {
             record.status == 'inProgress')
           IconButton(
             tooltip: 'Marquer le SOS comme résolu',
-            onPressed: () => useCases.updateSos(
-              id: record.id,
-              currentStatus: record.status,
-              assignedOrganizationId: record.assignedOrganizationId,
-              organizationId: organizationId,
-            ),
+            onPressed: () => _updateSos(context),
             icon: const Icon(Icons.check_circle_outline, color: Colors.green),
           ),
         if (collection == AdminCollection.sosAlerts &&
             !isAdmin &&
-            record.status != 'resolved' &&
-            record.status != 'cancelled')
+            (record.status == 'assigned' || record.status == 'inProgress'))
           IconButton(
             tooltip: record.status == 'assigned'
                 ? 'Confirmer la prise en charge'
-                : record.status == 'waiting'
-                ? 'Prendre en charge pour mon organisation'
                 : 'Marquer comme résolu',
-            onPressed: () => useCases.updateSos(
-              id: record.id,
-              currentStatus: record.status,
-              assignedOrganizationId: record.assignedOrganizationId,
-              organizationId: organizationId,
-            ),
+            onPressed: () => _updateSos(context),
             icon: const Icon(
               Icons.check_circle_outline,
               color: AppColors.primary,
@@ -319,6 +306,48 @@ class OperationsPortalDataRow extends StatelessWidget {
       ],
     ),
   );
+
+  Future<void> _updateSos(BuildContext context) async {
+    final isResolving = record.status == 'inProgress';
+    if (isResolving) {
+      final confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Clôturer ce SOS ?'),
+              content: const Text(
+                'La victime et les équipes verront cette alerte comme résolue.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Continuer le suivi'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Clôturer le SOS'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!confirmed || !context.mounted) return;
+    }
+
+    try {
+      await useCases.updateSos(
+        id: record.id,
+        currentStatus: record.status,
+        assignedOrganizationId: record.assignedOrganizationId,
+        organizationId: organizationId,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Impossible de mettre à jour le SOS : $error')),
+      );
+    }
+  }
 
   Future<void> _assignToOrganization(BuildContext context) async {
     await showDialog<bool>(

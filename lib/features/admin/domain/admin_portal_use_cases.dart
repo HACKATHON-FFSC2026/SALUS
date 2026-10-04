@@ -69,14 +69,23 @@ class AdminPortalUseCases {
     required String? currentStatus,
     required String? assignedOrganizationId,
     required String? organizationId,
-  }) => _repository.updateSos(
-    id: id,
-    status: currentStatus == 'assigned' || currentStatus == 'waiting'
-        ? 'inProgress'
-        : 'resolved',
-    assignedOrganizationId: assignedOrganizationId,
-    organizationId: organizationId,
-  );
+  }) {
+    final nextStatus = switch (currentStatus) {
+      'assigned' => 'inProgress',
+      'inProgress' => 'resolved',
+      _ => throw ArgumentError.value(
+        currentStatus,
+        'currentStatus',
+        'Un SOS doit être affecté avant sa prise en charge.',
+      ),
+    };
+    return _repository.updateSos(
+      id: id,
+      status: nextStatus,
+      assignedOrganizationId: assignedOrganizationId,
+      organizationId: organizationId,
+    );
+  }
 
   Future<void> assignReportToOrganization(String id, String organizationId) =>
       _repository.assignReportToOrganization(id, organizationId);
