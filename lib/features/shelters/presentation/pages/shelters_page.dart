@@ -37,6 +37,8 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
     final hasRiskData = externalRisks.hasValue || firestoreRisks.hasValue;
     final riskDataUnavailable =
         !hasRiskData && externalRisks.hasError && firestoreRisks.hasError;
+    final riskDataIncomplete =
+        !hasRiskData || externalRisks.hasError || firestoreRisks.hasError;
     final riskZonesById = <String, Zone>{
       for (final zone in externalRisks.value ?? const <Zone>[])
         if (zone.isActive && zone.type == ZoneType.risk) zone.id: zone,
@@ -183,12 +185,19 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                 else
                   _RecommendationCard(
                     item: recommended,
-                    onTap: () => _openDirections(context, recommended.shelter),
+                    onTap: () => _openDirections(
+                      context,
+                      recommended.shelter,
+                      riskDataIncomplete: riskDataIncomplete,
+                    ),
                     onDetails: () => showShelterDetailSheet(
                       context,
                       recommended.shelter,
-                      onStartRoute: () =>
-                          _openDirections(context, recommended.shelter),
+                      onStartRoute: () => _openDirections(
+                        context,
+                        recommended.shelter,
+                        riskDataIncomplete: riskDataIncomplete,
+                      ),
                     ),
                   ),
                 const SizedBox(height: 24),
@@ -211,7 +220,11 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                               : null,
                           onStartRoute: item.isInRiskZone
                               ? null
-                              : () => _openDirections(context, item.shelter),
+                              : () => _openDirections(
+                                  context,
+                                  item.shelter,
+                                  riskDataIncomplete: riskDataIncomplete,
+                                ),
                         ),
                       ),
                     ),
@@ -225,7 +238,49 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
   }
 }
 
-Future<void> _openDirections(BuildContext context, Shelter shelter) async {
+Future<void> _openDirections(
+  BuildContext context,
+  Shelter shelter, {
+  required bool riskDataIncomplete,
+}) async {
+  final shouldContinue =
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Vérifiez votre trajet'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Le trajet est calculé par une application externe. '
+                'SALUS ne peut pas vérifier qu’il évite les zones à risque.',
+              ),
+              if (riskDataIncomplete) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Les données de zones à risque sont indisponibles ou '
+                  'incomplètes. Vérifiez les consignes locales avant de partir.',
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Continuer vers Maps'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+  if (!shouldContinue) return;
+
   final destination =
       '${shelter.location.latitude},${shelter.location.longitude}';
   final uri = Uri.https('www.google.com', '/maps/dir/', {
