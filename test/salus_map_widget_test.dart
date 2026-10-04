@@ -10,9 +10,11 @@ import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/widgets/salus_map_widget.dart';
 import 'package:salus/features/risks/domain/repositories/safe_zone.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
+import 'package:salus/features/map/presentation/providers/area_name_provider.dart';
 import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/shelters/data/shelter_repository.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
+import 'package:salus/features/risks/presentation/widgets/disaster_marker_pin.dart';
 
 /// Tuile 1x1 en mémoire.
 ///
@@ -52,6 +54,23 @@ class _StubShelterRepository implements ShelterRepository {
   Stream<List<Shelter>> watchAllShelters() => watchValidatedShelters();
 }
 
+Zone _zone() => Zone(
+  id: 'zone-1',
+  type: ZoneType.risk,
+  disasterType: DisasterType.flood,
+  geometry: const [
+    GeoPoint(-18.8542, 47.4829),
+    GeoPoint(-18.8542, 47.5329),
+    GeoPoint(-18.9042, 47.5329),
+    GeoPoint(-18.9042, 47.4829),
+  ],
+  severity: Severity.high,
+  origin: ZoneOrigin.manual,
+  source: 'test',
+  isActive: true,
+  startedAt: DateTime(2026, 1, 1),
+);
+
 Shelter _shelter({
   String id = 'shelter-1',
   String name = 'Refuge Mahamasina',
@@ -88,6 +107,8 @@ Future<void> _pumpMap(WidgetTester tester, ShelterRepository repository) async {
           (ref) => Stream.value(const <Zone>[]),
         ),
         safeZoneRepositoryProvider.overrideWithValue(_StubSafeZoneRepository()),
+        // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
+        areaNameProvider.overrideWith((ref, _) async => null),
       ],
       child: _mapApp(),
     ),
@@ -130,6 +151,67 @@ void main() {
     expect(find.text('Impossible de charger les refuges.'), findsNothing);
   });
 
+  testWidgets('un tap sur un marker de zone ouvre la fiche de la zone', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          shelterRepositoryProvider.overrideWithValue(_StubShelterRepository()),
+          // Une zone posée autour de la position par défaut: le marker du
+          // centroïde couvre son polygone sur la carte de test.
+          riskZonesProvider.overrideWith((ref) async => <Zone>[_zone()]),
+          activeRiskZonesProvider.overrideWith(
+            (ref) => Stream.value(const <Zone>[]),
+          ),
+          safeZoneRepositoryProvider.overrideWithValue(_StubSafeZoneRepository()),
+        // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
+        areaNameProvider.overrideWith((ref, _) async => null),
+        ],
+        child: _mapApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(DisasterMarkerPin), findsOneWidget);
+    await tester.tap(find.byType(DisasterMarkerPin));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Zone Inondation'), findsOneWidget);
+    expect(find.text('Élevé'), findsOneWidget);
+  });
+
+  testWidgets('un tap sur le polygone de la zone ouvre sa fiche', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          shelterRepositoryProvider.overrideWithValue(_StubShelterRepository()),
+          riskZonesProvider.overrideWith((ref) async => <Zone>[_zone()]),
+          activeRiskZonesProvider.overrideWith(
+            (ref) => Stream.value(const <Zone>[]),
+          ),
+          safeZoneRepositoryProvider.overrideWithValue(_StubSafeZoneRepository()),
+        // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
+        areaNameProvider.overrideWith((ref, _) async => null),
+        ],
+        child: _mapApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    // Un point du polygone éloigné du marker (posé au centroïde) : le tap
+    // déclenche le hit-test du PolygonLayer et ouvre la fiche de la zone.
+    final mapCenter = tester.getCenter(find.byType(FlutterMap));
+    await tester.tapAt(mapCenter + const Offset(70, -70));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Zone Inondation'), findsOneWidget);
+  });
+
   testWidgets('affiche l\'état vide quand aucun refuge n\'est validé', (
     tester,
   ) async {
@@ -161,3 +243,4 @@ void main() {
     expect(find.text('Voir le refuge'), findsOneWidget);
   });
 }
+

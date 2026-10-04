@@ -15,6 +15,7 @@ import 'package:salus/features/map/presentation/providers/location_provider.dart
 import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
+import 'package:salus/features/map/presentation/widgets/zone_bottom_sheet.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
 import 'package:salus/features/risks/presentation/widgets/disaster_marker_pin.dart';
 import 'package:toastification/toastification.dart';
@@ -39,6 +40,9 @@ class SalusMapWidget extends ConsumerStatefulWidget {
 class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     with TickerProviderStateMixin {
   final MapController _mapController = MapController();
+  // Résultat du dernier hit-test sur les polygones de zones; lu par
+  // FlutterMap.onTap pour ouvrir la fiche de la zone touchée.
+  final LayerHitNotifier<Zone> _polygonHitNotifier = ValueNotifier(null);
   // ponytail: une seule animation à la fois, l'ancienne est annulée.
   // Sans ça, double-tap = 2 tickers sur SingleTickerProvider = crash.
   AnimationController? _anim;
@@ -62,6 +66,7 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
   void dispose() {
     _anim?.stop();
     _anim?.dispose();
+    _polygonHitNotifier.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -143,11 +148,18 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
       children: [
         FlutterMap(
           mapController: _mapController,
-          options: const MapOptions(
+          options: MapOptions(
             initialCenter: _defaultLocation,
             initialZoom: 13.0,
             minZoom: 3.0,
             maxZoom: 18.0,
+            // Clic dans un polygone de zone (sûre ou catastrophe) : le
+            // hit-test du painter alimente _polygonHitNotifier avant le
+            // callback (pattern du flutter_map example « polygons.dart »).
+            onTap: (tapPosition, _) {
+              final zone = _polygonHitNotifier.value?.hitValues.firstOrNull;
+              if (zone != null) showZoneBottomSheet(context, zone);
+            },
           ),
           children: [
             TileLayer(
@@ -156,7 +168,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
               tileProvider: widget.tileProvider,
             ),
             if (safeZones.isNotEmpty || riskZones.isNotEmpty)
-              PolygonLayer(
+              PolygonLayer<Zone>(
+                hitNotifier: _polygonHitNotifier,
                 polygons: [
                   for (final zone in safeZones) zone.toPolygon(),
                   for (final zone in riskZones) zone.toPolygon(),
@@ -171,7 +184,11 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                     point: z.center,
                     width: 40,
                     height: 40,
-                    child: DisasterMarkerPin(zone: z),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => showZoneBottomSheet(context, z),
+                      child: DisasterMarkerPin(zone: z),
+                    ),
                   ),
               ],
             ),
@@ -261,8 +278,6 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_showLegend) const _MapLegend(),
-              const SizedBox(width: 6),
               // Vue AR des refuges et des zones proches.
               FloatingActionButton.small(
                 heroTag: 'ar_view_fab',
@@ -274,44 +289,54 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
               ),
               const SizedBox(width: 6),
               FloatingActionButton.small(
-                heroTag: 'shelter_legend_fab',
+                heroTag: 'recenter_gps_fab',
                 backgroundColor: AppColors.surface,
                 foregroundColor: AppColors.primary,
-                tooltip: _showLegend
-                    ? 'Masquer la légende'
-                    : 'Légende de la carte',
-                onPressed: () => setState(() => _showLegend = !_showLegend),
-                child: Icon(_showLegend ? Icons.close : Icons.info_outline),
+                elevation: 3,
+                onPressed: () => _onRecenterPressed(locationPosition),
+                child: locationStatus == LocationStatus.loading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : const Icon(Icons.my_location),
               ),
             ],
           ),
         ),
 
-        // Contrôle secondaire de carte, sous le bandeau de situation.
+        // Bouton légende de la carte, sous le bandeau de situation.
         Positioned(
           top: MediaQuery.paddingOf(context).top + 76,
           right: 16,
           child: FloatingActionButton.small(
-            heroTag: 'recenter_gps_fab',
+            heroTag: 'shelter_legend_fab',
             backgroundColor: AppColors.surface,
             foregroundColor: AppColors.primary,
-            elevation: 3,
-            onPressed: () => _onRecenterPressed(locationPosition),
-            child: locationStatus == LocationStatus.loading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: AppColors.primary,
-                      strokeWidth: 2.5,
-                    ),
-                  )
-                : const Icon(Icons.my_location),
+            tooltip: _showLegend
+                ? 'Masquer la légende'
+                : 'Légende de la carte',
+            onPressed: () => setState(() => _showLegend = !_showLegend),
+            child: Icon(_showLegend ? Icons.close : Icons.info_outline),
           ),
         ),
 
+        // Légende dépliée sous le bouton info (pas en bas : le bouton a
+        // été remonté en haut à droite).
+        if (_showLegend)
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + 76 + 52,
+            left: 16,
+            right: 16,
+            child: const _MapLegend(),
+          ),
+
         // Alerte compacte sous le bandeau principal, près du haut de l'écran.
-        // On laisse une marge à droite pour le bouton de recentrage.
+        // On laisse une marge à droite pour le bouton de légende.
         if (userDanger.isNotEmpty)
           Positioned(
             top: MediaQuery.paddingOf(context).top + 76,
@@ -347,6 +372,35 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                         ),
                       ),
                     ),
+                    // Raccourci de panique: le mode évacuation pré-sélectionné
+                    // sur la catastrophe détectée autour de l'utilisateur
+                    // (spec §1.1 MUST, hors connexion).
+                    GestureDetector(
+                      onTap: () => context.router.push(
+                        EvacuationGuideRoute(
+                          initialType: _worstDangerType(userDanger),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.directions_run,
+                            color: Color(0xff8f2020),
+                            size: 17,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Évacuation',
+                            style: TextStyle(
+                              color: Color(0xff8f2020),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -354,6 +408,23 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           ),
       ],
     );
+  }
+
+  /// Type de catastrophe le plus grave parmi les zones englobant
+  /// l'utilisateur: c'est lui qui pré-sélectionne le mode évacuation.
+  DisasterType? _worstDangerType(List<Zone> zones) {
+    DisasterType? worst;
+    var worstIndex = -1;
+    for (final zone in zones) {
+      final type = zone.disasterType;
+      if (type == null) continue;
+      final index = zone.severity?.index ?? -1;
+      if (index > worstIndex) {
+        worstIndex = index;
+        worst = type;
+      }
+    }
+    return worst;
   }
 
   Widget _shelterBanner(AsyncValue<List<Shelter>> value) {

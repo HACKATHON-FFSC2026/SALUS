@@ -59,6 +59,71 @@ class CreateShelterRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [EvacuationGuidePage]
+class EvacuationGuideRoute extends PageRouteInfo<EvacuationGuideRouteArgs> {
+  EvacuationGuideRoute({
+    Key? key,
+    DisasterType? initialType,
+    List<PageRouteInfo>? children,
+  }) : super(
+         EvacuationGuideRoute.name,
+         args: EvacuationGuideRouteArgs(key: key, initialType: initialType),
+         initialChildren: children,
+       );
+
+  static const String name = 'EvacuationGuideRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      final args = data.argsAs<EvacuationGuideRouteArgs>(
+        orElse: () => const EvacuationGuideRouteArgs(),
+      );
+      return EvacuationGuidePage(key: args.key, initialType: args.initialType);
+    },
+  );
+}
+
+class EvacuationGuideRouteArgs {
+  const EvacuationGuideRouteArgs({this.key, this.initialType});
+
+  final Key? key;
+
+  final DisasterType? initialType;
+
+  @override
+  String toString() {
+    return 'EvacuationGuideRouteArgs{key: $key, initialType: $initialType}';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! EvacuationGuideRouteArgs) return false;
+    return key == other.key && initialType == other.initialType;
+  }
+
+  @override
+  int get hashCode => key.hashCode ^ initialType.hashCode;
+}
+
+/// generated route for
+/// [FirstAidPage]
+class FirstAidRoute extends PageRouteInfo<void> {
+  const FirstAidRoute({List<PageRouteInfo>? children})
+    : super(FirstAidRoute.name, initialChildren: children);
+
+  static const String name = 'FirstAidRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const FirstAidPage();
+    },
+  );
+}
+
+/// generated route for
 /// [LoginPage]
 class LoginRoute extends PageRouteInfo<void> {
   const LoginRoute({List<PageRouteInfo>? children})

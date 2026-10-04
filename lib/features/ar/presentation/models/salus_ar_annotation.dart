@@ -9,7 +9,8 @@ import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.d
 enum ArPoiType { shelter, safeZone, riskZone }
 
 /// Donnée d'affichage d'un point d'intérêt superposé à la caméra.
-/// `shelter` non null → ouverture de la fiche refuge à l'appui.
+/// Appui sur l'annotation : `shelter` → fiche refuge, sinon `zone` →
+/// fiche de la zone (sûre ou catastrophe).
 class ArPoi {
   const ArPoi({
     required this.uid,
@@ -20,6 +21,7 @@ class ArPoi {
     required this.type,
     this.subtitle,
     this.shelter,
+    this.zone,
   });
 
   final String uid;
@@ -29,6 +31,7 @@ class ArPoi {
   final Color color;
   final Position position;
   final Shelter? shelter;
+  final Zone? zone;
 
   /// Type affiché: pilote les chips de filtre de la vue AR.
   final ArPoiType type;
@@ -84,6 +87,7 @@ List<SalusArAnnotation> buildArAnnotations(
           icon: z.type == ZoneType.safe ? Icons.health_and_safety_outlined : z.icon,
           color: z.borderColor,
           type: z.type == ZoneType.risk ? ArPoiType.riskZone : ArPoiType.safeZone,
+          zone: z,
           position: _position(z.center.latitude, z.center.longitude),
         ),
       ),

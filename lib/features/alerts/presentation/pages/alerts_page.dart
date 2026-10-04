@@ -57,6 +57,12 @@ class _DisasterAlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
+    color: AppColors.surface,
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: BorderSide(color: AppColors.inactive.withValues(alpha: 0.25)),
+    ),
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
