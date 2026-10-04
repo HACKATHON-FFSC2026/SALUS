@@ -65,76 +65,77 @@ class ReportIssueAction extends ConsumerWidget {
 class RoadReportAction extends ConsumerWidget {
   const RoadReportAction({super.key});
 
-  Future<void> _report(BuildContext context, WidgetRef ref) async {
-    final reporterId = ref.read(currentUidProvider);
-    if (reporterId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Connectez-vous pour signaler un incident routier.'),
-        ),
-      );
-      return;
-    }
-
-    GeoPoint initialPosition;
-    var gpsUnavailable = false;
-    try {
-      initialPosition = await ref
-          .read(locationRepositoryProvider)
-          .currentPosition();
-    } on LocationFailureException catch (error) {
-      if (!context.mounted) return;
-      gpsUnavailable = true;
-      initialPosition = const GeoPoint(latitude: -18.8792, longitude: 47.5079);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'GPS indisponible : ${_locationFailureMessage(error.failure)} '
-            'Vous pourrez placer le repère manuellement.',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Impossible de récupérer la position GPS : $error'),
-          backgroundColor: AppColors.sos,
-        ),
-      );
-      return;
-    }
-
-    if (!context.mounted) return;
-    final selectedLocation = await showRoadIncidentLocationPicker(
-      context,
-      initialLocation: initialPosition,
-      gpsUnavailable: gpsUnavailable,
-    );
-    if (selectedLocation == null || !context.mounted) return;
-    await showReportIssueDialog(
-      context,
-      reporterId: reporterId,
-      targetType: ReportTarget.road,
-      targetId: 'Position sélectionnée',
-      targetLocation: ReportLocation(
-        latitude: selectedLocation.latitude,
-        longitude: selectedLocation.longitude,
-      ),
-      initialReason: ReportReason.blocked,
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) =>
       FloatingActionButton.small(
         heroTag: 'report_road_fab',
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.primary,
-        tooltip: 'Signaler un incident routier à ma position',
-        onPressed: () => _report(context, ref),
+        tooltip: 'Signaler un incident routier',
+        onPressed: () => launchRoadIncidentReport(context, ref),
         child: const Icon(Icons.report_problem_outlined),
       );
+}
+
+Future<void> launchRoadIncidentReport(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final reporterId = ref.read(currentUidProvider);
+  if (reporterId == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Connectez-vous pour signaler un incident routier.'),
+      ),
+    );
+    return;
+  }
+
+  GeoPoint initialPosition;
+  var gpsUnavailable = false;
+  try {
+    initialPosition = await ref.read(locationRepositoryProvider).currentPosition();
+  } on LocationFailureException catch (error) {
+    if (!context.mounted) return;
+    gpsUnavailable = true;
+    initialPosition = const GeoPoint(latitude: -18.8792, longitude: 47.5079);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'GPS indisponible : ${_locationFailureMessage(error.failure)} '
+          'Vous pourrez placer le repère manuellement.',
+        ),
+      ),
+    );
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Impossible de récupérer la position GPS : $error'),
+        backgroundColor: AppColors.sos,
+      ),
+    );
+    return;
+  }
+
+  if (!context.mounted) return;
+  final selectedLocation = await showRoadIncidentLocationPicker(
+    context,
+    initialLocation: initialPosition,
+    gpsUnavailable: gpsUnavailable,
+  );
+  if (selectedLocation == null || !context.mounted) return;
+  await showReportIssueDialog(
+    context,
+    reporterId: reporterId,
+    targetType: ReportTarget.road,
+    targetId: 'Position sélectionnée',
+    targetLocation: ReportLocation(
+      latitude: selectedLocation.latitude,
+      longitude: selectedLocation.longitude,
+    ),
+    initialReason: ReportReason.blocked,
+  );
 }
 
 String _locationFailureMessage(LocationFailure failure) => switch (failure) {
