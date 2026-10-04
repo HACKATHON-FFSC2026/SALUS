@@ -6,6 +6,7 @@ import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/features/map/domain/location.dart';
 import 'package:salus/features/reports/domain/models/report_submission.dart';
 import 'package:salus/features/reports/presentation/providers/report_providers.dart';
+import 'package:salus/features/reports/presentation/widgets/road_incident_location_picker.dart';
 
 Future<void> showReportIssueDialog(
   BuildContext context, {
@@ -75,30 +76,22 @@ class RoadReportAction extends ConsumerWidget {
       return;
     }
 
+    GeoPoint initialPosition;
+    var gpsUnavailable = false;
     try {
-      final position = await ref
+      initialPosition = await ref
           .read(locationRepositoryProvider)
           .currentPosition();
-      if (!context.mounted) return;
-      await showReportIssueDialog(
-        context,
-        reporterId: reporterId,
-        targetType: ReportTarget.road,
-        targetId: 'Position GPS',
-        targetLocation: ReportLocation(
-          latitude: position.latitude,
-          longitude: position.longitude,
-        ),
-        initialReason: ReportReason.blocked,
-      );
     } on LocationFailureException catch (error) {
       if (!context.mounted) return;
+      gpsUnavailable = true;
+      initialPosition = const GeoPoint(latitude: -18.8792, longitude: 47.5079);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Position GPS indisponible : ${_locationFailureMessage(error.failure)}',
+            'GPS indisponible : ${_locationFailureMessage(error.failure)} '
+            'Vous pourrez placer le repère manuellement.',
           ),
-          backgroundColor: AppColors.sos,
         ),
       );
     } catch (error) {
@@ -109,22 +102,44 @@ class RoadReportAction extends ConsumerWidget {
           backgroundColor: AppColors.sos,
         ),
       );
+      return;
     }
+
+    if (!context.mounted) return;
+    final selectedLocation = await showRoadIncidentLocationPicker(
+      context,
+      initialLocation: initialPosition,
+      gpsUnavailable: gpsUnavailable,
+    );
+    if (selectedLocation == null || !context.mounted) return;
+    await showReportIssueDialog(
+      context,
+      reporterId: reporterId,
+      targetType: ReportTarget.road,
+      targetId: 'Position sélectionnée',
+      targetLocation: ReportLocation(
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+      ),
+      initialReason: ReportReason.blocked,
+    );
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => FloatingActionButton.small(
-    heroTag: 'report_road_fab',
-    backgroundColor: AppColors.surface,
-    foregroundColor: AppColors.primary,
-    tooltip: 'Signaler un incident routier à ma position',
-    onPressed: () => _report(context, ref),
-    child: const Icon(Icons.report_problem_outlined),
-  );
+  Widget build(BuildContext context, WidgetRef ref) =>
+      FloatingActionButton.small(
+        heroTag: 'report_road_fab',
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.primary,
+        tooltip: 'Signaler un incident routier à ma position',
+        onPressed: () => _report(context, ref),
+        child: const Icon(Icons.report_problem_outlined),
+      );
 }
 
 String _locationFailureMessage(LocationFailure failure) => switch (failure) {
-  LocationFailure.serviceDisabled => 'le service de localisation est désactivé.',
+  LocationFailure.serviceDisabled =>
+    'le service de localisation est désactivé.',
   LocationFailure.permissionDenied => 'permission de localisation refusée.',
   LocationFailure.permissionDeniedForever =>
     'permission de localisation bloquée dans les paramètres.',
@@ -209,7 +224,7 @@ class _ReportIssueDialogState extends ConsumerState<_ReportIssueDialog> {
           children: [
             if (widget.targetLocation != null) ...[
               const Text(
-                'Votre position GPS actuelle sera jointe à ce signalement.',
+                'La position choisie sur la carte sera jointe à ce signalement.',
               ),
               const SizedBox(height: 12),
             ],
