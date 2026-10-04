@@ -25,6 +25,8 @@ import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
 import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
 import 'package:salus/features/reports/presentation/widgets/report_issue_action.dart';
+import 'package:salus/features/reports/presentation/providers/report_providers.dart';
+import 'package:salus/features/reports/presentation/widgets/road_incident_marker.dart';
 
 class SalusMapWidget extends ConsumerStatefulWidget {
   const SalusMapWidget({super.key, this.tileProvider});
@@ -114,6 +116,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
       locationProvider.select((s) => s.position),
     );
     final locationStatus = ref.watch(locationProvider.select((s) => s.status));
+    final roadIncidentsAsync = ref.watch(myRoadIncidentsProvider);
+    final roadIncidents = roadIncidentsAsync.value ?? const [];
     final sheltersAsync = ref.watch(validatedSheltersProvider);
     final shelters = sheltersAsync.value ?? const <Shelter>[];
     final externalRiskZones =
@@ -190,6 +194,14 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                       onTap: () => showZoneBottomSheet(context, z),
                       child: DisasterMarkerPin(zone: z),
                     ),
+                  ),
+                for (final incident in roadIncidents)
+                  Marker(
+                    key: ValueKey('road-incident-${incident.id}'),
+                    point: LatLng(incident.latitude, incident.longitude),
+                    width: 42,
+                    height: 42,
+                    child: RoadIncidentMarker(incident: incident),
                   ),
               ],
             ),
@@ -271,6 +283,24 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
             left: 16,
             right: 16,
             child: _shelterBanner(sheltersAsync),
+          ),
+
+        if (roadIncidentsAsync.hasError)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 100,
+            child: Material(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              child: const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Impossible de charger vos signalements routiers.',
+                  style: TextStyle(color: AppColors.sos),
+                ),
+              ),
+            ),
           ),
 
         Positioned(
