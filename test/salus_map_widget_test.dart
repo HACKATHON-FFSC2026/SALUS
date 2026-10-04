@@ -137,6 +137,50 @@ Widget _mapApp() =>
     MaterialApp(home: SalusMapWidget(tileProvider: _FakeTileProvider()));
 
 void main() {
+  testWidgets('keeps AR and recenter visible and puts other actions in menu', (
+    tester,
+  ) async {
+    await _pumpMap(tester, _StubShelterRepository());
+
+    expect(
+      find.byTooltip('Vue caméra des refuges et zones proches'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Signaler un incident routier'), findsNothing);
+    final recenter = find.byWidgetPredicate(
+      (widget) =>
+          widget is FloatingActionButton &&
+          widget.heroTag == 'recenter_gps_fab',
+    );
+    expect(recenter, findsOneWidget);
+    final recenterRect = tester.getRect(recenter);
+    expect(recenterRect.top, lessThan(100));
+    expect(recenterRect.right, greaterThan(300));
+
+    await tester.tap(find.byTooltip('Autres actions de la carte'));
+    await tester.pump();
+    expect(find.text('Signaler un incident routier'), findsOneWidget);
+    expect(find.text('Comprendre la carte'), findsOneWidget);
+  });
+
+  testWidgets('opens the map legend from the secondary actions menu', (
+    tester,
+  ) async {
+    await _pumpMap(tester, _StubShelterRepository());
+
+    await tester.tap(find.byTooltip('Autres actions de la carte'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.tap(find.text('Comprendre la carte'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.text('Risque faible'), findsOneWidget);
+    expect(find.text('Ouvert'), findsOneWidget);
+    expect(find.byType(BottomSheet), findsOneWidget);
+  });
+
   testWidgets('affiche les signalements routiers personnels sur la carte', (
     tester,
   ) async {

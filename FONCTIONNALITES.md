@@ -71,6 +71,11 @@ pour les organisations utilise `organizationMember`.
 
 - La carte utilise les tuiles OpenStreetMap, affiche la position GPS après
   autorisation, permet de recentrer la vue et regroupe les marqueurs proches.
+- La vue AR reste accessible en permanence au bas de la carte. Le recentrage
+  GPS est placé en haut à droite ; le signalement routier et la légende sont
+  regroupés dans le menu des actions secondaires.
+- Le résumé SOS/alertes et l’avertissement d’évacuation, lorsqu’il est
+  pertinent, partagent un même panneau compact en haut de la carte.
 - Les refuges affichés sur la carte sont filtrés aux refuges validés.
 - La carte superpose les zones à risque issues de GDACS et les zones actives
   conservées dans Firestore. Les zones sûres calculées par le client peuvent
@@ -96,9 +101,10 @@ pour les organisations utilise `organizationMember`.
   statut `open`. Un invité sans compte Firebase ne peut pas l’enregistrer.
 - Un citoyen connecté peut signaler un problème depuis la fiche d’un refuge ;
   le signalement rejoint la file de traitement du portail.
-- Depuis la carte, un citoyen connecté peut signaler un incident routier à sa
-  position GPS actuelle. Les coordonnées sont enregistrées comme position
-  géographique structurée et consultables par l’équipe opérationnelle.
+- Depuis la carte, un citoyen connecté peut placer le signalement routier sur la
+  carte ; le GPS fournit le centre initial. Les coordonnées sont enregistrées
+  comme position géographique structurée et consultables par l’équipe
+  opérationnelle.
 
 ### SOS et réponse à une détresse
 
@@ -218,10 +224,10 @@ présente dans l’application décrite par ce dépôt.
 - **Notifications push FCM** : absentes. Le suivi fonctionne lorsque
   l’application lit Firestore ; aucun push ne réveille l’application.
 - **Signalements routiers** : un citoyen connecté peut signaler un incident
-  depuis la carte en choisissant le point concerné à partir de sa position
-  GPS. Ses propres incidents non résolus sont visibles sur sa carte ; ceux
-  affectés à une organisation sont visibles sur la carte du portail réservée à
-  cette organisation.
+  depuis la carte en choisissant le point concerné. Le GPS centre la carte
+  initialement. Ses propres incidents non résolus sont visibles sur sa carte ;
+  ceux affectés à une organisation sont visibles sur la carte du portail
+  réservée à cette organisation.
 - **Assistant IA, chat ou assistance vocale** : absents.
 - **Escalade automatique d’un SOS vers les services d’urgence** : absente ; le
   traitement passe par les aidants et l’affectation manuelle aux organisations.
