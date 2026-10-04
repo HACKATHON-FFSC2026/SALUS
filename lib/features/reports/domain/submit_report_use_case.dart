@@ -12,6 +12,7 @@ class SubmitReportUseCase {
     required String targetId,
     required ReportReason reason,
     String? description,
+    ReportLocation? targetLocation,
   }) {
     final cleanReporterId = reporterId.trim();
     final cleanTargetId = targetId.trim();
@@ -21,6 +22,24 @@ class SubmitReportUseCase {
     if (cleanTargetId.isEmpty) {
       throw ArgumentError.value(targetId, 'targetId', 'Must not be empty');
     }
+    if (targetType == ReportTarget.road && targetLocation == null) {
+      throw ArgumentError.value(
+        targetLocation,
+        'targetLocation',
+        'Road reports require a location',
+      );
+    }
+    if (targetLocation != null &&
+        (targetLocation.latitude < -90 ||
+            targetLocation.latitude > 90 ||
+            targetLocation.longitude < -180 ||
+            targetLocation.longitude > 180)) {
+      throw ArgumentError.value(
+        targetLocation,
+        'targetLocation',
+        'Coordinates are out of range',
+      );
+    }
 
     return _repository.createReport(
       ReportSubmission(
@@ -29,6 +48,7 @@ class SubmitReportUseCase {
         targetId: cleanTargetId,
         reason: reason,
         description: _validatedDescription(description),
+        targetLocation: targetLocation,
         createdAt: DateTime.now(),
       ),
     );

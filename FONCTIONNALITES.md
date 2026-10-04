@@ -96,6 +96,9 @@ pour les organisations utilise `organizationMember`.
   statut `open`. Un invité sans compte Firebase ne peut pas l’enregistrer.
 - Un citoyen connecté peut signaler un problème depuis la fiche d’un refuge ;
   le signalement rejoint la file de traitement du portail.
+- Depuis la carte, un citoyen connecté peut signaler un incident routier à sa
+  position GPS actuelle. Les coordonnées sont enregistrées comme position
+  géographique structurée et consultables par l’équipe opérationnelle.
 
 ### SOS et réponse à une détresse
 

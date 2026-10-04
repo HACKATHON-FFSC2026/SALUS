@@ -183,6 +183,29 @@ const report = (overrides = {}) => ({
 await ok('un citoyen actif peut créer un signalement ouvert', () =>
   setDoc(reportAt(citizenDb, REPORT), report()),
 );
+await ok('un signalement routier inclut sa position GPS', () =>
+  setDoc(
+    reportAt(citizenDb, 'road-report'),
+    report({
+      id: 'road-report',
+      targetType: 'road',
+      targetId: 'Position GPS',
+      targetLocation: new GeoPoint(-18.88, 47.51),
+      reason: 'blocked',
+    }),
+  ),
+);
+await denied('un signalement routier sans position GPS est refuse', () =>
+  setDoc(
+    reportAt(citizenDb, 'road-report-no-location'),
+    report({
+      id: 'road-report-no-location',
+      targetType: 'road',
+      targetId: 'Position GPS',
+      reason: 'blocked',
+    }),
+  ),
+);
 await denied('un citoyen ne signale pas au nom d’un autre', () =>
   setDoc(
     reportAt(citizenDb, 'spoofed-report'),
