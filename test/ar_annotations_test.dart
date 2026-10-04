@@ -74,9 +74,17 @@ void main() {
     );
     expect(annotations, hasLength(2));
     expect(
-      annotations.map((an) => an.poi.uid).toSet(),
-      {'zone-z1-risk', 'zone-z2-safe'},
+      {for (final an in annotations) an.poi.uid: an.poi.type},
+      {
+        'zone-z1-risk': ArPoiType.riskZone,
+        'zone-z2-safe': ArPoiType.safeZone,
+      },
     );
+  });
+
+  test('les refuges portent le type shelter', () {
+    final annotations = buildArAnnotations([shelter(id: 'a')], [], []);
+    expect(annotations.single.poi.type, ArPoiType.shelter);
   });
 
   test('arDistanceLabel', () {
