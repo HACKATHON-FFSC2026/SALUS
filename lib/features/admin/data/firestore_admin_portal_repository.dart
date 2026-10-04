@@ -4,6 +4,7 @@ import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
 import 'package:salus/features/admin/domain/models/admin_zone_point.dart';
+import 'package:salus/features/admin/domain/models/shelter_operational_status.dart';
 
 class FirestoreAdminPortalRepository implements AdminPortalRepository {
   FirestoreAdminPortalRepository(this._firestore);
@@ -39,9 +40,11 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
     if (organizationId != null &&
         (collection == AdminCollection.sosAlerts ||
             collection == AdminCollection.reports ||
-            collection == AdminCollection.shelters)) {
+            collection == AdminCollection.shelters ||
+            collection == AdminCollection.zones)) {
       query = query.where(
-        collection == AdminCollection.shelters
+        collection == AdminCollection.shelters ||
+                collection == AdminCollection.zones
             ? 'organizationId'
             : 'assignedOrganizationId',
         isEqualTo: organizationId,
@@ -81,9 +84,11 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
             organizationId != null &&
             (collection == AdminCollection.sosAlerts ||
                 collection == AdminCollection.reports ||
-                collection == AdminCollection.shelters)) {
+                collection == AdminCollection.shelters ||
+                collection == AdminCollection.zones)) {
           query = query.where(
-            collection == AdminCollection.shelters
+            collection == AdminCollection.shelters ||
+                    collection == AdminCollection.zones
                 ? 'organizationId'
                 : 'assignedOrganizationId',
             isEqualTo: organizationId,
@@ -235,6 +240,17 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
   ) => _firestore.collection('shelters').doc(id).update({
     'validationStatus': status,
     'validatedBy': status == 'pending' ? null : uid,
+  });
+
+  @override
+  Future<void> updateShelterOperations({
+    required String id,
+    required ShelterOperationalStatus status,
+    required int capacityOccupied,
+  }) => _firestore.collection('shelters').doc(id).update({
+    'status': status.name,
+    'capacityOccupied': capacityOccupied,
+    'updatedAt': FieldValue.serverTimestamp(),
   });
 
   @override

@@ -22,6 +22,8 @@ import 'package:salus/features/risks/data/services/turf_geofonce_service.dart';
 import 'package:salus/features/risks/domain/repositories/risk_zone_repository.dart';
 import 'package:salus/features/risks/domain/repositories/safe_zone.dart';
 import 'package:salus/features/risks/domain/services/zone_geofence_service.dart';
+import 'package:salus/features/reports/data/firestore_report_repository.dart';
+import 'package:salus/features/reports/domain/report_repository.dart';
 import 'package:salus/features/shelters/data/shelter_repository.dart';
 import 'package:salus/features/sos/data/datasources/sos_remote_datasource.dart';
 import 'package:salus/features/sos/data/repositories/sos_repository_impl.dart';
@@ -46,6 +48,9 @@ final sosRepositoryProvider = Provider<ISosRepository>(
 );
 final alertReadRepositoryProvider = Provider<AlertReadRepository>(
   (ref) => SharedPrefsAlertReadRepository(),
+);
+final reportRepositoryProvider = Provider<ReportRepository>(
+  (ref) => FirestoreReportRepository(ref.watch(firestoreProvider)),
 );
 final firestoreRiskZoneRepositoryProvider = Provider<FirestoreRiskZoneRepository>(
   (ref) => FirestoreRiskZoneRepository(ref.watch(firestoreProvider)),

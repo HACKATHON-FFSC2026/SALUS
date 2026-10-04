@@ -8,6 +8,8 @@ import 'package:salus/features/map/domain/location.dart';
 import 'package:salus/features/map/presentation/providers/area_name_provider.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
+import 'package:salus/features/reports/presentation/widgets/report_issue_action.dart';
+import 'package:salus/features/reports/domain/models/report_submission.dart';
 
 /// Fiche d'une zone (sûre ou catastrophe), ouverte au clic sur son polygone,
 /// son marker ou son annotation AR.
@@ -211,6 +213,13 @@ class ZoneBottomSheet extends ConsumerWidget {
                 label: 'Début',
                 value: _formatDate(zone.startedAt),
               ),
+              if (!isSafe) ...[
+                const SizedBox(height: 8),
+                ReportIssueAction(
+                  targetType: ReportTarget.zone,
+                  targetId: zone.id,
+                ),
+              ],
             ],
           ),
         ),

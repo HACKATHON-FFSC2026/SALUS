@@ -4,6 +4,7 @@ import 'package:salus/features/admin/domain/models/admin_dashboard_metrics.dart'
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
 import 'package:salus/features/admin/domain/models/admin_zone_point.dart';
+import 'package:salus/features/admin/domain/models/shelter_operational_status.dart';
 
 /// Cas d'utilisation du portail. Les widgets ne portent aucune règle métier
 /// et ne dépendent que de cette couche applicative.
@@ -100,6 +101,16 @@ class AdminPortalUseCases {
     String status,
     String uid,
   ) => _repository.setShelterValidationStatus(id, status, uid);
+
+  Future<void> updateShelterOperations({
+    required String id,
+    required ShelterOperationalStatus status,
+    required int capacityOccupied,
+  }) => _repository.updateShelterOperations(
+    id: id,
+    status: status,
+    capacityOccupied: capacityOccupied,
+  );
 
   Future<void> createShelter({
     required String name,
