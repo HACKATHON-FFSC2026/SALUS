@@ -5,6 +5,9 @@ import 'package:salus/core/entities/entities.dart';
 import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
 
+/// Ce que représente un point superposé à la caméra.
+enum ArPoiType { shelter, safeZone, riskZone }
+
 /// Donnée d'affichage d'un point d'intérêt superposé à la caméra.
 /// `shelter` non null → ouverture de la fiche refuge à l'appui.
 class ArPoi {
@@ -14,6 +17,7 @@ class ArPoi {
     required this.icon,
     required this.color,
     required this.position,
+    required this.type,
     this.subtitle,
     this.shelter,
   });
@@ -25,6 +29,9 @@ class ArPoi {
   final Color color;
   final Position position;
   final Shelter? shelter;
+
+  /// Type affiché: pilote les chips de filtre de la vue AR.
+  final ArPoiType type;
 }
 
 class SalusArAnnotation extends ArAnnotation {
@@ -54,6 +61,7 @@ List<SalusArAnnotation> buildArAnnotations(
           icon: Icons.night_shelter,
           color: s.status.foregroundColor,
           shelter: s,
+          type: ArPoiType.shelter,
           position: _position(s.location.latitude, s.location.longitude),
         ),
       ),
@@ -75,10 +83,8 @@ List<SalusArAnnotation> buildArAnnotations(
                   },
           icon: z.type == ZoneType.safe ? Icons.health_and_safety_outlined : z.icon,
           color: z.borderColor,
-          position: _position(
-            z.center.latitude,
-            z.center.longitude,
-          ),
+          type: z.type == ZoneType.risk ? ArPoiType.riskZone : ArPoiType.safeZone,
+          position: _position(z.center.latitude, z.center.longitude),
         ),
       ),
 ];

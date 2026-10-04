@@ -17,8 +17,6 @@ Future<void> _initializeAuth() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    // The web implementation uses FirebaseAuth.signInWithPopup instead.
-    // GoogleSignIn.initialize requires a separate OAuth client ID on web.
     if (!kIsWeb) await GoogleSignIn.instance.initialize();
   } catch (e, s) {
     Log.error('Initialisation Firebase/Google impossible', e, s);
