@@ -20,7 +20,6 @@ abstract class Report with _$Report {
     required String targetId,
     required ReportReason reason,
     String? description,
-    @GeoPointConverter() GeoPoint? targetLocation,
     @Default(ReportStatus.open) ReportStatus status,
     String? reviewedBy,
     @TimestampConverter() required DateTime createdAt,

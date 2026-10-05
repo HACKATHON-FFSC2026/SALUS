@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/zone_entity.dart';
 import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
-import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
 import '../../domain/entities/disaster_alert.dart';
 import '../../domain/usecases/build_alerts_for_user.dart';
@@ -33,11 +32,6 @@ class AlertsNotifier extends Notifier<List<DisasterAlert>> {
       _baseline = _last;
       state = _compute();
     });
-    ref.listen<AsyncValue<List<Zone>>>(activeRiskZonesProvider, (prev, next) {
-      if (!next.hasValue) return;
-      _baseline = _last;
-      state = _compute();
-    });
     ref.listen(locationProvider.select((s) => s.position), (_, _) {
       state = _compute();
     });
@@ -45,15 +39,7 @@ class AlertsNotifier extends Notifier<List<DisasterAlert>> {
   }
  
   List<DisasterAlert> _compute() {
-    final zonesById = <String, Zone>{
-      for (final zone
-          in ref.read(riskZonesProvider).value ?? const <Zone>[])
-        if (zone.isActive && zone.type == ZoneType.risk) zone.id: zone,
-      for (final zone
-          in ref.read(activeRiskZonesProvider).value ?? const <Zone>[])
-        if (zone.isActive && zone.type == ZoneType.risk) zone.id: zone,
-    };
-    final zones = zonesById.values.toList(growable: false);
+    final zones = ref.read(riskZonesProvider).value ?? const <Zone>[];
     final pos = ref.read(locationProvider).position;
     if (pos == null) return const [];
  
@@ -88,8 +74,8 @@ class ReadAlertIdsNotifier extends AsyncNotifier<Set<String>> {
         ? next.toList().sublist(next.length - _maxStored).toSet()
         : next;
     if (!ref.mounted) return;
+    state = AsyncData(capped);
     await ref.read(alertReadRepositoryProvider).saveReadIds(capped);
-    if (ref.mounted) state = AsyncData(capped);
   }
  
   Future<void> markAllRead() =>

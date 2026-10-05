@@ -7,8 +7,6 @@ import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
 import 'package:salus/features/admin/presentation/widgets/sos_assignment_dialog.dart';
-import 'package:salus/features/admin/presentation/widgets/shelter_operations_dialog.dart';
-import 'package:salus/features/admin/domain/models/shelter_operational_status.dart';
 
 class OperationsPortalDataRow extends StatelessWidget {
   const OperationsPortalDataRow({
@@ -163,17 +161,30 @@ class OperationsPortalDataRow extends StatelessWidget {
             record.status == 'inProgress')
           IconButton(
             tooltip: 'Marquer le SOS comme résolu',
-            onPressed: () => _updateSos(context),
+            onPressed: () => useCases.updateSos(
+              id: record.id,
+              currentStatus: record.status,
+              assignedOrganizationId: record.assignedOrganizationId,
+              organizationId: organizationId,
+            ),
             icon: const Icon(Icons.check_circle_outline, color: Colors.green),
           ),
         if (collection == AdminCollection.sosAlerts &&
             !isAdmin &&
-            (record.status == 'assigned' || record.status == 'inProgress'))
+            record.status != 'resolved' &&
+            record.status != 'cancelled')
           IconButton(
             tooltip: record.status == 'assigned'
                 ? 'Confirmer la prise en charge'
+                : record.status == 'waiting'
+                ? 'Prendre en charge pour mon organisation'
                 : 'Marquer comme résolu',
-            onPressed: () => _updateSos(context),
+            onPressed: () => useCases.updateSos(
+              id: record.id,
+              currentStatus: record.status,
+              assignedOrganizationId: record.assignedOrganizationId,
+              organizationId: organizationId,
+            ),
             icon: const Icon(
               Icons.check_circle_outline,
               color: AppColors.primary,
@@ -201,20 +212,8 @@ class OperationsPortalDataRow extends StatelessWidget {
               child: Icon(Icons.edit_outlined, color: AppColors.primary),
             ),
           ),
-        if (collection == AdminCollection.shelters &&
-            (isAdmin ||
-                (organizationId != null &&
-                    record.validationStatus == 'validated')))
-          IconButton(
-            tooltip: 'Mettre à jour la disponibilité',
-            onPressed: () => _editShelterOperations(context),
-            icon: const Icon(
-              Icons.edit_calendar_outlined,
-              color: AppColors.primary,
-            ),
-          ),
         if (collection == AdminCollection.zones &&
-            (isAdmin || record.organizationId == organizationId))
+            (isAdmin || record.createdBy == userId))
           IconButton(
             tooltip: _zoneToggleLabel(record),
             onPressed: () => _confirmZoneToggle(context),
@@ -228,7 +227,7 @@ class OperationsPortalDataRow extends StatelessWidget {
         if (collection == AdminCollection.zones &&
             record.zoneType == 'risk' &&
             record.zoneOrigin == 'manual' &&
-            (isAdmin || record.organizationId == organizationId))
+            (isAdmin || record.createdBy == userId))
           IconButton(
             tooltip: 'Modifier le périmètre',
             onPressed: () => onEditRiskZone(record),
@@ -307,48 +306,6 @@ class OperationsPortalDataRow extends StatelessWidget {
     ),
   );
 
-  Future<void> _updateSos(BuildContext context) async {
-    final isResolving = record.status == 'inProgress';
-    if (isResolving) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text('Clôturer ce SOS ?'),
-              content: const Text(
-                'La victime et les équipes verront cette alerte comme résolue.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('Continuer le suivi'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  child: const Text('Clôturer le SOS'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!confirmed || !context.mounted) return;
-    }
-
-    try {
-      await useCases.updateSos(
-        id: record.id,
-        currentStatus: record.status,
-        assignedOrganizationId: record.assignedOrganizationId,
-        organizationId: organizationId,
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Impossible de mettre à jour le SOS : $error')),
-      );
-    }
-  }
-
   Future<void> _assignToOrganization(BuildContext context) async {
     await showDialog<bool>(
       context: context,
@@ -378,27 +335,6 @@ class OperationsPortalDataRow extends StatelessWidget {
           ),
           _ => Future<void>.value(),
         },
-      ),
-    );
-  }
-
-  Future<void> _editShelterOperations(BuildContext context) async {
-    final status = ShelterOperationalStatus.values.firstWhere(
-      (value) => value.name == record.status,
-      orElse: () => ShelterOperationalStatus.open,
-    );
-    await showDialog<void>(
-      context: context,
-      builder: (_) => ShelterOperationsDialog(
-        capacityTotal: record.capacityTotal ?? 0,
-        capacityOccupied: record.capacityOccupied ?? 0,
-        status: status,
-        onSave: (nextStatus, capacityOccupied) =>
-            useCases.updateShelterOperations(
-              id: record.id,
-              status: nextStatus,
-              capacityOccupied: capacityOccupied,
-            ),
       ),
     );
   }
@@ -547,7 +483,7 @@ class OperationsPortalDataRow extends StatelessWidget {
     AdminCollection.sosAlerts =>
       record.status != 'resolved' && record.status != 'cancelled',
     AdminCollection.reports => record.status != 'resolved',
-    AdminCollection.shelters => record.validationStatus != 'rejected',
+    AdminCollection.shelters => record.validationStatus == 'pending',
     _ => false,
   };
 

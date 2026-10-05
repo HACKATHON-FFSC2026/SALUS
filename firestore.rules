@@ -211,20 +211,6 @@ service cloud.firestore {
     match /shelters/{shelterId} {
       allow read: if true;
 
-      function validShelterAvailabilityUpdate() {
-        return changedOnly(['status', 'capacityOccupied', 'updatedAt'])
-          && request.resource.data.status in [
-            'open',
-            'almostFull',
-            'full',
-            'closed'
-          ]
-          && request.resource.data.capacityOccupied is int
-          && request.resource.data.capacityOccupied >= 0
-          && request.resource.data.capacityOccupied <= resource.data.capacityTotal
-          && request.resource.data.updatedAt is timestamp;
-      }
-
       // Les citoyens soumettent une proposition en attente. L'admin peut
       // ajouter directement un refuge officiel déjà validé.
       allow create: if isAdmin()
@@ -242,11 +228,7 @@ service cloud.firestore {
           && resource.data.validationStatus == 'pending'
           && changedOnly(['validationStatus', 'validatedBy'])
           && request.resource.data.validationStatus in ['validated', 'rejected']
-          && request.resource.data.validatedBy == request.auth.uid)
-        || (isOrganizationMember()
-          && resource.data.organizationId == myOrganizationId()
-          && resource.data.validationStatus == 'validated'
-          && validShelterAvailabilityUpdate());
+          && request.resource.data.validatedBy == request.auth.uid);
 
       allow delete: if isAdmin();
     }
@@ -325,26 +307,12 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (isResponder()
           && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.organizationId == myOrganizationId()
           && request.resource.data.origin == 'manual'
           && validGeometry());
 
       allow update: if isAdmin()
         || (isResponder()
-          && resource.data.organizationId == myOrganizationId()
-          && request.resource.data.organizationId == resource.data.organizationId
-          && request.resource.data.createdBy == resource.data.createdBy
-          && resource.data.origin == 'manual'
-          && request.resource.data.origin == 'manual'
-          && changedOnly([
-            'source',
-            'description',
-            'disasterType',
-            'severity',
-            'geometry',
-            'isActive',
-            'endedAt'
-          ])
+          && resource.data.createdBy == request.auth.uid
           && validGeometry());
 
       allow delete: if isAdmin();
@@ -404,24 +372,22 @@ service cloud.firestore {
           );
       }
 
-      // Une organisation ne prend en charge qu'une alerte préalablement
-      // affectée par un admin. Seule l'organisation affectée peut la démarrer
-      // puis la clôturer, avec un horodatage de résolution.
+      // Un aidant identifie prend en charge ou clot l'alerte. Seul lui peut
+      // passer en `inProgress` / `resolved` : un citoyen qui repond garde
+      // l'alerte en attente, sinon un simple tap ferait croire a la victime
+      // que des secours sont en route.
       function responderUpdates() {
         return isResponder()
+          && changedOnly(['status', 'assignedOrganizationId', 'resolvedAt'])
           && (
-            (resource.data.status == 'assigned'
-              && changedOnly(['status', 'assignedOrganizationId'])
+            (resource.data.status in ['assigned', 'waiting']
               && resource.data.assignedOrganizationId == myOrganizationId()
               && request.resource.data.status == 'inProgress'
-              && request.resource.data.assignedOrganizationId == myOrganizationId()
-              && !request.resource.data.keys().hasAny(['resolvedAt']))
+              && request.resource.data.assignedOrganizationId == myOrganizationId())
             || (resource.data.status == 'inProgress'
-              && changedOnly(['status', 'resolvedAt'])
               && resource.data.assignedOrganizationId == myOrganizationId()
               && request.resource.data.status == 'resolved'
-              && request.resource.data.assignedOrganizationId == myOrganizationId()
-              && request.resource.data.resolvedAt is timestamp)
+              && request.resource.data.assignedOrganizationId == myOrganizationId())
           );
       }
 
@@ -585,24 +551,12 @@ service cloud.firestore {
       // s'auto-marquer « resolu » pour faire disparaitre son signalement du
       // tableau de bord.
       allow create: if isActiveAccount()
-        && request.resource.data.id == reportId
         && request.resource.data.reporterId == request.auth.uid
         && request.resource.data.status == 'open'
         && request.resource.data.reviewedBy == null
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.targetId is string
-        && request.resource.data.targetId.size() > 0
-        && request.resource.data.targetId.size() <= 1500
-        && (!request.resource.data.keys().hasAny(['description'])
-          || request.resource.data.description == null
-          || (request.resource.data.description is string
-            && request.resource.data.description.size() <= 4000))
         && (!request.resource.data.keys().hasAny(['assignedOrganizationId'])
           || request.resource.data.assignedOrganizationId == null)
         && request.resource.data.targetType in ['shelter', 'zone', 'road', 'other']
-        && (request.resource.data.targetType != 'road'
-          || (request.resource.data.keys().hasAny(['targetLocation'])
-            && request.resource.data.targetLocation is latlng))
         && request.resource.data.reason in [
           'unsafe',
           'unavailable',

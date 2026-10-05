@@ -71,11 +71,6 @@ pour les organisations utilise `organizationMember`.
 
 - La carte utilise les tuiles OpenStreetMap, affiche la position GPS après
   autorisation, permet de recentrer la vue et regroupe les marqueurs proches.
-- La vue AR reste accessible en permanence au bas de la carte. Le recentrage
-  GPS est placé en haut à droite ; le signalement routier et la légende sont
-  regroupés dans le menu des actions secondaires.
-- Le résumé SOS/alertes et l’avertissement d’évacuation, lorsqu’il est
-  pertinent, partagent un même panneau compact en haut de la carte.
 - Les refuges affichés sur la carte sont filtrés aux refuges validés.
 - La carte superpose les zones à risque issues de GDACS et les zones actives
   conservées dans Firestore. Les zones sûres calculées par le client peuvent
@@ -85,12 +80,13 @@ pour les organisations utilise `organizationMember`.
 
 ### Refuges
 
-- La liste mobile écoute la collection `shelters` et n’affiche que les refuges
-  validés.
+- La liste mobile écoute les documents de la collection `shelters` et affiche
+  leur statut de validation. Les fiches en attente ou rejetées peuvent donc
+  apparaître dans la liste, même si elles ne sont pas visibles sur la carte et
+  ne sont pas recommandées.
 - La recommandation de proximité utilise la position connue et la distance à
   vol d’oiseau. Elle sélectionne un refuge validé, ouvert ou presque complet,
-  qui dispose encore de places et qui n’est pas situé dans une zone à risque
-  active connue.
+  qui dispose encore de places.
 - Les détails incluent adresse, capacité, statut et ressources disponibles.
 - L’itinéraire est ouvert dans une application ou un site cartographique
   externe ; SALUS ne fournit pas le guidage routier lui-même.
@@ -99,12 +95,6 @@ pour les organisations utilise `organizationMember`.
   sur la carte, obtenue par GPS ou recherchée via Nominatim.
 - Une création mobile par un compte citoyen produit une fiche `pending` au
   statut `open`. Un invité sans compte Firebase ne peut pas l’enregistrer.
-- Un citoyen connecté peut signaler un problème depuis la fiche d’un refuge ;
-  le signalement rejoint la file de traitement du portail.
-- Depuis la carte, un citoyen connecté peut placer le signalement routier sur la
-  carte ; le GPS fournit le centre initial. Les coordonnées sont enregistrées
-  comme position géographique structurée et consultables par l’équipe
-  opérationnelle.
 
 ### SOS et réponse à une détresse
 
@@ -121,10 +111,8 @@ pour les organisations utilise `organizationMember`.
    victime voit les suivis associés à son alerte.
 5. Un admin peut affecter un SOS à une organisation. Le membre de cette
    organisation confirme la prise en charge (`inProgress`) puis peut le clore
-   (`resolved`). La clôture enregistre son horodatage ; seules les personnes
-   de l’organisation affectée peuvent effectuer ces transitions. Le tableau de
-   bord affiche le statut et l’organisation affectée ; l’écran SOS de la
-   victime affiche aussi l’organisation.
+   (`resolved`). Le tableau de bord affiche le statut et l’organisation
+   affectée ; l’écran SOS de la victime affiche aussi l’organisation.
 
 Le flux GPS d’un SOS est géré par l’application au premier plan. Ce dépôt ne
 met pas en place un service mobile permanent garantissant le partage après
@@ -136,14 +124,14 @@ avec repli sur 112 pour un pays non répertorié.
 
 ### Alertes et aide
 
+- L’onglet **Alertes** écoute les zones actives enregistrées dans Firestore et
+  affiche leur source, type de risque, gravité et description.
 - Un calculateur d’alertes personnalisées selon la position et la distance
-  est raccordé à l’onglet **Alertes**. Il combine les risques actifs GDACS et
-  Firestore, distingue les événements dans la zone ou en rapprochement et
-  conserve localement l’état lu/non lu.
+  existe dans `features/alerts`, ainsi qu’un stockage local des alertes lues.
+  Il n’est actuellement pas raccordé à l’onglet Alertes, qui affiche les zones
+  Firestore ; il ne faut donc pas le présenter comme un flux utilisateur actif.
 - Les données GDACS sont affichées sur la carte, mais ne sont pas envoyées comme
   notifications aux téléphones par ce parcours.
-- Un citoyen connecté peut signaler un problème depuis la fiche d’une zone à
-  risque. Les signalements de refuges et de zones sont traités dans le portail.
 - L’onglet **Aide** écoute les organisations vérifiées et actives, puis affiche
   les coordonnées de contact renseignées. Les boutons peuvent ouvrir le
   composeur téléphonique ou l’application email.
@@ -173,18 +161,14 @@ organisation vérifiée et active.
   accès.
 - **Refuges** : consulter toutes les fiches, en créer une déjà validée, affecter
   une proposition à une organisation, et définir son statut `validated`,
-  `pending` ou `rejected`. Un membre d’organisation peut actualiser le statut
-  opérationnel et les places occupées de ses refuges validés.
+  `pending` ou `rejected`.
 - **SOS** : consulter les alertes, affecter ou réaffecter une organisation et
   résoudre une alerte. Chaque ligne permet d’ouvrir les détails du SOS (type,
   statut, description, nombre d’aidants, référence de la personne et dernière
   position connue sur une carte avec marqueur) puis d’ouvrir un itinéraire
   externe vers cette position.
 - **Signalements** : consulter, affecter à une organisation, marquer comme
-  examiné ou résolu. Les signalements routiers avec position GPS ont une action
-  pour ouvrir leurs coordonnées dans une application cartographique externe.
-  La liste affiche aussi une carte des incidents routiers affectés ; toucher un
-  repère ouvre le détail du signalement.
+  examiné ou résolu.
 - **Zones** : dessiner une zone d’alerte manuelle avec nom, message, type de
   risque, gravité et polygone ; modifier, clôturer ou réactiver les zones.
 
@@ -195,13 +179,15 @@ membre ou apparaître dans l’annuaire public.
 ### Fonctions Organisation
 
 Le portail organisation présente la vue générale ainsi que les sections SOS,
-signalements, refuges et zones. Les SOS, signalements, refuges et zones sont
-filtrés par l’identifiant de l’organisation. Un membre peut prendre en charge
-et résoudre un SOS qui lui est affecté, traiter les signalements qui lui sont
-affectés, valider ou rejeter les propositions de refuge qui lui sont affectées,
-actualiser la disponibilité des refuges validés affectés et gérer les zones
-manuelles de son organisation. Les règles verrouillent l’identité et
-l’organisation propriétaire d’une zone. L’admin garde la gestion globale.
+signalements, refuges et zones. Les SOS, signalements et propositions de refuge
+sont filtrés par l’identifiant de l’organisation. Un membre peut prendre en
+charge et résoudre un SOS qui lui est affecté, traiter les signalements qui lui
+sont affectés, valider ou rejeter les propositions de refuge qui lui sont
+affectées, et créer/modifier/clôturer ses zones manuelles. La table **Zones**
+et le compteur des zones actives ne sont toutefois pas filtrés par
+organisation : le membre peut voir les zones globales, mais ses commandes
+d’édition sont limitées à celles dont il est le créateur. L’admin garde la
+gestion globale.
 
 Les documents Firestore restent la source commune : le portail et le mobile
 lisent les mêmes collections et les mises à jour de statut sont diffusées par
@@ -225,26 +211,30 @@ présente dans l’application décrite par ce dépôt.
 
 - **Notifications push FCM** : absentes. Le suivi fonctionne lorsque
   l’application lit Firestore ; aucun push ne réveille l’application.
-- **Signalements routiers** : un citoyen connecté peut signaler un incident
-  depuis la carte en choisissant le point concerné. Le GPS centre la carte
-  initialement. Ses propres incidents non résolus sont visibles sur sa carte ;
-  ceux affectés à une organisation sont visibles sur la carte du portail
-  réservée à cette organisation.
+- **Création mobile des signalements** : absente du parcours d’interface
+  constaté. Le portail Admin/Organisation sait consulter et traiter des
+  documents `reports`, et les règles autorisent certains documents, mais aucun
+  formulaire mobile de dépôt n’a été repéré. Sans autre producteur de données,
+  la file peut rester vide.
 - **Assistant IA, chat ou assistance vocale** : absents.
-- **Escalade automatique d’un SOS vers les services d’urgence** : absente ; le
-  traitement passe par les aidants et l’affectation manuelle aux organisations.
 - **Connexion par email de l’organisation** : absente intentionnellement ;
   l’accès est rattaché au compte Google d’un utilisateur existant.
-- **Rôle de gestionnaire de refuge dédié** : non intégré ; la disponibilité des
-  refuges affectés est gérée par le rôle organisation.
+- **Gestionnaire de refuge dédié** : non intégré au parcours actif.
 - **Zones sûres** : estimation heuristique d’altitude via Open-Meteo, calculée
   côté client. Ce n’est ni une validation officielle d’évacuation, ni un
   itinéraire de secours garanti.
-- **Itinéraires d’évacuation** : l’application ouvre une navigation externe
-  vers le refuge ; elle écarte les destinations connues dans une zone à risque,
-  mais ne calcule pas un trajet sûr évitant les risques sur le parcours routier.
-  Une confirmation avertit l’utilisateur que le trajet externe n’est pas vérifié ;
-  elle précise aussi si les données de risque sont indisponibles ou incomplètes.
+- **Liste mobile des refuges** : comprend également les statuts en attente et
+  rejetés, alors que la carte et la recommandation se limitent aux refuges
+  validés. À confirmer si cette visibilité est souhaitée pour les citoyens.
+- **Règle de modification des zones organisation** : la règle Firestore laisse
+  le créateur membre modifier une zone si sa géométrie est valide, sans limiter
+  les champs modifiables ni figer `createdBy`, `organizationId` et `origin`.
+  Le formulaire actuel ne modifie pas ces champs, mais les règles devraient
+  aussi les protéger contre une écriture client directe.
+- **Portail organisation — zones** : la requête et le compteur sont globaux,
+  alors que les actions d’édition sont limitées au créateur. Si chaque équipe
+  doit ne voir que ses propres zones, il faut filtrer la requête par
+  `organizationId` et aligner ce filtre avec les règles Firestore.
 - **Tests** : les tests Flutter présents couvrent des contrôleurs, pages,
   données SOS, carte et refuges. `firestore-tests/rules.test.mjs` couvre les
   règles via l’émulateur si sa configuration et ses dépendances sont installées.

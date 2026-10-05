@@ -13,10 +13,6 @@ _Report _$ReportFromJson(Map<String, dynamic> json) => _Report(
   targetId: json['targetId'] as String,
   reason: $enumDecode(_$ReportReasonEnumMap, json['reason']),
   description: json['description'] as String?,
-  targetLocation: _$JsonConverterFromJson<GeoPoint, GeoPoint>(
-    json['targetLocation'],
-    const GeoPointConverter().fromJson,
-  ),
   status:
       $enumDecodeNullable(_$ReportStatusEnumMap, json['status']) ??
       ReportStatus.open,
@@ -33,10 +29,6 @@ Map<String, dynamic> _$ReportToJson(_Report instance) => <String, dynamic>{
   'targetId': instance.targetId,
   'reason': _$ReportReasonEnumMap[instance.reason]!,
   'description': instance.description,
-  'targetLocation': _$JsonConverterToJson<GeoPoint, GeoPoint>(
-    instance.targetLocation,
-    const GeoPointConverter().toJson,
-  ),
   'status': _$ReportStatusEnumMap[instance.status]!,
   'reviewedBy': instance.reviewedBy,
   'createdAt': const TimestampConverter().toJson(instance.createdAt),
@@ -56,18 +48,8 @@ const _$ReportReasonEnumMap = {
   ReportReason.other: 'other',
 };
 
-Value? _$JsonConverterFromJson<Json, Value>(
-  Object? json,
-  Value? Function(Json json) fromJson,
-) => json == null ? null : fromJson(json as Json);
-
 const _$ReportStatusEnumMap = {
   ReportStatus.open: 'open',
   ReportStatus.reviewed: 'reviewed',
   ReportStatus.resolved: 'resolved',
 };
-
-Json? _$JsonConverterToJson<Json, Value>(
-  Value? value,
-  Json? Function(Value value) toJson,
-) => value == null ? null : toJson(value);

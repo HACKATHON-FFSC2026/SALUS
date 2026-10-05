@@ -1,7 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
