@@ -39,6 +39,7 @@ const testEnv = await initializeTestEnvironment({
 const VICTIM = 'victim-1';
 const CITIZEN = 'citizen-2';
 const RESPONDER = 'responder-3';
+const OTHER_RESPONDER = 'responder-7';
 const ADMIN = 'admin-0';
 const SUSPENDED = 'suspended-4';
 
@@ -56,7 +57,16 @@ await testEnv.withSecurityRulesDisabled(async (context) => {
     organizationId: 'org-1',
     isActive: true,
   });
+  await put(OTHER_RESPONDER, {
+    roles: ['organizationMember'],
+    organizationId: 'org-2',
+    isActive: true,
+  });
   await setDoc(doc(db, 'organizations', 'org-1'), {
+    verified: true,
+    isActive: true,
+  });
+  await setDoc(doc(db, 'organizations', 'org-2'), {
     verified: true,
     isActive: true,
   });
@@ -127,7 +137,144 @@ const readAlert = (db, id) => readOne(db, 'sos_alerts', id);
 const victimDb = asUser(VICTIM);
 const citizenDb = asUser(CITIZEN);
 const responderDb = asUser(RESPONDER);
+const otherResponderDb = asUser(OTHER_RESPONDER);
 const adminDb = asUser(ADMIN);
+
+const reportAt = (db, id) => doc(db, 'reports', id);
+const shelterAt = (db, id) => doc(db, 'shelters', id);
+const zoneAt = (db, id) => doc(db, 'zones', id);
+
+await testEnv.withSecurityRulesDisabled(async (context) => {
+  const db = context.firestore();
+  await setDoc(shelterAt(db, 'managed-shelter'), {
+    id: 'managed-shelter',
+    name: 'Refuge géré',
+    organizationId: 'org-1',
+    validationStatus: 'validated',
+    capacityTotal: 50,
+    capacityOccupied: 10,
+    status: 'open',
+    updatedAt: new Date(),
+  });
+  await setDoc(zoneAt(db, 'org-zone'), {
+    id: 'org-zone',
+    type: 'risk',
+    origin: 'manual',
+    source: 'Alerte équipe',
+    description: 'Description',
+    disasterType: 'flood',
+    severity: 'high',
+    geometry: [
+      new GeoPoint(-18.8, 47.5),
+      new GeoPoint(-18.8, 47.6),
+      new GeoPoint(-18.9, 47.5),
+    ],
+    isActive: true,
+    createdBy: RESPONDER,
+    organizationId: 'org-1',
+    startedAt: new Date(),
+  });
+});
+
+// -- reports ---------------------------------------------------------------
+const REPORT = 'citizen-report';
+const report = (overrides = {}) => ({
+  id: REPORT,
+  reporterId: CITIZEN,
+  targetType: 'shelter',
+  targetId: 'managed-shelter',
+  reason: 'unavailable',
+  description: 'Le refuge semble fermé.',
+  status: 'open',
+  reviewedBy: null,
+  createdAt: new Date(),
+  ...overrides,
+});
+
+await ok('un citoyen actif peut créer un signalement ouvert', () =>
+  setDoc(reportAt(citizenDb, REPORT), report()),
+);
+await ok('un signalement routier inclut sa position GPS', () =>
+  setDoc(
+    reportAt(citizenDb, 'road-report'),
+    report({
+      id: 'road-report',
+      targetType: 'road',
+      targetId: 'Position GPS',
+      targetLocation: new GeoPoint(-18.88, 47.51),
+      reason: 'blocked',
+    }),
+  ),
+);
+await ok('un citoyen lit ses propres signalements routiers', () =>
+  getDocs(
+    query(
+      collection(citizenDb, 'reports'),
+      where('reporterId', '==', CITIZEN),
+      where('targetType', '==', 'road'),
+    ),
+  ),
+);
+await denied('un citoyen ne liste pas les signalements routiers des autres', () =>
+  getDocs(
+    query(collection(citizenDb, 'reports'), where('targetType', '==', 'road')),
+  ),
+);
+await denied('un signalement routier sans position GPS est refuse', () =>
+  setDoc(
+    reportAt(citizenDb, 'road-report-no-location'),
+    report({
+      id: 'road-report-no-location',
+      targetType: 'road',
+      targetId: 'Position GPS',
+      reason: 'blocked',
+    }),
+  ),
+);
+await denied('un citoyen ne signale pas au nom d’un autre', () =>
+  setDoc(
+    reportAt(citizenDb, 'spoofed-report'),
+    report({ id: 'spoofed-report', reporterId: VICTIM }),
+  ),
+);
+await denied('un signalement ne peut pas être créé déjà résolu', () =>
+  setDoc(
+    reportAt(citizenDb, 'closed-report'),
+    report({ id: 'closed-report', status: 'resolved' }),
+  ),
+);
+
+// -- shelter operations ----------------------------------------------------
+await ok('un membre gère capacité et disponibilité de son refuge validé', () =>
+  updateDoc(shelterAt(responderDb, 'managed-shelter'), {
+    status: 'almostFull',
+    capacityOccupied: 25,
+    updatedAt: new Date(),
+  }),
+);
+await denied('un membre ne peut pas dépasser la capacité du refuge', () =>
+  updateDoc(shelterAt(responderDb, 'managed-shelter'), {
+    capacityOccupied: 51,
+    updatedAt: new Date(),
+  }),
+);
+await denied('un citoyen ne gère pas la disponibilité d’un refuge', () =>
+  updateDoc(shelterAt(citizenDb, 'managed-shelter'), {
+    status: 'closed',
+    updatedAt: new Date(),
+  }),
+);
+
+// -- organization zones ----------------------------------------------------
+await ok('un membre gère une zone manuelle de son organisation', () =>
+  updateDoc(zoneAt(responderDb, 'org-zone'), {
+    isActive: false,
+    endedAt: new Date(),
+  }),
+);
+await denied('un membre ne peut pas changer l’organisation propriétaire d’une zone', () =>
+  updateDoc(zoneAt(responderDb, 'org-zone'), { organizationId: 'public-org' }),
+);
 
 // --------------------------------------------------- répertoire public Aide
 const publicDb = testEnv.unauthenticatedContext().firestore();
@@ -266,6 +413,59 @@ console.log('  OK      la clôture est bien enregistrée');
 await denied('une alerte close ne se rouvre pas', () =>
   updateDoc(alertAt(responderDb, 'a4'), { status: 'inProgress' }),
 );
+
+await setDoc(alertAt(victimDb, 'a7'), payload('a7'));
+await denied('une organisation ne démarre pas un SOS non affecté', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-1',
+  }),
+);
+await updateDoc(alertAt(adminDb, 'a7'), {
+  status: 'assigned',
+  assignedOrganizationId: 'org-1',
+});
+await denied('une alerte affectée doit être démarrée avant sa clôture', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'resolved',
+    resolvedAt: new Date(),
+  }),
+);
+await denied('une autre organisation ne démarre pas le SOS affecté', () =>
+  updateDoc(alertAt(otherResponderDb, 'a7'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-2',
+  }),
+);
+await denied('une prise en charge ne peut pas porter un horodatage de clôture', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-1',
+    resolvedAt: new Date(),
+  }),
+);
+await ok('l’organisation affectée confirme la prise en charge', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'inProgress',
+    assignedOrganizationId: 'org-1',
+  }),
+);
+await denied('la clôture sans horodatage est refusée', () =>
+  updateDoc(alertAt(responderDb, 'a7'), { status: 'resolved' }),
+);
+await denied('une autre organisation ne clôt pas le SOS', () =>
+  updateDoc(alertAt(otherResponderDb, 'a7'), {
+    status: 'resolved',
+    resolvedAt: new Date(),
+  }),
+);
+await ok('l’organisation affectée clôt le SOS avec un horodatage', () =>
+  updateDoc(alertAt(responderDb, 'a7'), {
+    status: 'resolved',
+    resolvedAt: new Date('2026-01-03T00:00:00Z'),
+  }),
+);
+
 await denied('personne ne supprime une alerte sans rôle admin', () =>
   deleteDoc(alertAt(responderDb, 'a1')),
 );
@@ -279,6 +479,14 @@ await setDoc(alertAt(victimDb, 'a5'), payload('a5'));
 // a6 est donc creee active puis resolue, ce qui verifie au passage que seule
 // une alerte active reapparait dans la file communautaire.
 await setDoc(alertAt(victimDb, 'a6'), payload('a6'));
+await updateDoc(alertAt(adminDb, 'a6'), {
+  status: 'assigned',
+  assignedOrganizationId: 'org-1',
+});
+await updateDoc(alertAt(responderDb, 'a6'), {
+  status: 'inProgress',
+  assignedOrganizationId: 'org-1',
+});
 await updateDoc(alertAt(responderDb, 'a6'), {
   status: 'resolved',
   resolvedAt: new Date('2026-01-02T00:00:00Z'),

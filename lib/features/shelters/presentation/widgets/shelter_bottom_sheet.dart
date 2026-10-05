@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
+import 'package:salus/features/reports/presentation/widgets/report_issue_action.dart';
+import 'package:salus/features/reports/domain/models/report_submission.dart';
 
 /// Fiche courte d'un refuge, ouverte au clic sur son marker.
 Future<void> showShelterBottomSheet(BuildContext context, Shelter shelter) {
@@ -31,6 +33,7 @@ Future<void> showShelterDetailSheet(
   BuildContext context,
   Shelter shelter, {
   VoidCallback? onStartRoute,
+  String? routeUnavailableReason,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -46,7 +49,11 @@ Future<void> showShelterDetailSheet(
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: ShelterDetailSheet(shelter: shelter, onStartRoute: onStartRoute),
+        child: ShelterDetailSheet(
+          shelter: shelter,
+          onStartRoute: onStartRoute,
+          routeUnavailableReason: routeUnavailableReason,
+        ),
       ),
     ),
   );
@@ -115,10 +122,12 @@ class ShelterDetailSheet extends StatelessWidget {
     super.key,
     required this.shelter,
     this.onStartRoute,
+    this.routeUnavailableReason,
   });
 
   final Shelter shelter;
   final VoidCallback? onStartRoute;
+  final String? routeUnavailableReason;
 
   @override
   Widget build(BuildContext context) {
@@ -257,7 +266,22 @@ class ShelterDetailSheet extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         ShelterResourcesWrap(resources: shelter.resources),
-        if (onStartRoute != null) ...[
+        const SizedBox(height: 8),
+        ReportIssueAction(
+          targetType: ReportTarget.shelter,
+          targetId: shelter.id,
+        ),
+        if (routeUnavailableReason != null) ...[
+          const SizedBox(height: 20),
+          Text(
+            routeUnavailableReason!,
+            style: const TextStyle(
+              color: AppColors.sos,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ] else if (onStartRoute != null) ...[
           const SizedBox(height: 20),
           if (canNavigate)
             SizedBox(
@@ -280,6 +304,13 @@ class ShelterDetailSheet extends StatelessWidget {
                   : 'Ce refuge ne dispose pas actuellement de places ouvertes.',
               style: const TextStyle(color: AppColors.inactive, fontSize: 12),
             ),
+        ],
+        if (canNavigate) ...[
+          const SizedBox(height: 10),
+          const Text(
+            'L’itinéraire est fourni par un service externe et ne garantit pas le contournement des zones à risque.',
+            style: TextStyle(color: AppColors.inactive, fontSize: 12),
+          ),
         ],
       ],
     );

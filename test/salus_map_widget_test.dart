@@ -15,6 +15,9 @@ import 'package:salus/features/map/presentation/providers/risk_zones_provider.da
 import 'package:salus/features/shelters/data/shelter_repository.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 import 'package:salus/features/risks/presentation/widgets/disaster_marker_pin.dart';
+import 'package:salus/features/reports/domain/models/road_incident.dart';
+import 'package:salus/features/reports/presentation/providers/report_providers.dart';
+import 'package:salus/features/reports/presentation/widgets/road_incident_marker.dart';
 
 /// Tuile 1x1 en mémoire.
 ///
@@ -93,11 +96,18 @@ Shelter _shelter({
   );
 }
 
-Future<void> _pumpMap(WidgetTester tester, ShelterRepository repository) async {
+Future<void> _pumpMap(
+  WidgetTester tester,
+  ShelterRepository repository, {
+  List<RoadIncident> roadIncidents = const [],
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         shelterRepositoryProvider.overrideWithValue(repository),
+        myRoadIncidentsProvider.overrideWith(
+          (ref) => Stream.value(roadIncidents),
+        ),
         // La carte watch aussi les zones à risque (API GDACS) et les zones sûres
         // (API altitude). Les deux passent par `dio`, qui laisse des timers en
         // vol et fait échouer le test au démontage. `riskZonesProvider` pose en
@@ -127,6 +137,79 @@ Widget _mapApp() =>
     MaterialApp(home: SalusMapWidget(tileProvider: _FakeTileProvider()));
 
 void main() {
+  testWidgets('keeps AR and recenter visible and puts other actions in menu', (
+    tester,
+  ) async {
+    await _pumpMap(tester, _StubShelterRepository());
+
+    expect(
+      find.byTooltip('Vue caméra des refuges et zones proches'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Signaler un incident routier'), findsNothing);
+    final recenter = find.byWidgetPredicate(
+      (widget) =>
+          widget is FloatingActionButton &&
+          widget.heroTag == 'recenter_gps_fab',
+    );
+    expect(recenter, findsOneWidget);
+    final recenterRect = tester.getRect(recenter);
+    expect(recenterRect.top, lessThan(100));
+    expect(recenterRect.right, greaterThan(300));
+
+    await tester.tap(find.byTooltip('Autres actions de la carte'));
+    await tester.pump();
+    expect(find.text('Signaler un incident routier'), findsOneWidget);
+    expect(find.text('Comprendre la carte'), findsOneWidget);
+  });
+
+  testWidgets('opens the map legend from the secondary actions menu', (
+    tester,
+  ) async {
+    await _pumpMap(tester, _StubShelterRepository());
+
+    await tester.tap(find.byTooltip('Autres actions de la carte'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.tap(find.text('Comprendre la carte'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.text('Risque faible'), findsOneWidget);
+    expect(find.text('Ouvert'), findsOneWidget);
+    expect(find.byType(BottomSheet), findsOneWidget);
+  });
+
+  testWidgets('affiche les signalements routiers personnels sur la carte', (
+    tester,
+  ) async {
+    await _pumpMap(
+      tester,
+      _StubShelterRepository(),
+      roadIncidents: [
+        RoadIncident(
+          id: 'road-1',
+          latitude: -18.88,
+          longitude: 47.51,
+          reason: 'blocked',
+          status: 'open',
+          description: 'Route submergée',
+          createdAt: DateTime(2026, 10, 4, 12),
+        ),
+      ],
+    );
+
+    expect(find.byType(RoadIncidentMarker), findsOneWidget);
+    await tester.tap(find.byType(RoadIncidentMarker));
+    await tester.pump();
+
+    expect(find.text('Incident routier'), findsOneWidget);
+    expect(find.text('Motif : Route bloquée'), findsOneWidget);
+    expect(find.text('Route submergée'), findsOneWidget);
+    expect(find.text('Statut : À traiter'), findsOneWidget);
+  });
+
   testWidgets('affiche un marker par refuge validé', (tester) async {
     await _pumpMap(
       tester,
@@ -164,9 +247,11 @@ void main() {
           activeRiskZonesProvider.overrideWith(
             (ref) => Stream.value(const <Zone>[]),
           ),
-          safeZoneRepositoryProvider.overrideWithValue(_StubSafeZoneRepository()),
-        // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
-        areaNameProvider.overrideWith((ref, _) async => null),
+          safeZoneRepositoryProvider.overrideWithValue(
+            _StubSafeZoneRepository(),
+          ),
+          // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
+          areaNameProvider.overrideWith((ref, _) async => null),
         ],
         child: _mapApp(),
       ),
@@ -183,7 +268,9 @@ void main() {
     expect(find.text('Élevé'), findsOneWidget);
   });
 
-  testWidgets('un tap sur le polygone de la zone ouvre sa fiche', (tester) async {
+  testWidgets('un tap sur le polygone de la zone ouvre sa fiche', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -192,9 +279,11 @@ void main() {
           activeRiskZonesProvider.overrideWith(
             (ref) => Stream.value(const <Zone>[]),
           ),
-          safeZoneRepositoryProvider.overrideWithValue(_StubSafeZoneRepository()),
-        // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
-        areaNameProvider.overrideWith((ref, _) async => null),
+          safeZoneRepositoryProvider.overrideWithValue(
+            _StubSafeZoneRepository(),
+          ),
+          // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
+          areaNameProvider.overrideWith((ref, _) async => null),
         ],
         child: _mapApp(),
       ),
@@ -243,4 +332,3 @@ void main() {
     expect(find.text('Voir le refuge'), findsOneWidget);
   });
 }
-
