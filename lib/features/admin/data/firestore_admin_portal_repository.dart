@@ -238,6 +238,15 @@ class FirestoreAdminPortalRepository implements AdminPortalRepository {
   });
 
   @override
+  Future<void> updateShelterOccupancy(
+    String id, {
+    required int capacityOccupied,
+  }) => _firestore.collection('shelters').doc(id).update({
+    'capacityOccupied': capacityOccupied,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  @override
   Future<void> createShelter({
     required String name,
     required String address,

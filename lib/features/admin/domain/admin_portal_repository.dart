@@ -41,6 +41,12 @@ abstract interface class AdminPortalRepository {
 
   Future<void> setShelterValidationStatus(String id, String status, String uid);
 
+  /// Seul l'admin peut écrire ce champ (règles Firestore `isAdmin()`).
+  Future<void> updateShelterOccupancy(
+    String id, {
+    required int capacityOccupied,
+  });
+
   Future<void> createShelter({
     required String name,
     required String address,

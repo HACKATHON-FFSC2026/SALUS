@@ -246,12 +246,13 @@ String _portalReadError(Object? error) {
   if (error is FirebaseException) {
     return switch (error.code) {
       'permission-denied' =>
-        'Accès refusé par les règles Firestore. Vérifie le rôle actif du compte.',
+        'Accès refusé. Vérifiez le rôle de ce compte auprès d’un administrateur.',
       'failed-precondition' =>
-        'Index Firestore requis. Déploie les index du projet.',
-      'unavailable' => 'Firestore est indisponible. Vérifie la connexion.',
-      _ => 'Erreur Firestore (${error.code}).',
+        'Données non disponibles pour le moment. Réessayez plus tard.',
+      'unavailable' =>
+        'Connexion indisponible. Vérifiez votre réseau puis réessayez.',
+      _ => 'Impossible de charger les données. Réessayez plus tard.',
     };
   }
-  return 'Impossible de charger les données${error == null ? '.' : ' : $error'}';
+  return 'Impossible de charger les données. Réessayez plus tard.';
 }

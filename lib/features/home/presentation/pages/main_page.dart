@@ -28,10 +28,10 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   static const _tabs = <_Tab>[
-    _Tab(Icons.home, 'ACCUEIL', HomeTabPage()),
-    _Tab(Icons.notifications, 'ALERTES', AlertsPage()),
-    _Tab(Icons.map, 'REFUGES', SheltersPage()),
-    _Tab(Icons.help, 'AIDE', HelpPage()),
+    _Tab(Icons.map_outlined, 'ACCUEIL', HomeTabPage()),
+    _Tab(Icons.warning_amber_rounded, 'ALERTES', AlertsPage()),
+    _Tab(Icons.home_work_outlined, 'REFUGES', SheltersPage()),
+    _Tab(Icons.help_outline, 'AIDE', HelpPage()),
   ];
 
   /// Nombre d'onglets avant le FAB SOS, qui creuse la BottomAppBar.
@@ -122,7 +122,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.secondary : AppColors.inactive;
+    final color = selected ? AppColors.secondaryText : AppColors.inactive;
 
     return InkWell(
       onTap: onTap,

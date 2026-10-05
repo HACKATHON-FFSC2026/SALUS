@@ -1,12 +1,14 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/core/entities/help_response_entity.dart';
 import 'package:salus/features/sos/presentation/providers/responder_controller.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:salus/core/utils/external_navigation.dart';
+import '../distress_label.dart';
 import '../../domain/entities/first_aid_guidelines.dart';
 
 /// Fiche d'intervention affichée après « JE RÉPONDS ».
@@ -49,28 +51,13 @@ class _SosResponseDetailPageState extends ConsumerState<SosResponseDetailPage> {
     });
   }
 
-  Future<void> _openMaps(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final uri = Uri.parse(
-      'https://www.google.com/maps/dir/?api=1'
-      '&destination=${alert.location.latitude},${alert.location.longitude}',
-    );
-    try {
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened) throw Exception('navigation refusée');
-    } catch (_) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'Itinéraire indisponible. Coordonnées: '
-            '${alert.location.latitude.toStringAsFixed(4)}, '
-            '${alert.location.longitude.toStringAsFixed(4)}',
-          ),
-          backgroundColor: AppColors.sos,
-        ),
-      );
-    }
-  }
+  Future<void> _openMaps(BuildContext context) => openExternalDirections(
+    context,
+    latitude: alert.location.latitude,
+    longitude: alert.location.longitude,
+    label: alert.distressType.label,
+    travelMode: 'driving',
+  );
 
   Future<void> _markArrived() async {
     final response = _myResponse;
@@ -85,6 +72,20 @@ class _SosResponseDetailPageState extends ConsumerState<SosResponseDetailPage> {
         content: Text('Arrivée signalée. La victime sait que vous êtes là.'),
       ),
     );
+  }
+
+  /// Le refus de permission n'avait aucune porte de sortie: l'intervenant
+  /// restait « en route » sans que la victime voie sa position. On propose
+  /// d'autoriser, ou d'aller aux réglages si c'est définitivement refusé.
+  Future<void> _retryLocationSharing() async {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.deniedForever) {
+      await Geolocator.openAppSettings();
+      return;
+    }
+    await ref
+        .read(responderControllerProvider.notifier)
+        .startSharing(alertId: alert.id);
   }
 
   Future<void> _withdraw() async {
@@ -164,9 +165,27 @@ class _SosResponseDetailPageState extends ConsumerState<SosResponseDetailPage> {
               isSharingLocation: controller.isSharingLocation,
               withdrawn: withdrawn,
               warning: controller.errorMessage,
+              onRetryLocation: _retryLocationSharing,
             ),
             const SizedBox(height: 16),
             _SummaryCard(alert: alert),
+            const SizedBox(height: 16),
+            // L'action principale d'un intervenant est d'aller sur place:
+            // elle passe avant la liste de consignes, qui peut être longue.
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _openMaps(context),
+                icon: const Icon(Icons.near_me, color: Colors.white),
+                label: const Text(
+                  'ITINÉRAIRE',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             Text(
               guideline.title,
@@ -176,20 +195,9 @@ class _SosResponseDetailPageState extends ConsumerState<SosResponseDetailPage> {
               ),
             ),
             const SizedBox(height: 12),
-            for (final step in guideline.steps) _Step(text: step),
+            for (final (index, step) in guideline.steps.indexed)
+              _Step(index: index + 1, text: step),
             const SizedBox(height: 28),
-            ElevatedButton.icon(
-              onPressed: () => _openMaps(context),
-              icon: const Icon(Icons.near_me, color: Colors.white),
-              label: const Text(
-                'ITINÉRAIRE',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
             if (!withdrawn) ...[
               if (arrived)
                 // État, pas bouton: repartir de « à venir » après une arrivée
@@ -245,12 +253,17 @@ class _Acknowledgement extends StatelessWidget {
     required this.isSharingLocation,
     required this.withdrawn,
     this.warning,
+    this.onRetryLocation,
   });
 
   final ResponderStatus status;
   final bool isSharingLocation;
   final bool withdrawn;
   final String? warning;
+
+  /// Relance le partage ou ouvre les réglages. Null seulement si l'action
+  /// n'est pas pertinente dans le contexte courant.
+  final VoidCallback? onRetryLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -316,6 +329,23 @@ class _Acknowledgement extends StatelessWidget {
                   detail,
                   style: const TextStyle(color: AppColors.inactive, fontSize: 12),
                 ),
+                if (onRetryLocation != null &&
+                    !isSharingLocation &&
+                    !withdrawn) ...[
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: onRetryLocation,
+                    icon: const Icon(Icons.location_on_outlined, size: 18),
+                    label: const Text('Autoriser la localisation'),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      alignment: Alignment.centerLeft,
+                      foregroundColor: AppColors.primary,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -354,7 +384,7 @@ class _SummaryCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    alert.distressType.name.toUpperCase(),
+                    alert.distressType.label.toUpperCase(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 10,
@@ -366,7 +396,7 @@ class _SummaryCard extends StatelessWidget {
                   Text(
                     '${alert.distanceInKm!.toStringAsFixed(2)} km',
                     style: const TextStyle(
-                      color: AppColors.secondary,
+                      color: AppColors.secondaryText,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -389,23 +419,46 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _Step extends StatelessWidget {
-  const _Step({required this.text});
+  const _Step({required this.index, required this.text});
 
+  final int index;
   final String text;
 
   @override
   Widget build(BuildContext context) {
+    // Numérotée: des consignes de premiers secours sont une séquence, pas une
+    // liste à puces sans ordre.
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.shield_outlined, color: AppColors.secondary, size: 18),
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '$index',
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: AppColors.primary, fontSize: 13, height: 1.35),
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 13,
+                height: 1.35,
+              ),
             ),
           ),
         ],

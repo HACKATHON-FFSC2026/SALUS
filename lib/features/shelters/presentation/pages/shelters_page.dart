@@ -10,7 +10,7 @@ import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:salus/core/utils/external_navigation.dart';
 
 class SheltersPage extends ConsumerStatefulWidget {
   const SheltersPage({super.key});
@@ -181,57 +181,14 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
   }
 }
 
-Future<void> _openDirections(BuildContext context, Shelter shelter) async {
-  final destination =
-      '${shelter.location.latitude},${shelter.location.longitude}';
-  final uri = Uri.https('www.google.com', '/maps/dir/', {
-    'api': '1',
-    'destination': destination,
-    'travelmode': 'walking',
-  });
-  final nativeMapUris = [
-    Uri(
-      scheme: 'google.navigation',
-      queryParameters: {'q': destination, 'mode': 'w'},
-    ),
-    Uri(
-      scheme: 'geo',
-      path: destination,
-      queryParameters: {'q': '$destination(${shelter.name})'},
-    ),
-  ];
-  var opened = false;
-  for (final mapUri in nativeMapUris) {
-    if (await _tryLaunch(mapUri, LaunchMode.externalApplication)) {
-      opened = true;
-      break;
-    }
-  }
-  if (!opened) {
-    opened =
-        await _tryLaunch(uri, LaunchMode.externalApplication) ||
-        await _tryLaunch(uri, LaunchMode.platformDefault) ||
-        await _tryLaunch(uri, LaunchMode.inAppBrowserView);
-  }
-  if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          "Aucune application de cartes ou aucun navigateur ne peut ouvrir cet itinéraire.",
-        ),
-      ),
+Future<void> _openDirections(BuildContext context, Shelter shelter) =>
+    openExternalDirections(
+      context,
+      latitude: shelter.location.latitude,
+      longitude: shelter.location.longitude,
+      label: shelter.name,
+      travelMode: 'walking',
     );
-  }
-}
-
-Future<bool> _tryLaunch(Uri uri, LaunchMode mode) async {
-  try {
-    return await launchUrl(uri, mode: mode);
-  } catch (error) {
-    debugPrint('Échec ouverture navigation ($mode, $uri): $error');
-    return false;
-  }
-}
 
 class _RankedShelter {
   const _RankedShelter(this.shelter, this.distanceKm);
@@ -261,9 +218,6 @@ class _RecommendationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final shelter = item.shelter;
     final available = shelter.availablePlaces;
-    final progress = shelter.capacityTotal == 0
-        ? 0.0
-        : (available / shelter.capacityTotal).clamp(0.0, 1.0);
     final capacityColor = shelter.availabilityColor;
     final capacityTextColor = capacityColor == AppColors.secondary
         ? AppColors.primary
@@ -350,12 +304,12 @@ class _RecommendationCard extends StatelessWidget {
                       children: [
                         const Expanded(
                           child: Text(
-                            'Capacité disponible',
+                            'Occupation',
                             style: TextStyle(fontSize: 12),
                           ),
                         ),
                         Text(
-                          '$available / ${shelter.capacityTotal} places',
+                          '${shelter.capacityOccupied}/${shelter.capacityTotal} · $available libres',
                           style: TextStyle(
                             color: capacityTextColor,
                             fontWeight: FontWeight.bold,
@@ -366,7 +320,7 @@ class _RecommendationCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 7),
                     LinearProgressIndicator(
-                      value: progress,
+                      value: shelter.occupancyRatio,
                       minHeight: 5,
                       borderRadius: BorderRadius.circular(5),
                       color: capacityColor,
@@ -405,9 +359,6 @@ class _ShelterTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final shelter = item.shelter;
     final available = shelter.availablePlaces;
-    final progress = shelter.capacityTotal == 0
-        ? 0.0
-        : (available / shelter.capacityTotal).clamp(0.0, 1.0);
     final capacityColor = shelter.availabilityColor;
     return Card(
       margin: EdgeInsets.zero,
@@ -443,6 +394,24 @@ class _ShelterTile extends StatelessWidget {
                   ShelterValidationChip(
                     status: shelter.validationStatus,
                     prominent: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  ShelterStatusText(status: shelter.status),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      shelter.address,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.inactive,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -491,7 +460,7 @@ class _ShelterTile extends StatelessWidget {
                       children: [
                         const Expanded(
                           child: Text(
-                            'Capacité disponible',
+                            'Occupation',
                             style: TextStyle(
                               color: AppColors.inactive,
                               fontSize: 12,
@@ -499,7 +468,7 @@ class _ShelterTile extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '$available / ${shelter.capacityTotal} places',
+                          '${shelter.capacityOccupied}/${shelter.capacityTotal} · $available libres',
                           style: TextStyle(
                             color: capacityColor,
                             fontWeight: FontWeight.w700,
@@ -512,7 +481,7 @@ class _ShelterTile extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: LinearProgressIndicator(
-                        value: progress,
+                        value: shelter.occupancyRatio,
                         minHeight: 5,
                         color: capacityColor,
                         backgroundColor: Colors.black.withValues(alpha: 0.08),

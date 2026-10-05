@@ -38,6 +38,13 @@ extension ShelterAvailabilityUi on Shelter {
   int get availablePlaces =>
       (capacityTotal - capacityOccupied).clamp(0, capacityTotal);
 
+  /// Part des places occupées, 0..1. C'est ce que la barre de capacité doit
+  /// montrer: une barre pleine = refuge plein. L'ancien calcul utilisait le
+  /// ratio *disponible*, donc un refuge complet affichait une barre vide.
+  double get occupancyRatio => capacityTotal == 0
+      ? 0.0
+      : (capacityOccupied / capacityTotal).clamp(0.0, 1.0);
+
   bool get canStartNavigation =>
       validationStatus == ValidationStatus.validated &&
       (status == ShelterStatus.open || status == ShelterStatus.almostFull) &&
@@ -144,7 +151,7 @@ class ShelterValidationChip extends StatelessWidget {
         Icons.schedule,
       ),
       ValidationStatus.rejected => (
-        'Refusé',
+        'Rejeté',
         const Color(0xFFC62828),
         Icons.cancel_outlined,
       ),

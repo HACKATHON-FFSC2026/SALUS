@@ -40,11 +40,7 @@ class CallEmergencyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = <(String, String)>[
-      ('Police', numbers.police),
-      ('Pompiers', numbers.fire),
-      if (numbers.ambulance != null) ('SAMU', numbers.ambulance!),
-    ];
+    final entries = numbers.labelledEntries;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -58,18 +54,19 @@ class CallEmergencyButton extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
+          // Wrap et non Row: avec le 112 ajouté, on peut avoir 4 numéros, et
+          // 4 Expanded sur un écran étroit débordent.
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
             children: [
-              for (var i = 0; i < entries.length; i++) ...[
-                if (i > 0) const SizedBox(width: 10),
-                Expanded(
-                  child: _EmergencyChip(
-                    label: entries[i].$1,
-                    number: entries[i].$2,
-                    onTap: () => _call(context, entries[i].$2),
-                  ),
+              for (final entry in entries)
+                _EmergencyChip(
+                  label: entry.$1,
+                  number: entry.$2,
+                  onTap: () => _call(context, entry.$2),
                 ),
-              ],
             ],
           ),
         ],
@@ -98,9 +95,9 @@ class _EmergencyChip extends StatelessWidget {
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           backgroundColor: AppColors.surface,
-          minimumSize: const Size(0, 54),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          side: BorderSide(color: AppColors.sos.withValues(alpha: 0.35), width: 1.5),
+          minimumSize: const Size(88, 54),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          side: BorderSide(color: AppColors.sos.withValues(alpha: 0.45), width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
         child: Column(

@@ -101,6 +101,14 @@ class AdminPortalUseCases {
     String uid,
   ) => _repository.setShelterValidationStatus(id, status, uid);
 
+  Future<void> updateShelterOccupancy(
+    String id, {
+    required int capacityOccupied,
+  }) => _repository.updateShelterOccupancy(
+    id,
+    capacityOccupied: capacityOccupied,
+  );
+
   Future<void> createShelter({
     required String name,
     required String address,

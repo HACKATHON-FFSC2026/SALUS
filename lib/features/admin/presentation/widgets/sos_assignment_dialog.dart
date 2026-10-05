@@ -41,11 +41,11 @@ class _OrganizationAssignmentDialogState
     try {
       await widget.onAssign(organizationId);
       if (mounted) Navigator.of(context).pop(true);
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = 'Affectation impossible : $error';
+        _error = 'Affectation impossible. Vérifiez la connexion puis réessayez.';
       });
     }
   }

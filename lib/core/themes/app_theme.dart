@@ -2,11 +2,25 @@ import 'package:flutter/material.dart';
 
 abstract class AppColors {
   static const primary = Color(0xFF14213D);
+
+  /// Accent de marque. Ne pas l'utiliser comme couleur de texte sur fond
+  /// clair : #FCA311 ne donne que 2:1 sur blanc. Utiliser [secondaryText].
   static const secondary = Color(0xFFFCA311);
+
+  /// Variante de [secondary] lisible en texte ou icône sur fond clair
+  /// (6,3:1 sur blanc).
+  static const secondaryText = Color(0xFF8A5300);
+
   static const background = Color(0xFFF5F5F0);
   static const surface = Colors.white;
-  static const inactive = Color(0xFF9AA0A6);
-  static const sos = Colors.black;
+
+  /// Gris « secondaire ». L'ancien #9AA0A6 ne donnait que 2,4:1 sur le fond :
+  /// tous les libellés secondaires échouaient WCAG AA. #5F6368 le tient.
+  static const inactive = Color(0xFF5F6368);
+
+  /// Rouge d'urgence. Le noir cassait toute la lecture « rouge = danger » de
+  /// l'application (bouton SOS, pastilles, numéros d'urgence, erreurs).
+  static const sos = Color(0xFFC62828);
 }
 
 ThemeData buildAppTheme() {

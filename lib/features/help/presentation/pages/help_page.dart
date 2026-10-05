@@ -146,7 +146,7 @@ class _OrganizationCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(Icons.verified, color: AppColors.secondary, size: 19),
+              const Icon(Icons.verified, color: AppColors.secondaryText, size: 19),
             ],
           ),
           const SizedBox(height: 6),
@@ -257,20 +257,20 @@ class _DirectoryMessage extends StatelessWidget {
 
 String _organizationErrorMessage(Object error) {
   if (error is TimeoutException) {
-    return 'Le chargement prend trop de temps. Vérifie ta connexion puis réessaie.';
+    return 'Le chargement prend trop de temps. Vérifiez votre connexion puis réessayez.';
   }
   if (error is FirebaseException) {
     return switch (error.code) {
       'permission-denied' =>
-        'Firebase a refusé la lecture. Vérifie dans le projet salus-bd055 que les règles publiées autorisent la lecture des organisations vérifiées et actives.',
+        'Le service est momentanément indisponible. Réessayez dans un instant.',
       'failed-precondition' =>
-        'Index Firestore manquant. Déploie les index du projet puis réessaie.',
+        'Le service est en cours de configuration. Réessayez plus tard.',
       'unavailable' =>
-        'Firestore est momentanément indisponible. Réessaie dans un instant.',
-      _ => 'Impossible de charger les organisations (${error.code}).',
+        'Connexion indisponible. Vérifiez votre réseau puis réessayez.',
+      _ => 'Impossible de charger les organisations. Réessayez plus tard.',
     };
   }
-  return 'Impossible de charger les organisations.';
+  return 'Impossible de charger les organisations. Réessayez plus tard.';
 }
 
 String _organizationType(String value) => switch (value) {

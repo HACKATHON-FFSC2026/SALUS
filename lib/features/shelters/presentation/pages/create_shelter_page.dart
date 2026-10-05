@@ -126,7 +126,10 @@ class _CreateShelterPageState extends ConsumerState<CreateShelterPage> {
       next,
     ) {
       if (next.status == ShelterCreationStatus.success) {
-        _notify('Refuge créé avec succès.', ToastificationType.success);
+        _notify(
+          'Refuge créé. Il sera visible après validation.',
+          ToastificationType.success,
+        );
         context.router.maybePop();
       } else if (next.status == ShelterCreationStatus.error) {
         _notify(
@@ -334,7 +337,7 @@ class _CreateShelterPageState extends ConsumerState<CreateShelterPage> {
                 Text(
                   location == null ? 'Sélectionner' : 'Modifier',
                   style: const TextStyle(
-                    color: AppColors.secondary,
+                    color: AppColors.secondaryText,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
