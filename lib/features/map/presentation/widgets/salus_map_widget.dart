@@ -4,8 +4,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:salus/app/di/app_dependencies.dart';
-import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/app/routes/app_router.dart';
@@ -15,6 +13,7 @@ import 'package:salus/features/map/presentation/providers/location_provider.dart
 import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/map/presentation/utils/map_animation_helper.dart';
+import 'package:salus/features/map/presentation/widgets/zone_bottom_sheet.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
 import 'package:salus/features/risks/presentation/widgets/disaster_marker_pin.dart';
 import 'package:toastification/toastification.dart';
@@ -23,6 +22,9 @@ import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_shee
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
 import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
+import 'package:salus/features/reports/presentation/widgets/report_issue_action.dart';
+import 'package:salus/features/reports/presentation/providers/report_providers.dart';
+import 'package:salus/features/reports/presentation/widgets/road_incident_marker.dart';
 
 class SalusMapWidget extends ConsumerStatefulWidget {
   const SalusMapWidget({super.key, this.tileProvider});
@@ -39,13 +41,61 @@ class SalusMapWidget extends ConsumerStatefulWidget {
 class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     with TickerProviderStateMixin {
   final MapController _mapController = MapController();
+  // Résultat du dernier hit-test sur les polygones de zones; lu par
+  // FlutterMap.onTap pour ouvrir la fiche de la zone touchée.
+  final LayerHitNotifier<Zone> _polygonHitNotifier = ValueNotifier(null);
   // ponytail: une seule animation à la fois, l'ancienne est annulée.
   // Sans ça, double-tap = 2 tickers sur SingleTickerProvider = crash.
   AnimationController? _anim;
 
   // Position par défaut (Antananarivo) avant la première fixation GPS
   static const LatLng _defaultLocation = LatLng(-18.8792, 47.5079);
-  bool _showLegend = false;
+
+  void _showMapLegend() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (context) => const SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: _MapLegend(),
+        ),
+      ),
+    );
+  }
+
+  void _showMapActions(WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.report_problem_outlined),
+              title: const Text('Signaler un incident routier'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                launchRoadIncidentReport(context, ref);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Comprendre la carte'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _showMapLegend();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -62,6 +112,7 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
   void dispose() {
     _anim?.stop();
     _anim?.dispose();
+    _polygonHitNotifier.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -108,6 +159,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
       locationProvider.select((s) => s.position),
     );
     final locationStatus = ref.watch(locationProvider.select((s) => s.status));
+    final roadIncidentsAsync = ref.watch(myRoadIncidentsProvider);
+    final roadIncidents = roadIncidentsAsync.value ?? const [];
     final sheltersAsync = ref.watch(validatedSheltersProvider);
     final shelters = sheltersAsync.value ?? const <Shelter>[];
     final externalRiskZones =
@@ -126,28 +179,23 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
         (ref.watch(filteredSafeZonesProvider).value ?? const <Zone>[])
             .where((z) => z.geometry.isNotEmpty)
             .toList();
-    final position = locationPosition;
-    final geofence = ref.watch(geofenceServiceProvider);
-    final userDanger = position == null
-        ? const <Zone>[]
-        : riskZones.where((zone) {
-            return zone.type == ZoneType.risk &&
-                geofence.isUserInZone(
-                  firestore.GeoPoint(position.latitude, position.longitude),
-                  zone,
-                );
-          }).toList();
-
     return Stack(
       fit: StackFit.expand,
       children: [
         FlutterMap(
           mapController: _mapController,
-          options: const MapOptions(
+          options: MapOptions(
             initialCenter: _defaultLocation,
             initialZoom: 13.0,
             minZoom: 3.0,
             maxZoom: 18.0,
+            // Clic dans un polygone de zone (sûre ou catastrophe) : le
+            // hit-test du painter alimente _polygonHitNotifier avant le
+            // callback (pattern du flutter_map example « polygons.dart »).
+            onTap: (tapPosition, _) {
+              final zone = _polygonHitNotifier.value?.hitValues.firstOrNull;
+              if (zone != null) showZoneBottomSheet(context, zone);
+            },
           ),
           children: [
             TileLayer(
@@ -156,7 +204,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
               tileProvider: widget.tileProvider,
             ),
             if (safeZones.isNotEmpty || riskZones.isNotEmpty)
-              PolygonLayer(
+              PolygonLayer<Zone>(
+                hitNotifier: _polygonHitNotifier,
                 polygons: [
                   for (final zone in safeZones) zone.toPolygon(),
                   for (final zone in riskZones) zone.toPolygon(),
@@ -171,7 +220,19 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                     point: z.center,
                     width: 40,
                     height: 40,
-                    child: DisasterMarkerPin(zone: z),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => showZoneBottomSheet(context, z),
+                      child: DisasterMarkerPin(zone: z),
+                    ),
+                  ),
+                for (final incident in roadIncidents)
+                  Marker(
+                    key: ValueKey('road-incident-${incident.id}'),
+                    point: LatLng(incident.latitude, incident.longitude),
+                    width: 42,
+                    height: 42,
+                    child: RoadIncidentMarker(incident: incident),
                   ),
               ],
             ),
@@ -247,12 +308,20 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
 
         if (sheltersAsync.hasError ||
             sheltersAsync.isLoading ||
-            shelters.isEmpty)
+            shelters.isEmpty ||
+            roadIncidentsAsync.hasError)
           Positioned(
-            bottom: 100,
             left: 16,
             right: 16,
-            child: _shelterBanner(sheltersAsync),
+            bottom: 100,
+            child: _mapStatusBanner(
+              sheltersAsync,
+              hasShelterNotice:
+                  sheltersAsync.hasError ||
+                  sheltersAsync.isLoading ||
+                  shelters.isEmpty,
+              hasRoadIncidentError: roadIncidentsAsync.hasError,
+            ),
           ),
 
         Positioned(
@@ -261,9 +330,6 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_showLegend) const _MapLegend(),
-              const SizedBox(width: 6),
-              // Vue AR des refuges et des zones proches.
               FloatingActionButton.small(
                 heroTag: 'ar_view_fab',
                 backgroundColor: AppColors.surface,
@@ -272,30 +338,31 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                 onPressed: () => context.router.push(const ArViewRoute()),
                 child: const Icon(Icons.view_in_ar_outlined),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               FloatingActionButton.small(
-                heroTag: 'shelter_legend_fab',
+                heroTag: 'map_actions_fab',
                 backgroundColor: AppColors.surface,
                 foregroundColor: AppColors.primary,
-                tooltip: _showLegend
-                    ? 'Masquer la légende'
-                    : 'Légende de la carte',
-                onPressed: () => setState(() => _showLegend = !_showLegend),
-                child: Icon(_showLegend ? Icons.close : Icons.info_outline),
+                tooltip: 'Autres actions de la carte',
+                onPressed: () => _showMapActions(ref),
+                child: const Icon(Icons.more_horiz),
               ),
             ],
           ),
         ),
 
-        // Contrôle secondaire de carte, sous le bandeau de situation.
         Positioned(
-          top: MediaQuery.paddingOf(context).top + 76,
+          top: MediaQuery.paddingOf(context).top + 12,
           right: 16,
           child: FloatingActionButton.small(
             heroTag: 'recenter_gps_fab',
             backgroundColor: AppColors.surface,
             foregroundColor: AppColors.primary,
-            elevation: 3,
+            tooltip: locationStatus == LocationStatus.loading
+                ? 'Localisation en cours'
+                : locationPosition == null
+                ? 'Rechercher ma position'
+                : 'Recentrer sur ma position',
             onPressed: () => _onRecenterPressed(locationPosition),
             child: locationStatus == LocationStatus.loading
                 ? const SizedBox(
@@ -309,74 +376,67 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                 : const Icon(Icons.my_location),
           ),
         ),
-
-        // Alerte compacte sous le bandeau principal, près du haut de l'écran.
-        // On laisse une marge à droite pour le bouton de recentrage.
-        if (userDanger.isNotEmpty)
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + 76,
-            left: 16,
-            right: 72,
-            child: Material(
-              color: Colors.red.shade50.withValues(alpha: 0.96),
-              elevation: 3,
-              borderRadius: BorderRadius.circular(14),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 9,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      color: Colors.red,
-                      size: 19,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Zone à risque · ${userDanger.first.label}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xff8f2020),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
 
-  Widget _shelterBanner(AsyncValue<List<Shelter>> value) {
-    final message = value.hasError
-        ? 'Impossible de charger les refuges.'
-        : value.isLoading && !value.hasValue
-        ? 'Chargement des refuges…'
-        : 'Aucun refuge disponible à proximité.';
-    return Card(
-      color: AppColors.surface.withValues(alpha: 0.9),
-      child: ListTile(
-        dense: true,
-        leading: const Icon(Icons.home_work_outlined),
-        title: Text(message),
-        trailing: value.hasError
-            ? TextButton(
-                onPressed: () => ref.invalidate(validatedSheltersProvider),
-                child: const Text('Réessayer'),
-              )
-            : null,
+  Widget _mapStatusBanner(
+    AsyncValue<List<Shelter>> shelters, {
+    required bool hasShelterNotice,
+    required bool hasRoadIncidentError,
+  }) => Card(
+    color: AppColors.surface.withValues(alpha: 0.96),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasShelterNotice)
+            Row(
+              children: [
+                const Icon(Icons.home_work_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    shelters.hasError
+                        ? 'Impossible de charger les refuges.'
+                        : shelters.isLoading && !shelters.hasValue
+                        ? 'Chargement des refuges…'
+                        : 'Aucun refuge disponible à proximité.',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                if (shelters.hasError)
+                  TextButton(
+                    onPressed: () => ref.invalidate(validatedSheltersProvider),
+                    child: const Text('Réessayer'),
+                  ),
+              ],
+            ),
+          if (hasShelterNotice && hasRoadIncidentError)
+            const Divider(height: 12),
+          if (hasRoadIncidentError)
+            const Row(
+              children: [
+                Icon(
+                  Icons.report_problem_outlined,
+                  size: 20,
+                  color: AppColors.sos,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Impossible de charger vos signalements routiers.',
+                    style: TextStyle(color: AppColors.sos, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }
 
 Color _zoneColor(Severity? severity) => switch (severity) {
@@ -404,42 +464,37 @@ class _MapLegend extends StatelessWidget {
       Severity.high: 'Risque élevé',
       Severity.critical: 'Risque critique',
     };
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width - 90,
-      ),
-      child: Card(
-        color: AppColors.surface.withValues(alpha: 0.92),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 4,
-            children: [
-              for (final entry in severities.entries)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.warning_amber_rounded,
-                      size: 13,
-                      color: _zoneColor(entry.key),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(entry.value, style: const TextStyle(fontSize: 11)),
-                  ],
-                ),
-              for (final status in statuses)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(status.icon, size: 13, color: status.foregroundColor),
-                    const SizedBox(width: 4),
-                    Text(status.label, style: const TextStyle(fontSize: 11)),
-                  ],
-                ),
-            ],
-          ),
+    return Card(
+      color: AppColors.surface,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          children: [
+            for (final entry in severities.entries)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    size: 13,
+                    color: _zoneColor(entry.key),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(entry.value, style: const TextStyle(fontSize: 11)),
+                ],
+              ),
+            for (final status in statuses)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(status.icon, size: 13, color: status.foregroundColor),
+                  const SizedBox(width: 4),
+                  Text(status.label, style: const TextStyle(fontSize: 11)),
+                ],
+              ),
+          ],
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:salus/features/ar/presentation/models/salus_ar_annotation.dart';
+import 'package:salus/features/map/presentation/widgets/zone_bottom_sheet.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
 
 /// Étiquette superposée à la caméra pour un [SalusArAnnotation].
@@ -13,9 +14,15 @@ class ArAnnotationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final poi = annotation.poi;
     return GestureDetector(
-      onTap: poi.shelter == null
-          ? null
-          : () => showShelterBottomSheet(context, poi.shelter!),
+      onTap: () {
+        final shelter = poi.shelter;
+        final zone = poi.zone;
+        if (shelter != null) {
+          showShelterBottomSheet(context, shelter);
+        } else if (zone != null) {
+          showZoneBottomSheet(context, zone);
+        }
+      },
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.55),

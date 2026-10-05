@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/features/help/domain/entities/public_organization.dart';
@@ -45,6 +47,28 @@ class HelpPage extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 24),
+          // Contenu hors connexion du spec §1.1 : premier secours + mode
+          // évacuation. Toujours en premier, l'annuaire demande le réseau.
+          Row(
+            children: [
+              Expanded(
+                child: _OfflineGuideTile(
+                  icon: Icons.health_and_safety_outlined,
+                  label: 'Premiers\nsecours',
+                  onTap: () => context.router.push(const FirstAidRoute()),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _OfflineGuideTile(
+                  icon: Icons.directions_run,
+                  label: 'Mode\névacuation',
+                  onTap: () => context.router.push(EvacuationGuideRoute()),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           const Text(
@@ -97,6 +121,12 @@ class _OrganizationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
     margin: const EdgeInsets.only(bottom: 10),
+    color: AppColors.surface,
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: BorderSide(color: AppColors.inactive.withValues(alpha: 0.25)),
+    ),
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -249,3 +279,46 @@ String _organizationType(String value) => switch (value) {
   'emergencyServices' => 'Services d’urgence',
   _ => 'Organisation de secours',
 };
+
+class _OfflineGuideTile extends StatelessWidget {
+  const _OfflineGuideTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.secondary.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            children: [
+              Icon(icon, color: AppColors.primary, size: 30),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

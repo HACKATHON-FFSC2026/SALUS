@@ -6,6 +6,7 @@ import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_data_row.dart';
+import 'package:salus/features/admin/presentation/widgets/assigned_road_reports_map.dart';
 
 class OperationsPortalCollection extends StatelessWidget {
   const OperationsPortalCollection({
@@ -201,6 +202,11 @@ class OperationsPortalDataTable extends ConsumerWidget {
               ),
             ),
             const Divider(height: 1),
+            if (collection == AdminCollection.reports)
+              AssignedRoadReportsMap(
+                reports: records,
+                onTapReport: onViewReport,
+              ),
             for (final record in records)
               OperationsPortalDataRow(
                 collection: collection,

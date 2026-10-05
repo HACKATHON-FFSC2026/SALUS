@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Report {
 
- String get id; String get reporterId; ReportTargetType get targetType; String get targetId; ReportReason get reason; String? get description; ReportStatus get status; String? get reviewedBy;@TimestampConverter() DateTime get createdAt;
+ String get id; String get reporterId; ReportTargetType get targetType; String get targetId; ReportReason get reason; String? get description;@GeoPointConverter() GeoPoint? get targetLocation; ReportStatus get status; String? get reviewedBy;@TimestampConverter() DateTime get createdAt;
 /// Create a copy of Report
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,20 +30,20 @@ $ReportCopyWith<Report> get copyWith => _$ReportCopyWithImpl<Report>(this as Rep
 @override
 bool operator ==(Object other) {
   final _this = this as Report;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Report&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.reporterId, _this.reporterId) || other.reporterId == _this.reporterId)&&(identical(other.targetType, _this.targetType) || other.targetType == _this.targetType)&&(identical(other.targetId, _this.targetId) || other.targetId == _this.targetId)&&(identical(other.reason, _this.reason) || other.reason == _this.reason)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.reviewedBy, _this.reviewedBy) || other.reviewedBy == _this.reviewedBy)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Report&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.reporterId, _this.reporterId) || other.reporterId == _this.reporterId)&&(identical(other.targetType, _this.targetType) || other.targetType == _this.targetType)&&(identical(other.targetId, _this.targetId) || other.targetId == _this.targetId)&&(identical(other.reason, _this.reason) || other.reason == _this.reason)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.targetLocation, _this.targetLocation) || other.targetLocation == _this.targetLocation)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.reviewedBy, _this.reviewedBy) || other.reviewedBy == _this.reviewedBy)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as Report;
-  return Object.hash(runtimeType,_this.id,_this.reporterId,_this.targetType,_this.targetId,_this.reason,_this.description,_this.status,_this.reviewedBy,_this.createdAt);
+  return Object.hash(runtimeType,_this.id,_this.reporterId,_this.targetType,_this.targetId,_this.reason,_this.description,_this.targetLocation,_this.status,_this.reviewedBy,_this.createdAt);
 }
 
 @override
 String toString() {
   final _this = this as Report;
-  return 'Report(id: ${_this.id}, reporterId: ${_this.reporterId}, targetType: ${_this.targetType}, targetId: ${_this.targetId}, reason: ${_this.reason}, description: ${_this.description}, status: ${_this.status}, reviewedBy: ${_this.reviewedBy}, createdAt: ${_this.createdAt})';
+  return 'Report(id: ${_this.id}, reporterId: ${_this.reporterId}, targetType: ${_this.targetType}, targetId: ${_this.targetId}, reason: ${_this.reason}, description: ${_this.description}, targetLocation: ${_this.targetLocation}, status: ${_this.status}, reviewedBy: ${_this.reviewedBy}, createdAt: ${_this.createdAt})';
 }
 
 
@@ -54,7 +54,7 @@ abstract mixin class $ReportCopyWith<$Res>  {
   factory $ReportCopyWith(Report value, $Res Function(Report) _then) = _$ReportCopyWithImpl;
 @useResult
 $Res call({
- String id, String reporterId, ReportTargetType targetType, String targetId, ReportReason reason, String? description, ReportStatus status, String? reviewedBy,@TimestampConverter() DateTime createdAt
+ String id, String reporterId, ReportTargetType targetType, String targetId, ReportReason reason, String? description,@GeoPointConverter() GeoPoint? targetLocation, ReportStatus status, String? reviewedBy,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -71,7 +71,7 @@ class _$ReportCopyWithImpl<$Res>
 
 /// Create a copy of Report
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? reporterId = null,Object? targetType = null,Object? targetId = null,Object? reason = null,Object? description = freezed,Object? status = null,Object? reviewedBy = freezed,Object? createdAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? reporterId = null,Object? targetType = null,Object? targetId = null,Object? reason = null,Object? description = freezed,Object? targetLocation = freezed,Object? status = null,Object? reviewedBy = freezed,Object? createdAt = null,}) {
   return _then(Report(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,reporterId: null == reporterId ? _self.reporterId : reporterId // ignore: cast_nullable_to_non_nullable
@@ -79,7 +79,8 @@ as String,targetType: null == targetType ? _self.targetType : targetType // igno
 as ReportTargetType,targetId: null == targetId ? _self.targetId : targetId // ignore: cast_nullable_to_non_nullable
 as String,reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
 as ReportReason,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
-as String?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String?,targetLocation: freezed == targetLocation ? _self.targetLocation : targetLocation // ignore: cast_nullable_to_non_nullable
+as GeoPoint?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ReportStatus,reviewedBy: freezed == reviewedBy ? _self.reviewedBy : reviewedBy // ignore: cast_nullable_to_non_nullable
 as String?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,
@@ -167,10 +168,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String reporterId,  ReportTargetType targetType,  String targetId,  ReportReason reason,  String? description,  ReportStatus status,  String? reviewedBy, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String reporterId,  ReportTargetType targetType,  String targetId,  ReportReason reason,  String? description, @GeoPointConverter()  GeoPoint? targetLocation,  ReportStatus status,  String? reviewedBy, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Report() when $default != null:
-return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.reason,_that.description,_that.status,_that.reviewedBy,_that.createdAt);case _:
+return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.reason,_that.description,_that.targetLocation,_that.status,_that.reviewedBy,_that.createdAt);case _:
   return orElse();
 
 }
@@ -188,10 +189,10 @@ return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String reporterId,  ReportTargetType targetType,  String targetId,  ReportReason reason,  String? description,  ReportStatus status,  String? reviewedBy, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String reporterId,  ReportTargetType targetType,  String targetId,  ReportReason reason,  String? description, @GeoPointConverter()  GeoPoint? targetLocation,  ReportStatus status,  String? reviewedBy, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _Report():
-return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.reason,_that.description,_that.status,_that.reviewedBy,_that.createdAt);case _:
+return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.reason,_that.description,_that.targetLocation,_that.status,_that.reviewedBy,_that.createdAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -208,10 +209,10 @@ return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String reporterId,  ReportTargetType targetType,  String targetId,  ReportReason reason,  String? description,  ReportStatus status,  String? reviewedBy, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String reporterId,  ReportTargetType targetType,  String targetId,  ReportReason reason,  String? description, @GeoPointConverter()  GeoPoint? targetLocation,  ReportStatus status,  String? reviewedBy, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _Report() when $default != null:
-return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.reason,_that.description,_that.status,_that.reviewedBy,_that.createdAt);case _:
+return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.reason,_that.description,_that.targetLocation,_that.status,_that.reviewedBy,_that.createdAt);case _:
   return null;
 
 }
@@ -223,7 +224,7 @@ return $default(_that.id,_that.reporterId,_that.targetType,_that.targetId,_that.
 @JsonSerializable()
 
 class _Report implements Report {
-  const _Report({required this.id, required this.reporterId, required this.targetType, required this.targetId, required this.reason, this.description, this.status = ReportStatus.open, this.reviewedBy, @TimestampConverter() required this.createdAt});
+  const _Report({required this.id, required this.reporterId, required this.targetType, required this.targetId, required this.reason, this.description, @GeoPointConverter() this.targetLocation, this.status = ReportStatus.open, this.reviewedBy, @TimestampConverter() required this.createdAt});
   factory _Report.fromJson(Map<String, dynamic> json) => _$ReportFromJson(json);
 
 @override final  String id;
@@ -232,6 +233,7 @@ class _Report implements Report {
 @override final  String targetId;
 @override final  ReportReason reason;
 @override final  String? description;
+@override@GeoPointConverter() final  GeoPoint? targetLocation;
 @override@JsonKey() final  ReportStatus status;
 @override final  String? reviewedBy;
 @override@TimestampConverter() final  DateTime createdAt;
@@ -249,18 +251,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Report&&(identical(other.id, id) || other.id == id)&&(identical(other.reporterId, reporterId) || other.reporterId == reporterId)&&(identical(other.targetType, targetType) || other.targetType == targetType)&&(identical(other.targetId, targetId) || other.targetId == targetId)&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.description, description) || other.description == description)&&(identical(other.status, status) || other.status == status)&&(identical(other.reviewedBy, reviewedBy) || other.reviewedBy == reviewedBy)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Report&&(identical(other.id, id) || other.id == id)&&(identical(other.reporterId, reporterId) || other.reporterId == reporterId)&&(identical(other.targetType, targetType) || other.targetType == targetType)&&(identical(other.targetId, targetId) || other.targetId == targetId)&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.description, description) || other.description == description)&&(identical(other.targetLocation, targetLocation) || other.targetLocation == targetLocation)&&(identical(other.status, status) || other.status == status)&&(identical(other.reviewedBy, reviewedBy) || other.reviewedBy == reviewedBy)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,reporterId,targetType,targetId,reason,description,status,reviewedBy,createdAt);
+    return Object.hash(runtimeType,id,reporterId,targetType,targetId,reason,description,targetLocation,status,reviewedBy,createdAt);
 }
 
 @override
 String toString() {
-    return 'Report(id: $id, reporterId: $reporterId, targetType: $targetType, targetId: $targetId, reason: $reason, description: $description, status: $status, reviewedBy: $reviewedBy, createdAt: $createdAt)';
+    return 'Report(id: $id, reporterId: $reporterId, targetType: $targetType, targetId: $targetId, reason: $reason, description: $description, targetLocation: $targetLocation, status: $status, reviewedBy: $reviewedBy, createdAt: $createdAt)';
 }
 
 
@@ -271,7 +273,7 @@ abstract mixin class _$ReportCopyWith<$Res> implements $ReportCopyWith<$Res> {
   factory _$ReportCopyWith(_Report value, $Res Function(_Report) _then) = __$ReportCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String reporterId, ReportTargetType targetType, String targetId, ReportReason reason, String? description, ReportStatus status, String? reviewedBy,@TimestampConverter() DateTime createdAt
+ String id, String reporterId, ReportTargetType targetType, String targetId, ReportReason reason, String? description,@GeoPointConverter() GeoPoint? targetLocation, ReportStatus status, String? reviewedBy,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -288,7 +290,7 @@ class __$ReportCopyWithImpl<$Res>
 
 /// Create a copy of Report
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? reporterId = null,Object? targetType = null,Object? targetId = null,Object? reason = null,Object? description = freezed,Object? status = null,Object? reviewedBy = freezed,Object? createdAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? reporterId = null,Object? targetType = null,Object? targetId = null,Object? reason = null,Object? description = freezed,Object? targetLocation = freezed,Object? status = null,Object? reviewedBy = freezed,Object? createdAt = null,}) {
   return _then(_Report(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,reporterId: null == reporterId ? _self.reporterId : reporterId // ignore: cast_nullable_to_non_nullable
@@ -296,7 +298,8 @@ as String,targetType: null == targetType ? _self.targetType : targetType // igno
 as ReportTargetType,targetId: null == targetId ? _self.targetId : targetId // ignore: cast_nullable_to_non_nullable
 as String,reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
 as ReportReason,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
-as String?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String?,targetLocation: freezed == targetLocation ? _self.targetLocation : targetLocation // ignore: cast_nullable_to_non_nullable
+as GeoPoint?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ReportStatus,reviewedBy: freezed == reviewedBy ? _self.reviewedBy : reviewedBy // ignore: cast_nullable_to_non_nullable
 as String?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,

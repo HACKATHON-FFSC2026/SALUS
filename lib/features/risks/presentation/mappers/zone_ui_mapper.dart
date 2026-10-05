@@ -47,6 +47,14 @@ extension ZoneUiMapper on Zone {
         DisasterType.volcano => 'Volcan',
         _ => 'Catastrophe',
       };
+
+  /// Nature de la zone, lisible par l'utilisateur.
+  /// ponytail: les zones sûres viennent uniquement de l'heuristique
+  /// d'altitude; brancher la nature ici si une autre source est ajoutée.
+  String get nature => switch (type) {
+        ZoneType.safe => 'Élévation (terrain surélevé)',
+        ZoneType.risk => label,
+      };
  
   IconData get icon => switch (disasterType) {
         DisasterType.earthquake => Icons.warning_amber_rounded, // pas d'icône séisme dans cette version de Flutter
@@ -58,10 +66,13 @@ extension ZoneUiMapper on Zone {
         _ => Icons.warning_amber_rounded,
       };
  
-  Polygon toPolygon() => Polygon(
+  /// `hitValue` porte la zone : identifie le polygone touché au clic
+  /// (fiche via [LayerHitNotifier] sur la carte).
+  Polygon<Zone> toPolygon() => Polygon<Zone>(
         points: toLatLngList,
         color: fillColor,
         borderColor: borderColor,
         borderStrokeWidth: type == ZoneType.safe ? 1 : 2,
+        hitValue: this,
       );
 }
