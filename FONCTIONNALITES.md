@@ -90,7 +90,9 @@ pour les organisations utilise `organizationMember`.
 - La recommandation de proximité utilise la position connue et la distance à
   vol d’oiseau. Elle sélectionne un refuge validé, ouvert ou presque complet,
   qui dispose encore de places et qui n’est pas situé dans une zone à risque
-  active connue.
+  active connue. Elle est suspendue tant que les zones à risque GDACS et
+  Firestore ne sont pas toutes deux chargées ; si une source échoue, l'écran
+  l'indique et ne présente pas de recommandation automatique.
 - Les détails incluent adresse, capacité, statut et ressources disponibles.
 - L’itinéraire est ouvert dans une application ou un site cartographique
   externe ; SALUS ne fournit pas le guidage routier lui-même.
@@ -243,8 +245,9 @@ présente dans l’application décrite par ce dépôt.
 - **Itinéraires d’évacuation** : l’application ouvre une navigation externe
   vers le refuge ; elle écarte les destinations connues dans une zone à risque,
   mais ne calcule pas un trajet sûr évitant les risques sur le parcours routier.
-  Une confirmation avertit l’utilisateur que le trajet externe n’est pas vérifié ;
-  elle précise aussi si les données de risque sont indisponibles ou incomplètes.
+  Une confirmation avertit l’utilisateur que le tracé externe n’est pas vérifié
+  et qu’aucun itinéraire sûr n’est garanti ; elle précise aussi si les données
+  de risque sont indisponibles ou incomplètes.
 - **Tests** : les tests Flutter présents couvrent des contrôleurs, pages,
   données SOS, carte et refuges. `firestore-tests/rules.test.mjs` couvre les
   règles via l’émulateur si sa configuration et ses dépendances sont installées.

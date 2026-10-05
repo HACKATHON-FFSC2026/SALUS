@@ -35,10 +35,14 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
     final externalRisks = ref.watch(riskZonesProvider);
     final firestoreRisks = ref.watch(activeRiskZonesProvider);
     final hasRiskData = externalRisks.hasValue || firestoreRisks.hasValue;
+    final hasCompleteRiskData =
+        externalRisks.hasValue && firestoreRisks.hasValue;
     final riskDataUnavailable =
         !hasRiskData && externalRisks.hasError && firestoreRisks.hasError;
     final riskDataIncomplete =
-        !hasRiskData || externalRisks.hasError || firestoreRisks.hasError;
+        !hasCompleteRiskData ||
+        externalRisks.hasError ||
+        firestoreRisks.hasError;
     final riskZonesById = <String, Zone>{
       for (final zone in externalRisks.value ?? const <Zone>[])
         if (zone.isActive && zone.type == ZoneType.risk) zone.id: zone,
@@ -100,7 +104,7 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
           // Sans GPS, ne pas présenter l'ordre alphabétique comme une
           // recommandation de proximité.
           final recommended =
-              position == null || eligible.isEmpty || !hasRiskData
+              position == null || eligible.isEmpty || riskDataIncomplete
               ? null
               : eligible.first;
           final others = ranked.where((item) => item != recommended).toList();
@@ -154,17 +158,15 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                           ref.read(locationProvider.notifier).refresh(),
                     ),
                   ),
-                if (!hasRiskData ||
-                    externalRisks.hasError ||
-                    firestoreRisks.hasError)
+                if (riskDataIncomplete)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
                     child: _RiskDataNotice(
                       message: riskDataUnavailable
                           ? 'Les zones de risque sont indisponibles. Aucune recommandation automatique ne sera faite.'
-                          : !hasRiskData
-                          ? 'Vérification des zones de risque en cours. La recommandation est suspendue.'
-                          : 'Certaines sources de risque sont indisponibles. Vérifiez les consignes locales avant de vous déplacer.',
+                          : externalRisks.hasError || firestoreRisks.hasError
+                          ? 'Certaines sources de risque sont indisponibles. La recommandation automatique est suspendue. Vérifiez les consignes locales avant de vous déplacer.'
+                          : 'Vérification des zones de risque en cours. La recommandation est suspendue jusqu’au chargement de toutes les sources.',
                     ),
                   ),
                 const SizedBox(height: 24),
@@ -176,8 +178,8 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                         ? 'Aucun refuge validé à afficher pour le moment.'
                         : position == null
                         ? 'Activez la localisation pour obtenir une recommandation selon votre proximité.'
-                        : !hasRiskData
-                        ? 'La recommandation attend le chargement des zones de risque.'
+                        : riskDataIncomplete
+                        ? 'La recommandation attend le chargement de toutes les sources de zones de risque.'
                         : ranked.every((item) => item.isInRiskZone)
                         ? 'Tous les refuges connus se trouvent dans une zone de risque active.'
                         : 'Aucun refuge validé, ouvert avec des places disponibles n’a été trouvé.',
@@ -255,13 +257,14 @@ Future<void> _openDirections(
             children: [
               const Text(
                 'Le trajet est calculé par une application externe. '
-                'SALUS ne peut pas vérifier qu’il évite les zones à risque.',
+                'SALUS ne vérifie ni son tracé ni son passage dans les zones à risque. '
+                'Aucun itinéraire sûr n’est garanti.',
               ),
               if (riskDataIncomplete) ...[
                 const SizedBox(height: 12),
                 const Text(
-                  'Les données de zones à risque sont indisponibles ou '
-                  'incomplètes. Vérifiez les consignes locales avant de partir.',
+                  'La vérification des zones à risque est incomplète. '
+                  'Vérifiez les consignes locales avant de partir.',
                 ),
               ],
             ],
