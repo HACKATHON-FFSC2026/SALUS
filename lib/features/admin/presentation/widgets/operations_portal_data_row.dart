@@ -7,8 +7,9 @@ import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
 import 'package:salus/features/admin/presentation/widgets/sos_assignment_dialog.dart';
-import 'package:salus/features/admin/presentation/widgets/admin_shelter_occupancy_dialog.dart';
 import 'package:salus/features/admin/presentation/widgets/portal_action.dart';
+import 'package:salus/features/admin/presentation/widgets/shelter_operations_dialog.dart';
+import 'package:salus/features/admin/domain/models/shelter_operational_status.dart';
 
 class OperationsPortalDataRow extends StatelessWidget {
   const OperationsPortalDataRow({
@@ -205,13 +206,10 @@ class OperationsPortalDataRow extends StatelessWidget {
           ),
         if (collection == AdminCollection.sosAlerts &&
             !isAdmin &&
-            record.status != 'resolved' &&
-            record.status != 'cancelled')
+            (record.status == 'assigned' || record.status == 'inProgress'))
           IconButton(
             tooltip: record.status == 'assigned'
                 ? 'Confirmer la prise en charge'
-                : record.status == 'waiting'
-                ? 'Prendre en charge pour mon organisation'
                 : 'Marquer comme résolu',
             onPressed: () => runPortalAction(
               context,
@@ -281,17 +279,20 @@ class OperationsPortalDataRow extends StatelessWidget {
               child: Icon(Icons.edit_outlined, color: AppColors.primary),
             ),
           ),
-        if (collection == AdminCollection.shelters && isAdmin)
+        if (collection == AdminCollection.shelters &&
+            (isAdmin ||
+                (organizationId != null &&
+                    record.validationStatus == 'validated')))
           IconButton(
-            tooltip: 'Mettre à jour l’occupation',
-            onPressed: () => _updateShelterOccupancy(context),
+            tooltip: 'Mettre à jour la disponibilité',
+            onPressed: () => _editShelterOperations(context),
             icon: const Icon(
-              Icons.groups_outlined,
+              Icons.edit_calendar_outlined,
               color: AppColors.primary,
             ),
           ),
         if (collection == AdminCollection.zones &&
-            (isAdmin || record.createdBy == userId))
+            (isAdmin || record.organizationId == organizationId))
           IconButton(
             tooltip: _zoneToggleLabel(record),
             onPressed: () => _confirmZoneToggle(context),
@@ -305,7 +306,7 @@ class OperationsPortalDataRow extends StatelessWidget {
         if (collection == AdminCollection.zones &&
             record.zoneType == 'risk' &&
             record.zoneOrigin == 'manual' &&
-            (isAdmin || record.createdBy == userId))
+            (isAdmin || record.organizationId == organizationId))
           IconButton(
             tooltip: 'Modifier le périmètre',
             onPressed: () => onEditRiskZone(record),
@@ -404,7 +405,9 @@ class OperationsPortalDataRow extends StatelessWidget {
               confirmMessage: record.isActive == false
                   ? 'Le compte pourra de nouveau se connecter.'
                   : 'Ce compte ne pourra plus se connecter.',
-              confirmLabel: record.isActive == false ? 'Réactiver' : 'Désactiver',
+              confirmLabel: record.isActive == false
+                  ? 'Réactiver'
+                  : 'Désactiver',
               destructive: record.isActive != false,
             ),
             icon: Icon(
@@ -450,10 +453,31 @@ class OperationsPortalDataRow extends StatelessWidget {
       ),
     );
     if (assigned == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Affectation enregistrée.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Affectation enregistrée.')));
     }
+  }
+
+  Future<void> _editShelterOperations(BuildContext context) async {
+    final status = ShelterOperationalStatus.values.firstWhere(
+      (value) => value.name == record.status,
+      orElse: () => ShelterOperationalStatus.open,
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ShelterOperationsDialog(
+        capacityTotal: record.capacityTotal ?? 0,
+        capacityOccupied: record.capacityOccupied ?? 0,
+        status: status,
+        onSave: (nextStatus, capacityOccupied) =>
+            useCases.updateShelterOperations(
+              id: record.id,
+              status: nextStatus,
+              capacityOccupied: capacityOccupied,
+            ),
+      ),
+    );
   }
 
   Future<void> _showSosDetails(BuildContext context) async {
@@ -600,7 +624,7 @@ class OperationsPortalDataRow extends StatelessWidget {
     AdminCollection.sosAlerts =>
       record.status != 'resolved' && record.status != 'cancelled',
     AdminCollection.reports => record.status != 'resolved',
-    AdminCollection.shelters => record.validationStatus == 'pending',
+    AdminCollection.shelters => record.validationStatus != 'rejected',
     _ => false,
   };
 
@@ -656,24 +680,6 @@ class OperationsPortalDataRow extends StatelessWidget {
           const SnackBar(content: Text('Impossible de modifier cette zone.')),
         );
       }
-    }
-  }
-
-  Future<void> _updateShelterOccupancy(BuildContext context) async {
-    final updated = await showDialog<bool>(
-      context: context,
-      builder: (_) => AdminShelterOccupancyDialog(
-        shelterName: record.title,
-        capacityTotal: record.capacityTotal ?? 0,
-        capacityOccupied: record.capacityOccupied ?? 0,
-        onSave: (value) =>
-            useCases.updateShelterOccupancy(record.id, capacityOccupied: value),
-      ),
-    );
-    if (updated == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Occupation du refuge mise à jour.')),
-      );
     }
   }
 }

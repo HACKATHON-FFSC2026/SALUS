@@ -10,7 +10,9 @@ import 'package:salus/features/map/presentation/state/location_state.dart';
 import 'package:salus/features/shelters/presentation/controllers/validated_shelters_controller.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_sheet.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
-import 'package:salus/core/utils/external_navigation.dart';
+import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
+import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SheltersPage extends ConsumerStatefulWidget {
   const SheltersPage({super.key});
@@ -30,6 +32,19 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
   Widget build(BuildContext context) {
     final shelters = ref.watch(allSheltersProvider);
     final location = ref.watch(locationProvider);
+    final externalRisks = ref.watch(riskZonesProvider);
+    final firestoreRisks = ref.watch(activeRiskZonesProvider);
+    final hasRiskData = externalRisks.hasValue || firestoreRisks.hasValue;
+    final riskDataUnavailable =
+        !hasRiskData && externalRisks.hasError && firestoreRisks.hasError;
+    final riskDataIncomplete =
+        !hasRiskData || externalRisks.hasError || firestoreRisks.hasError;
+    final riskZonesById = <String, Zone>{
+      for (final zone in externalRisks.value ?? const <Zone>[])
+        if (zone.isActive && zone.type == ZoneType.risk) zone.id: zone,
+      for (final zone in firestoreRisks.value ?? const <Zone>[])
+        if (zone.isActive && zone.type == ZoneType.risk) zone.id: zone,
+    };
     final position = location.position;
 
     return Scaffold(
@@ -45,8 +60,16 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
           ),
         ),
         data: (items) {
+          final unsafeShelterIds = ref.read(findSheltersInRiskZonesProvider)(
+            shelters: items,
+            zones: riskZonesById.values.toList(growable: false),
+          );
           final ranked =
               items
+                  .where(
+                    (shelter) =>
+                        shelter.validationStatus == ValidationStatus.validated,
+                  )
                   .map(
                     (shelter) => _RankedShelter(
                       shelter,
@@ -56,6 +79,7 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                           longitude: shelter.location.longitude,
                         ),
                       ),
+                      isInRiskZone: unsafeShelterIds.contains(shelter.id),
                     ),
                   )
                   .toList()
@@ -67,8 +91,7 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
           final eligible = ranked
               .where(
                 (item) =>
-                    item.shelter.validationStatus ==
-                        ValidationStatus.validated &&
+                    !item.isInRiskZone &&
                     _hasSpace(item.shelter) &&
                     (item.shelter.status == ShelterStatus.open ||
                         item.shelter.status == ShelterStatus.almostFull),
@@ -76,7 +99,8 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
               .toList();
           // Sans GPS, ne pas présenter l'ordre alphabétique comme une
           // recommandation de proximité.
-          final recommended = position == null || eligible.isEmpty
+          final recommended =
+              position == null || eligible.isEmpty || !hasRiskData
               ? null
               : eligible.first;
           final others = ranked.where((item) => item != recommended).toList();
@@ -130,26 +154,50 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                           ref.read(locationProvider.notifier).refresh(),
                     ),
                   ),
+                if (!hasRiskData ||
+                    externalRisks.hasError ||
+                    firestoreRisks.hasError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _RiskDataNotice(
+                      message: riskDataUnavailable
+                          ? 'Les zones de risque sont indisponibles. Aucune recommandation automatique ne sera faite.'
+                          : !hasRiskData
+                          ? 'Vérification des zones de risque en cours. La recommandation est suspendue.'
+                          : 'Certaines sources de risque sont indisponibles. Vérifiez les consignes locales avant de vous déplacer.',
+                    ),
+                  ),
                 const SizedBox(height: 24),
                 const _SectionLabel('REFUGE RECOMMANDÉ'),
                 const SizedBox(height: 10),
                 if (recommended == null)
                   _InfoCard(
-                    text: items.isEmpty
-                        ? 'Aucun refuge enregistré pour le moment.'
+                    text: ranked.isEmpty
+                        ? 'Aucun refuge validé à afficher pour le moment.'
                         : position == null
                         ? 'Activez la localisation pour obtenir une recommandation selon votre proximité.'
+                        : !hasRiskData
+                        ? 'La recommandation attend le chargement des zones de risque.'
+                        : ranked.every((item) => item.isInRiskZone)
+                        ? 'Tous les refuges connus se trouvent dans une zone de risque active.'
                         : 'Aucun refuge validé, ouvert avec des places disponibles n’a été trouvé.',
                   )
                 else
                   _RecommendationCard(
                     item: recommended,
-                    onTap: () => _openDirections(context, recommended.shelter),
+                    onTap: () => _openDirections(
+                      context,
+                      recommended.shelter,
+                      riskDataIncomplete: riskDataIncomplete,
+                    ),
                     onDetails: () => showShelterDetailSheet(
                       context,
                       recommended.shelter,
-                      onStartRoute: () =>
-                          _openDirections(context, recommended.shelter),
+                      onStartRoute: () => _openDirections(
+                        context,
+                        recommended.shelter,
+                        riskDataIncomplete: riskDataIncomplete,
+                      ),
                     ),
                   ),
                 const SizedBox(height: 24),
@@ -163,11 +211,20 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _ShelterTile(
                         item: item,
+                        isInRiskZone: item.isInRiskZone,
                         onTap: () => showShelterDetailSheet(
                           context,
                           item.shelter,
-                          onStartRoute: () =>
-                              _openDirections(context, item.shelter),
+                          routeUnavailableReason: item.isInRiskZone
+                              ? 'Ce refuge est situé dans une zone de risque active connue.'
+                              : null,
+                          onStartRoute: item.isInRiskZone
+                              ? null
+                              : () => _openDirections(
+                                  context,
+                                  item.shelter,
+                                  riskDataIncomplete: riskDataIncomplete,
+                                ),
                         ),
                       ),
                     ),
@@ -181,19 +238,109 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
   }
 }
 
-Future<void> _openDirections(BuildContext context, Shelter shelter) =>
-    openExternalDirections(
-      context,
-      latitude: shelter.location.latitude,
-      longitude: shelter.location.longitude,
-      label: shelter.name,
-      travelMode: 'walking',
+Future<void> _openDirections(
+  BuildContext context,
+  Shelter shelter, {
+  required bool riskDataIncomplete,
+}) async {
+  final shouldContinue =
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Vérifiez votre trajet'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Le trajet est calculé par une application externe. '
+                'SALUS ne peut pas vérifier qu’il évite les zones à risque.',
+              ),
+              if (riskDataIncomplete) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Les données de zones à risque sont indisponibles ou '
+                  'incomplètes. Vérifiez les consignes locales avant de partir.',
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Continuer vers Maps'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+  if (!shouldContinue) return;
+
+  final destination =
+      '${shelter.location.latitude},${shelter.location.longitude}';
+  final uri = Uri.https('www.google.com', '/maps/dir/', {
+    'api': '1',
+    'destination': destination,
+    'travelmode': 'walking',
+  });
+  final nativeMapUris = [
+    Uri(
+      scheme: 'google.navigation',
+      queryParameters: {'q': destination, 'mode': 'w'},
+    ),
+    Uri(
+      scheme: 'geo',
+      path: destination,
+      queryParameters: {'q': '$destination(${shelter.name})'},
+    ),
+  ];
+  var opened = false;
+  for (final mapUri in nativeMapUris) {
+    if (await _tryLaunch(mapUri, LaunchMode.externalApplication)) {
+      opened = true;
+      break;
+    }
+  }
+  if (!opened) {
+    opened =
+        await _tryLaunch(uri, LaunchMode.externalApplication) ||
+        await _tryLaunch(uri, LaunchMode.platformDefault) ||
+        await _tryLaunch(uri, LaunchMode.inAppBrowserView);
+  }
+  if (!opened && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Aucune application de cartes ou aucun navigateur ne peut ouvrir cet itinéraire.",
+        ),
+      ),
     );
+  }
+}
+
+Future<bool> _tryLaunch(Uri uri, LaunchMode mode) async {
+  try {
+    return await launchUrl(uri, mode: mode);
+  } catch (error) {
+    debugPrint('Échec ouverture navigation ($mode, $uri): $error');
+    return false;
+  }
+}
 
 class _RankedShelter {
-  const _RankedShelter(this.shelter, this.distanceKm);
+  const _RankedShelter(
+    this.shelter,
+    this.distanceKm, {
+    this.isInRiskZone = false,
+  });
   final Shelter shelter;
   final double? distanceKm;
+  final bool isInRiskZone;
 }
 
 bool _hasSpace(Shelter shelter) => shelter.availablePlaces > 0;
@@ -351,8 +498,13 @@ class _RecommendationCard extends StatelessWidget {
 }
 
 class _ShelterTile extends StatelessWidget {
-  const _ShelterTile({required this.item, required this.onTap});
+  const _ShelterTile({
+    required this.item,
+    required this.isInRiskZone,
+    required this.onTap,
+  });
   final _RankedShelter item;
+  final bool isInRiskZone;
   final VoidCallback onTap;
 
   @override
@@ -447,6 +599,29 @@ class _ShelterTile extends StatelessWidget {
                   ),
                 ),
               ],
+              if (isInRiskZone) ...[
+                const SizedBox(height: 8),
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: AppColors.sos,
+                      size: 17,
+                    ),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Situé dans une zone de risque active connue · itinéraire désactivé',
+                        style: TextStyle(
+                          color: AppColors.sos,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(10),
@@ -521,6 +696,28 @@ class _InfoCard extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Text(text, style: const TextStyle(color: AppColors.inactive)),
+    ),
+  );
+}
+
+class _RiskDataNotice extends StatelessWidget {
+  const _RiskDataNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: const Color(0xFFFFF6E2),
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: AppColors.sos),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message)),
+        ],
+      ),
     ),
   );
 }

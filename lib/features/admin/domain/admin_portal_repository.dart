@@ -2,6 +2,7 @@ import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_zone_point.dart';
+import 'package:salus/features/admin/domain/models/shelter_operational_status.dart';
 
 abstract interface class AdminPortalRepository {
   Stream<AdminPortalUser?> watchUser(String uid);
@@ -41,9 +42,9 @@ abstract interface class AdminPortalRepository {
 
   Future<void> setShelterValidationStatus(String id, String status, String uid);
 
-  /// Seul l'admin peut écrire ce champ (règles Firestore `isAdmin()`).
-  Future<void> updateShelterOccupancy(
-    String id, {
+  Future<void> updateShelterOperations({
+    required String id,
+    required ShelterOperationalStatus status,
     required int capacityOccupied,
   });
 

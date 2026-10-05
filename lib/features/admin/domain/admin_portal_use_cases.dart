@@ -4,6 +4,7 @@ import 'package:salus/features/admin/domain/models/admin_dashboard_metrics.dart'
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_user.dart';
 import 'package:salus/features/admin/domain/models/admin_zone_point.dart';
+import 'package:salus/features/admin/domain/models/shelter_operational_status.dart';
 
 /// Cas d'utilisation du portail. Les widgets ne portent aucune règle métier
 /// et ne dépendent que de cette couche applicative.
@@ -68,14 +69,23 @@ class AdminPortalUseCases {
     required String? currentStatus,
     required String? assignedOrganizationId,
     required String? organizationId,
-  }) => _repository.updateSos(
-    id: id,
-    status: currentStatus == 'assigned' || currentStatus == 'waiting'
-        ? 'inProgress'
-        : 'resolved',
-    assignedOrganizationId: assignedOrganizationId,
-    organizationId: organizationId,
-  );
+  }) {
+    final nextStatus = switch (currentStatus) {
+      'assigned' => 'inProgress',
+      'inProgress' => 'resolved',
+      _ => throw ArgumentError.value(
+        currentStatus,
+        'currentStatus',
+        'Un SOS doit être affecté avant sa prise en charge.',
+      ),
+    };
+    return _repository.updateSos(
+      id: id,
+      status: nextStatus,
+      assignedOrganizationId: assignedOrganizationId,
+      organizationId: organizationId,
+    );
+  }
 
   Future<void> assignReportToOrganization(String id, String organizationId) =>
       _repository.assignReportToOrganization(id, organizationId);
@@ -101,11 +111,13 @@ class AdminPortalUseCases {
     String uid,
   ) => _repository.setShelterValidationStatus(id, status, uid);
 
-  Future<void> updateShelterOccupancy(
-    String id, {
+  Future<void> updateShelterOperations({
+    required String id,
+    required ShelterOperationalStatus status,
     required int capacityOccupied,
-  }) => _repository.updateShelterOccupancy(
-    id,
+  }) => _repository.updateShelterOperations(
+    id: id,
+    status: status,
     capacityOccupied: capacityOccupied,
   );
 

@@ -16,6 +16,8 @@ class AdminPortalRecord {
     this.startedAt,
     this.locationLatitude,
     this.locationLongitude,
+    this.targetLocationLatitude,
+    this.targetLocationLongitude,
     this.locationUpdatedAt,
     this.address,
     this.capacityOccupied,
@@ -58,6 +60,8 @@ class AdminPortalRecord {
   final DateTime? startedAt;
   final double? locationLatitude;
   final double? locationLongitude;
+  final double? targetLocationLatitude;
+  final double? targetLocationLongitude;
   final DateTime? locationUpdatedAt;
   final String? address;
   final int? capacityOccupied;
