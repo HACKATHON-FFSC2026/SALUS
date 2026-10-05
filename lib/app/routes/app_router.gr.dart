@@ -175,6 +175,22 @@ class ShelterLocationPickerRouteArgs {
 }
 
 /// generated route for
+/// [ShelterManagerPage]
+class ShelterManagerRoute extends PageRouteInfo<void> {
+  const ShelterManagerRoute({List<PageRouteInfo>? children})
+    : super(ShelterManagerRoute.name, initialChildren: children);
+
+  static const String name = 'ShelterManagerRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const ShelterManagerPage();
+    },
+  );
+}
+
+/// generated route for
 /// [SosPage]
 class SosRoute extends PageRouteInfo<void> {
   const SosRoute({List<PageRouteInfo>? children})

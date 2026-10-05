@@ -6,6 +6,7 @@ import 'package:salus/features/ar/presentation/pages/ar_view_page.dart';
 import 'package:salus/features/auth/presentation/pages/login_page.dart';
 import 'package:salus/features/home/presentation/pages/main_page.dart';
 import 'package:salus/features/admin/presentation/pages/operations_portal_page.dart';
+import 'package:salus/features/shelter_manager/presentation/pages/shelter_manager_page.dart';
 import 'package:salus/features/shelters/presentation/pages/create_shelter_page.dart';
 import 'package:salus/features/shelters/presentation/pages/shelter_location_picker_page.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
@@ -30,5 +31,6 @@ AutoRoute(page: OperationsPortalRoute.page),
     AutoRoute(page: CreateShelterRoute.page),
     AutoRoute(page: ShelterLocationPickerRoute.page),
     AutoRoute(page: ArViewRoute.page),
+    AutoRoute(page: ShelterManagerRoute.page)
   ];
 }

@@ -171,10 +171,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  ZoneType type,  DisasterType? disasterType, @GeoPointListConverter()  List<GeoPoint> geometry,  Severity? severity,  ZoneOrigin origin,  String source,  String? createdBy,  String? organizationId,  bool isActive, @TimestampConverter()  DateTime startedAt, @TimestampConverter()  DateTime? endedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  ZoneType type,  DisasterType? disasterType, @GeoPointListConverter()  List<GeoPoint> geometry,  Severity? severity,  ZoneOrigin origin,  String source,  String? description,  String? createdBy,  String? organizationId,  bool isActive, @TimestampConverter()  DateTime startedAt, @TimestampConverter()  DateTime? endedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Zone() when $default != null:
-return $default(_that.id,_that.type,_that.disasterType,_that.geometry,_that.severity,_that.origin,_that.source,_that.createdBy,_that.organizationId,_that.isActive,_that.startedAt,_that.endedAt);case _:
+return $default(_that.id,_that.type,_that.disasterType,_that.geometry,_that.severity,_that.origin,_that.source,_that.description,_that.createdBy,_that.organizationId,_that.isActive,_that.startedAt,_that.endedAt);case _:
   return orElse();
 
 }
@@ -192,10 +192,10 @@ return $default(_that.id,_that.type,_that.disasterType,_that.geometry,_that.seve
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  ZoneType type,  DisasterType? disasterType, @GeoPointListConverter()  List<GeoPoint> geometry,  Severity? severity,  ZoneOrigin origin,  String source,  String? createdBy,  String? organizationId,  bool isActive, @TimestampConverter()  DateTime startedAt, @TimestampConverter()  DateTime? endedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  ZoneType type,  DisasterType? disasterType, @GeoPointListConverter()  List<GeoPoint> geometry,  Severity? severity,  ZoneOrigin origin,  String source,  String? description,  String? createdBy,  String? organizationId,  bool isActive, @TimestampConverter()  DateTime startedAt, @TimestampConverter()  DateTime? endedAt)  $default,) {final _that = this;
 switch (_that) {
 case _Zone():
-return $default(_that.id,_that.type,_that.disasterType,_that.geometry,_that.severity,_that.origin,_that.source,_that.createdBy,_that.organizationId,_that.isActive,_that.startedAt,_that.endedAt);case _:
+return $default(_that.id,_that.type,_that.disasterType,_that.geometry,_that.severity,_that.origin,_that.source,_that.description,_that.createdBy,_that.organizationId,_that.isActive,_that.startedAt,_that.endedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -212,10 +212,10 @@ return $default(_that.id,_that.type,_that.disasterType,_that.geometry,_that.seve
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  ZoneType type,  DisasterType? disasterType, @GeoPointListConverter()  List<GeoPoint> geometry,  Severity? severity,  ZoneOrigin origin,  String source,  String? createdBy,  String? organizationId,  bool isActive, @TimestampConverter()  DateTime startedAt, @TimestampConverter()  DateTime? endedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  ZoneType type,  DisasterType? disasterType, @GeoPointListConverter()  List<GeoPoint> geometry,  Severity? severity,  ZoneOrigin origin,  String source,  String? description,  String? createdBy,  String? organizationId,  bool isActive, @TimestampConverter()  DateTime startedAt, @TimestampConverter()  DateTime? endedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _Zone() when $default != null:
-return $default(_that.id,_that.type,_that.disasterType,_that.geometry,_that.severity,_that.origin,_that.source,_that.createdBy,_that.organizationId,_that.isActive,_that.startedAt,_that.endedAt);case _:
+return $default(_that.id,_that.type,_that.disasterType,_that.geometry,_that.severity,_that.origin,_that.source,_that.description,_that.createdBy,_that.organizationId,_that.isActive,_that.startedAt,_that.endedAt);case _:
   return null;
 
 }
