@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
+import 'package:salus/features/admin/domain/models/admin_portal_record_filter.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
 import 'package:salus/features/admin/presentation/widgets/sos_assignment_dialog.dart';
 import 'package:salus/features/admin/presentation/widgets/portal_action.dart';
@@ -60,26 +61,7 @@ class OperationsPortalDataRow extends StatelessWidget {
     AdminCollection.zones => _zoneDetail(record),
   };
 
-  String get _status => switch (collection) {
-    AdminCollection.zones =>
-      record.zoneType == 'risk' && record.zoneOrigin == 'manual'
-          ? record.isActive == false
-                ? 'closed'
-                : 'active'
-          : record.isActive == false
-          ? 'inactive'
-          : 'active',
-    AdminCollection.shelters => record.validationStatus ?? 'pending',
-    AdminCollection.organizations =>
-      record.isActive != true
-          ? 'suspended'
-          : record.verified
-          ? 'verified'
-          : 'pending',
-    AdminCollection.users => record.isActive == false ? 'inactive' : 'active',
-    AdminCollection.sosAlerts ||
-    AdminCollection.reports => record.status ?? 'unknown',
-  };
+  String get _status => adminRecordStatus(collection, record);
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -824,6 +806,25 @@ class _PortalStatusPill extends StatelessWidget {
   final String value;
   final AdminCollection collection;
 
+  static const _statusColors = {
+    'waiting': Color(0xffb45309),
+    'pending': Color(0xffb45309),
+    'assigned': Color(0xff1d4ed8),
+    'inProgress': Color(0xffc2410c),
+    'resolved': Color(0xff15803d),
+    'validated': Color(0xff15803d),
+    'verified': Color(0xff15803d),
+    'active': Color(0xff15803d),
+    'open': Color(0xff1d4ed8),
+    'reviewed': Color(0xff6d28d9),
+    'rejected': Color(0xffb91c1c),
+    'inactive': Color(0xffb91c1c),
+    'suspended': Color(0xffb91c1c),
+    'cancelled': Color(0xff64748b),
+    'closed': Color(0xff64748b),
+    'unknown': Color(0xff64748b),
+  };
+
   static const _labels = {
     'waiting': 'En attente',
     'assigned': 'Assignée',
@@ -854,30 +855,11 @@ class _PortalStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = [
-      'waiting',
-      'assigned',
-      'pending',
-      'open',
-      'inProgress',
-      'active',
-      'verified',
-      'validated',
-    ].contains(value);
-    final rejected = [
-      'inactive',
-      'suspended',
-      'rejected',
-      'cancelled',
-    ].contains(value);
+    final color = _statusColors[value] ?? AppColors.inactive;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: active
-            ? AppColors.secondary.withValues(alpha: .16)
-            : rejected
-            ? Theme.of(context).colorScheme.error.withValues(alpha: .12)
-            : AppColors.background,
+        color: color.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -885,9 +867,7 @@ class _PortalStatusPill extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: rejected
-              ? Theme.of(context).colorScheme.error
-              : AppColors.primary,
+          color: color,
         ),
       ),
     );
