@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
+import 'package:salus/features/admin/domain/models/admin_portal_record_filter.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
 import 'package:salus/features/admin/presentation/widgets/operations_portal_data_row.dart';
 import 'package:salus/features/admin/presentation/widgets/assigned_road_reports_map.dart';
@@ -108,7 +108,7 @@ class OperationsPortalCollection extends StatelessWidget {
   );
 }
 
-class OperationsPortalDataTable extends ConsumerWidget {
+class OperationsPortalDataTable extends StatefulWidget {
   const OperationsPortalDataTable({
     super.key,
     required this.title,
@@ -137,11 +137,43 @@ class OperationsPortalDataTable extends ConsumerWidget {
   final int? limit;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => StreamBuilder(
-    stream: useCases.watchCollection(
-      collection,
-      admin: isAdmin,
-      organizationId: organizationId,
+  State<OperationsPortalDataTable> createState() =>
+      _OperationsPortalDataTableState();
+}
+
+class _OperationsPortalDataTableState extends State<OperationsPortalDataTable> {
+  final _searchController = TextEditingController();
+  String? _status;
+  DateTimeRange? _dateRange;
+  bool _newestFirst = true;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _chooseDateRange() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: _dateRange,
+      helpText: 'Filtrer par période',
+      saveText: 'Appliquer',
+      cancelText: 'Annuler',
+      confirmText: 'Appliquer',
+    );
+    if (range != null && mounted) setState(() => _dateRange = range);
+  }
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder(
+    stream: widget.useCases.watchCollection(
+      widget.collection,
+      admin: widget.isAdmin,
+      organizationId: widget.organizationId,
     ),
     builder: (context, snapshot) {
       if (snapshot.hasError) {
@@ -153,34 +185,26 @@ class OperationsPortalDataTable extends ConsumerWidget {
           child: Center(child: CircularProgressIndicator()),
         );
       }
-      var records = snapshot.data!;
-      if (collection == AdminCollection.reports) {
-        const statusPriority = {'open': 0, 'reviewed': 1, 'resolved': 2};
-        records.sort((a, b) {
-          final priority = (statusPriority[a.status] ?? 3).compareTo(
-            statusPriority[b.status] ?? 3,
-          );
-          if (priority != 0) return priority;
-          return (b.createdAt ?? DateTime(0)).compareTo(
-            a.createdAt ?? DateTime(0),
-          );
-        });
+
+      final allRecords = snapshot.data!;
+      final availableStatuses = allRecords
+          .map((record) => adminRecordStatus(widget.collection, record))
+          .toSet()
+          .toList()
+        ..sort();
+      var records = filterAdminRecords(
+        collection: widget.collection,
+        records: allRecords,
+        query: _searchController.text,
+        status: _status,
+        startDate: _dateRange?.start,
+        endDate: _dateRange?.end,
+        newestFirst: _newestFirst,
+      );
+      if (widget.limit != null) {
+        records = records.take(widget.limit!).toList();
       }
-      if (limit != null) records = records.take(limit!).toList();
-      if (records.isEmpty) {
-        final message = !isAdmin
-            ? switch (collection) {
-                AdminCollection.sosAlerts =>
-                  'Aucun SOS n’est affecté à votre organisation.',
-                AdminCollection.reports =>
-                  'Aucun signalement n’est affecté à votre organisation.',
-                AdminCollection.shelters =>
-                  'Aucune proposition de refuge n’est affectée à votre organisation.',
-                _ => 'Aucun élément à afficher pour le moment.',
-              }
-            : 'Aucun élément à afficher pour le moment.';
-        return _PortalMessage(message);
-      }
+
       return Container(
         width: double.infinity,
         decoration: BoxDecoration(
@@ -193,7 +217,7 @@ class OperationsPortalDataTable extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
               child: Text(
-                title,
+                widget.title,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -201,31 +225,203 @@ class OperationsPortalDataTable extends ConsumerWidget {
                 ),
               ),
             ),
+            if (widget.limit == null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                child: _buildFilters(availableStatuses),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                child: Text(
+                  '${records.length} résultat${records.length == 1 ? '' : 's'}'
+                  ' sur ${allRecords.length}',
+                  style: const TextStyle(
+                    color: AppColors.inactive,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
             const Divider(height: 1),
-            if (collection == AdminCollection.reports)
-              AssignedRoadReportsMap(
-                reports: records,
-                onTapReport: onViewReport,
-              ),
-            for (final record in records)
-              OperationsPortalDataRow(
-                collection: collection,
-                record: record,
-                isAdmin: isAdmin,
-                organizationId: organizationId,
-                userId: userId,
-                useCases: useCases,
-                onEditOrganization: onEditOrganization,
-                onManageOrganizationMembership: onManageOrganizationMembership,
-                onViewReport: onViewReport,
-                onEditRiskZone: onEditRiskZone,
-              ),
+            if (records.isEmpty)
+              _PortalMessage(
+                allRecords.isEmpty
+                    ? _emptyCollectionMessage(widget.collection, widget.isAdmin)
+                    : 'Aucun résultat ne correspond à ces filtres.',
+              )
+            else ...[
+              if (widget.collection == AdminCollection.reports)
+                AssignedRoadReportsMap(
+                  reports: records,
+                  onTapReport: widget.onViewReport,
+                ),
+              for (final record in records)
+                OperationsPortalDataRow(
+                  collection: widget.collection,
+                  record: record,
+                  isAdmin: widget.isAdmin,
+                  organizationId: widget.organizationId,
+                  userId: widget.userId,
+                  useCases: widget.useCases,
+                  onEditOrganization: widget.onEditOrganization,
+                  onManageOrganizationMembership:
+                      widget.onManageOrganizationMembership,
+                  onViewReport: widget.onViewReport,
+                  onEditRiskZone: widget.onEditRiskZone,
+                ),
+            ],
           ],
         ),
       );
     },
   );
+
+  Widget _buildFilters(List<String> statuses) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 720;
+      final search = SizedBox(
+        width: compact ? double.infinity : 280,
+        child: TextField(
+          controller: _searchController,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: _searchHint(widget.collection),
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _searchController.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Effacer la recherche',
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.close),
+                  ),
+            isDense: true,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+      );
+      final status = SizedBox(
+        width: compact ? double.infinity : 190,
+        child: DropdownButtonFormField<String?>(
+          key: ValueKey('${widget.collection}-${_status ?? 'all'}'),
+          initialValue: _status,
+          decoration: const InputDecoration(
+            labelText: 'Statut',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Tous les statuts'),
+            ),
+            for (final value in statuses)
+              DropdownMenuItem<String?>(
+                value: value,
+                child: Text(_adminStatusLabel(value)),
+              ),
+          ],
+          onChanged: (value) => setState(() => _status = value),
+        ),
+      );
+      final date = OutlinedButton.icon(
+        onPressed: _chooseDateRange,
+        icon: const Icon(Icons.calendar_month_outlined),
+        label: Text(
+          _dateRange == null
+              ? 'Toutes les dates'
+              : '${_formatDate(_dateRange!.start)} – ${_formatDate(_dateRange!.end)}',
+        ),
+      );
+      final sort = OutlinedButton.icon(
+        onPressed: () => setState(() => _newestFirst = !_newestFirst),
+        icon: Icon(
+          _newestFirst ? Icons.south : Icons.north,
+        ),
+        label: Text(_newestFirst ? 'Plus récent' : 'Plus ancien'),
+      );
+      final clear = TextButton.icon(
+        onPressed: _searchController.text.isEmpty &&
+                _status == null &&
+                _dateRange == null &&
+                _newestFirst
+            ? null
+            : () {
+                _searchController.clear();
+                setState(() {
+                  _status = null;
+                  _dateRange = null;
+                  _newestFirst = true;
+                });
+              },
+        icon: const Icon(Icons.filter_alt_off_outlined),
+        label: const Text('Réinitialiser'),
+      );
+
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          search,
+          status,
+          date,
+          sort,
+          clear,
+        ],
+      );
+    },
+  );
 }
+
+String _emptyCollectionMessage(AdminCollection collection, bool isAdmin) =>
+    !isAdmin
+    ? switch (collection) {
+        AdminCollection.sosAlerts =>
+          'Aucun SOS n’est affecté à votre organisation.',
+        AdminCollection.reports =>
+          'Aucun signalement n’est affecté à votre organisation.',
+        AdminCollection.shelters =>
+          'Aucune proposition de refuge n’est affectée à votre organisation.',
+        _ => 'Aucun élément à afficher pour le moment.',
+      }
+    : 'Aucun élément à afficher pour le moment.';
+
+String _searchHint(AdminCollection collection) => switch (collection) {
+  AdminCollection.organizations => 'Rechercher une organisation…',
+  AdminCollection.shelters => 'Rechercher un refuge…',
+  AdminCollection.users => 'Nom, email, rôle ou ID…',
+  AdminCollection.sosAlerts => 'ID, type, statut ou organisation…',
+  AdminCollection.reports => 'ID, motif, cible ou organisation…',
+  AdminCollection.zones => 'Nom, type, source ou gravité…',
+};
+
+String _adminStatusLabel(String status) => switch (status) {
+  'waiting' => 'En attente',
+  'assigned' => 'Assigné',
+  'inProgress' => 'En cours',
+  'resolved' => 'Résolu',
+  'cancelled' => 'Annulé',
+  'pending' => 'À vérifier',
+  'validated' => 'Validé',
+  'rejected' => 'Rejeté',
+  'open' => 'Ouvert',
+  'reviewed' => 'Examiné',
+  'verified' => 'Vérifié',
+  'active' => 'Actif',
+  'inactive' => 'Inactif',
+  'closed' => 'Clôturé',
+  'suspended' => 'Suspendu',
+  'unknown' => 'Inconnu',
+  _ => status,
+};
+
+String _formatDate(DateTime date) =>
+    '${date.day.toString().padLeft(2, '0')}/'
+    '${date.month.toString().padLeft(2, '0')}/'
+    '${date.year}';
 
 class _PortalMessage extends StatelessWidget {
   const _PortalMessage(this.value);
