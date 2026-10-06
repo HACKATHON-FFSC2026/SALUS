@@ -7,6 +7,7 @@ import 'package:salus/features/admin/domain/models/admin_collection.dart';
 import 'package:salus/features/admin/domain/models/admin_portal_record.dart';
 import 'package:salus/features/admin/domain/admin_portal_use_cases.dart';
 import 'package:salus/features/admin/presentation/widgets/sos_assignment_dialog.dart';
+import 'package:salus/features/admin/presentation/widgets/portal_action.dart';
 import 'package:salus/features/admin/presentation/widgets/shelter_operations_dialog.dart';
 import 'package:salus/features/admin/domain/models/shelter_operational_status.dart';
 
@@ -102,7 +103,7 @@ class OperationsPortalDataRow extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 _detail,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 12, color: AppColors.inactive),
               ),
@@ -110,7 +111,7 @@ class OperationsPortalDataRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        _PortalStatusPill(_status),
+        _PortalStatusPill(_status, collection),
         if (collection == AdminCollection.sosAlerts)
           IconButton(
             tooltip: 'Détails du SOS et itinéraire',
@@ -122,7 +123,17 @@ class OperationsPortalDataRow extends StatelessWidget {
             !record.verified)
           IconButton(
             tooltip: 'Vérifier',
-            onPressed: () => useCases.verifyOrganization(record.id, userId),
+            onPressed: () => runPortalAction(
+              context,
+              action: () => useCases.verifyOrganization(record.id, userId),
+              successMessage: 'Organisation vérifiée.',
+              confirmTitle: 'Vérifier cette organisation ?',
+              confirmMessage:
+                  'Elle pourra accueillir un compte membre et apparaître dans '
+                  'l’annuaire public.',
+              confirmLabel: 'Vérifier',
+              confirmIcon: Icons.verified_outlined,
+            ),
             icon: const Icon(Icons.verified_outlined, color: AppColors.primary),
           ),
         if (isAdmin && collection == AdminCollection.organizations) ...[
@@ -135,9 +146,23 @@ class OperationsPortalDataRow extends StatelessWidget {
             tooltip: record.isActive != true
                 ? 'Réactiver l’organisation'
                 : 'Suspendre l’organisation',
-            onPressed: () => useCases.setOrganizationActive(
-              record.id,
-              isActive: record.isActive != true,
+            onPressed: () => runPortalAction(
+              context,
+              action: () => useCases.setOrganizationActive(
+                record.id,
+                isActive: record.isActive != true,
+              ),
+              successMessage: record.isActive != true
+                  ? 'Organisation réactivée.'
+                  : 'Organisation suspendue.',
+              confirmTitle: record.isActive != true
+                  ? 'Réactiver cette organisation ?'
+                  : 'Suspendre cette organisation ?',
+              confirmMessage: record.isActive != true
+                  ? 'Elle redeviendra visible et ses membres pourront accéder au portail.'
+                  : 'Ses membres perdront l’accès au portail jusqu’à sa réactivation.',
+              confirmLabel: record.isActive != true ? 'Réactiver' : 'Suspendre',
+              destructive: record.isActive != true ? false : true,
             ),
             icon: Icon(
               record.isActive != true
@@ -163,7 +188,20 @@ class OperationsPortalDataRow extends StatelessWidget {
             record.status == 'inProgress')
           IconButton(
             tooltip: 'Marquer le SOS comme résolu',
-            onPressed: () => _updateSos(context),
+            onPressed: () => runPortalAction(
+              context,
+              action: () => useCases.updateSos(
+                id: record.id,
+                currentStatus: record.status,
+                assignedOrganizationId: record.assignedOrganizationId,
+                organizationId: organizationId,
+              ),
+              successMessage: 'SOS marqué comme résolu.',
+              confirmTitle: 'Marquer ce SOS comme résolu ?',
+              confirmMessage: 'La victime verra l’alerte comme résolue.',
+              confirmLabel: 'Résoudre',
+              destructive: true,
+            ),
             icon: const Icon(Icons.check_circle_outline, color: Colors.green),
           ),
         if (collection == AdminCollection.sosAlerts &&
@@ -173,7 +211,28 @@ class OperationsPortalDataRow extends StatelessWidget {
             tooltip: record.status == 'assigned'
                 ? 'Confirmer la prise en charge'
                 : 'Marquer comme résolu',
-            onPressed: () => _updateSos(context),
+            onPressed: () => runPortalAction(
+              context,
+              action: () => useCases.updateSos(
+                id: record.id,
+                currentStatus: record.status,
+                assignedOrganizationId: record.assignedOrganizationId,
+                organizationId: organizationId,
+              ),
+              successMessage: record.status == 'inProgress'
+                  ? 'SOS marqué comme résolu.'
+                  : 'Prise en charge enregistrée.',
+              confirmTitle: record.status == 'inProgress'
+                  ? 'Marquer ce SOS comme résolu ?'
+                  : 'Prendre en charge ce SOS ?',
+              confirmMessage: record.status == 'inProgress'
+                  ? 'La victime verra l’alerte comme résolue.'
+                  : 'Votre organisation sera affichée comme intervenante.',
+              confirmLabel: record.status == 'inProgress'
+                  ? 'Résoudre'
+                  : 'Prendre en charge',
+              destructive: record.status == 'inProgress',
+            ),
             icon: const Icon(
               Icons.check_circle_outline,
               color: AppColors.primary,
@@ -184,8 +243,27 @@ class OperationsPortalDataRow extends StatelessWidget {
           PopupMenuButton<String>(
             tooltip: isAdmin ? 'Changer le statut' : 'Examiner la proposition',
             initialValue: record.validationStatus ?? 'pending',
-            onSelected: (status) =>
-                useCases.setShelterValidationStatus(record.id, status, userId),
+            onSelected: (status) => runPortalAction(
+              context,
+              action: () => useCases.setShelterValidationStatus(
+                record.id,
+                status,
+                userId,
+              ),
+              successMessage: switch (status) {
+                'validated' => 'Refuge validé.',
+                'rejected' => 'Refuge rejeté.',
+                _ => 'Statut du refuge mis à jour.',
+              },
+              confirmTitle: status == 'rejected'
+                  ? 'Rejeter cette proposition de refuge ?'
+                  : null,
+              confirmMessage: status == 'rejected'
+                  ? 'Elle ne sera pas affichée aux citoyens sur la carte.'
+                  : null,
+              confirmLabel: 'Rejeter',
+              destructive: status == 'rejected',
+            ),
             itemBuilder: (context) => isAdmin
                 ? const [
                     PopupMenuItem(value: 'validated', child: Text('Validé')),
@@ -266,10 +344,21 @@ class OperationsPortalDataRow extends StatelessWidget {
                 child: Text('Marquer comme résolu'),
               ),
             ],
-            onSelected: (status) => useCases.updateReport(
-              id: record.id,
-              status: status,
-              uid: userId,
+            onSelected: (status) => runPortalAction(
+              context,
+              action: () => useCases.updateReport(
+                id: record.id,
+                status: status,
+                uid: userId,
+              ),
+              successMessage: status == 'resolved'
+                  ? 'Signalement marqué comme résolu.'
+                  : 'Signalement marqué comme examiné.',
+              confirmTitle: status == 'resolved'
+                  ? 'Marquer ce signalement comme résolu ?'
+                  : null,
+              confirmLabel: 'Résoudre',
+              destructive: status == 'resolved',
             ),
             child: const Padding(
               padding: EdgeInsets.all(8),
@@ -281,7 +370,16 @@ class OperationsPortalDataRow extends StatelessWidget {
             record.roles.contains('organizationMember'))
           IconButton(
             tooltip: 'Retirer le rôle organisation',
-            onPressed: () => useCases.removeUserOrganizationRole(record.id),
+            onPressed: () => runPortalAction(
+              context,
+              action: () => useCases.removeUserOrganizationRole(record.id),
+              successMessage: 'Rôle organisation retiré.',
+              confirmTitle: 'Retirer l’accès organisation ?',
+              confirmMessage:
+                  'Ce compte n’aura plus accès au portail de son organisation.',
+              confirmLabel: 'Retirer',
+              destructive: true,
+            ),
             icon: const Icon(
               Icons.person_remove_alt_1,
               color: AppColors.inactive,
@@ -292,9 +390,25 @@ class OperationsPortalDataRow extends StatelessWidget {
             tooltip: record.isActive == false
                 ? 'Réactiver le compte'
                 : 'Désactiver le compte',
-            onPressed: () => useCases.setUserActive(
-              record.id,
-              isActive: record.isActive == false,
+            onPressed: () => runPortalAction(
+              context,
+              action: () => useCases.setUserActive(
+                record.id,
+                isActive: record.isActive == false,
+              ),
+              successMessage: record.isActive == false
+                  ? 'Compte réactivé.'
+                  : 'Compte désactivé.',
+              confirmTitle: record.isActive == false
+                  ? 'Réactiver ce compte ?'
+                  : 'Désactiver ce compte ?',
+              confirmMessage: record.isActive == false
+                  ? 'Le compte pourra de nouveau se connecter.'
+                  : 'Ce compte ne pourra plus se connecter.',
+              confirmLabel: record.isActive == false
+                  ? 'Réactiver'
+                  : 'Désactiver',
+              destructive: record.isActive != false,
             ),
             icon: Icon(
               record.isActive == false
@@ -307,50 +421,8 @@ class OperationsPortalDataRow extends StatelessWidget {
     ),
   );
 
-  Future<void> _updateSos(BuildContext context) async {
-    final isResolving = record.status == 'inProgress';
-    if (isResolving) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text('Clôturer ce SOS ?'),
-              content: const Text(
-                'La victime et les équipes verront cette alerte comme résolue.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('Continuer le suivi'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  child: const Text('Clôturer le SOS'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!confirmed || !context.mounted) return;
-    }
-
-    try {
-      await useCases.updateSos(
-        id: record.id,
-        currentStatus: record.status,
-        assignedOrganizationId: record.assignedOrganizationId,
-        organizationId: organizationId,
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Impossible de mettre à jour le SOS : $error')),
-      );
-    }
-  }
-
   Future<void> _assignToOrganization(BuildContext context) async {
-    await showDialog<bool>(
+    final assigned = await showDialog<bool>(
       context: context,
       builder: (_) => OrganizationAssignmentDialog(
         title: switch (collection) {
@@ -380,6 +452,11 @@ class OperationsPortalDataRow extends StatelessWidget {
         },
       ),
     );
+    if (assigned == true && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Affectation enregistrée.')));
+    }
   }
 
   Future<void> _editShelterOperations(BuildContext context) async {
@@ -742,9 +819,10 @@ String _displayDate(DateTime? value) => value == null
     : '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 
 class _PortalStatusPill extends StatelessWidget {
-  const _PortalStatusPill(this.value);
+  const _PortalStatusPill(this.value, this.collection);
 
   final String value;
+  final AdminCollection collection;
 
   static const _labels = {
     'waiting': 'En attente',
@@ -764,6 +842,15 @@ class _PortalStatusPill extends StatelessWidget {
     'suspended': 'Suspendue',
     'unknown': 'Inconnu',
   };
+
+  /// `resolved` s'accorde avec l'objet : une alerte (SOS) est « résolue », un
+  /// signalement est « résolu ». La pastille est partagée entre collections.
+  String get _pillLabel {
+    if (value == 'resolved' && collection == AdminCollection.reports) {
+      return 'Résolu';
+    }
+    return _labels[value] ?? value;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -794,7 +881,7 @@ class _PortalStatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        _labels[value] ?? value,
+        _pillLabel,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,

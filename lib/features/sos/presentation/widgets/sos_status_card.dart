@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/providers/public_organization_provider.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/features/sos/presentation/providers/responder_controller.dart';
 
 class SosStatusCard extends ConsumerWidget {
   const SosStatusCard({super.key, this.alert});
@@ -29,7 +30,9 @@ class SosStatusCard extends ConsumerWidget {
   String _getStatusText(SOSStatus status) {
     switch (status) {
       case SOSStatus.waiting:
-        return 'En attente de secours';
+        // « En attente de secours » laissait croire que des secours étaient
+        // déjà prévenus. À ce statut, personne n'est encore affecté.
+        return 'Alerte transmise, en attente d\'une équipe';
       case SOSStatus.assigned:
         return 'Organisation assignée';
       case SOSStatus.inProgress:
@@ -43,10 +46,21 @@ class SosStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status = alert?.status ?? SOSStatus.waiting;
-    final responders = alert?.respondersCount ?? 0;
+    final currentAlert = alert;
+    final status = currentAlert?.status ?? SOSStatus.waiting;
+    // Compté depuis les suivis actifs, pas depuis `respondersCount`: ce dernier
+    // vient du registre append-only qui garde les intervenants retirés, et
+    // gonflait le nombre affiché à la victime.
+    final responders = currentAlert == null
+        ? 0
+        : ref
+              .watch(respondersProvider(currentAlert.id))
+              .maybeWhen(
+                data: (items) => items.length,
+                orElse: () => currentAlert.respondersCount,
+              );
     final statusColor = _getStatusColor(status);
-    final organizationId = alert?.assignedOrganizationId;
+    final organizationId = currentAlert?.assignedOrganizationId;
     final organizationName = organizationId == null
         ? null
         : ref.watch(publicOrganizationNameProvider(organizationId));

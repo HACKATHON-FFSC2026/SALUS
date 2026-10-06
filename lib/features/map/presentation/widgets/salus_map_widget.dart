@@ -22,6 +22,7 @@ import 'package:salus/features/shelters/presentation/widgets/shelter_bottom_shee
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_status_ui.dart';
 import 'package:salus/features/risks/presentation/mappers/zone_ui_mapper.dart';
+import 'package:salus/features/sos/presentation/providers/active_sos_provider.dart';
 import 'package:salus/features/reports/presentation/widgets/report_issue_action.dart';
 import 'package:salus/features/reports/presentation/providers/report_providers.dart';
 import 'package:salus/features/reports/presentation/widgets/road_incident_marker.dart';
@@ -163,6 +164,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
     final roadIncidents = roadIncidentsAsync.value ?? const [];
     final sheltersAsync = ref.watch(validatedSheltersProvider);
     final shelters = sheltersAsync.value ?? const <Shelter>[];
+    final activeSos =
+        ref.watch(activeSosStreamProvider).value ?? const <SOSAlert>[];
     final externalRiskZones =
         ref.watch(riskZonesProvider).value ?? const <Zone>[];
     final streamedRiskZones =
@@ -302,6 +305,29 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                   ),
                 ),
               ),
+            ),
+
+            // SOS actifs, ajoutés en dernier donc au-dessus des autres calques:
+            // c'est l'objet le plus urgent de la carte et il en était absent.
+            MarkerLayer(
+              markers: [
+                for (final sos in activeSos)
+                  Marker(
+                    key: ValueKey('sos-marker-${sos.id}'),
+                    point: LatLng(
+                      sos.location.latitude,
+                      sos.location.longitude,
+                    ),
+                    width: 46,
+                    height: 46,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () =>
+                          context.router.push(const ActiveSosListRoute()),
+                      child: const _SosMarkerPin(),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -447,6 +473,24 @@ Color _zoneColor(Severity? severity) => switch (severity) {
   null => const Color(0xffc94b4b),
 };
 
+class _SosMarkerPin extends StatelessWidget {
+  const _SosMarkerPin();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: AppColors.sos,
+      shape: BoxShape.circle,
+      border: Border.all(color: Colors.white, width: 3),
+      boxShadow: const [
+        BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
+      ],
+    ),
+    alignment: Alignment.center,
+    child: const Icon(Icons.sos, color: Colors.white, size: 22),
+  );
+}
+
 class _MapLegend extends StatelessWidget {
   const _MapLegend();
 
@@ -464,37 +508,50 @@ class _MapLegend extends StatelessWidget {
       Severity.high: 'Risque élevé',
       Severity.critical: 'Risque critique',
     };
-    return Card(
-      color: AppColors.surface,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 4,
-          children: [
-            for (final entry in severities.entries)
-              Row(
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width - 90,
+      ),
+      child: Card(
+        color: AppColors.surface.withValues(alpha: 0.92),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: [
+              const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    size: 13,
-                    color: _zoneColor(entry.key),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(entry.value, style: const TextStyle(fontSize: 11)),
+                  Icon(Icons.sos, size: 13, color: AppColors.sos),
+                  SizedBox(width: 4),
+                  Text('SOS actif', style: TextStyle(fontSize: 11)),
                 ],
               ),
-            for (final status in statuses)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(status.icon, size: 13, color: status.foregroundColor),
-                  const SizedBox(width: 4),
-                  Text(status.label, style: const TextStyle(fontSize: 11)),
-                ],
-              ),
-          ],
+              for (final entry in severities.entries)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 13,
+                      color: _zoneColor(entry.key),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(entry.value, style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+              for (final status in statuses)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(status.icon, size: 13, color: status.foregroundColor),
+                    const SizedBox(width: 4),
+                    Text(status.label, style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );

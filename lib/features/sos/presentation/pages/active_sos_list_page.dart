@@ -5,24 +5,33 @@ import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
+import '../../domain/usecases/send_sos_usecase.dart';
+import '../distress_label.dart';
 import '../providers/active_sos_provider.dart';
 import '../providers/responder_controller.dart';
+
+/// Évite le « 0.00 km » illisible en dessous du kilomètre.
+String _distanceLabel(double km) => km < 0.95
+    ? '${(km * 1000).round()} m'
+    : '${km.toStringAsFixed(1)} km';
+
+/// Âge d'une alerte. Le fait décisif pour décider d'y aller ou non.
+String _ageLabel(DateTime createdAt) {
+  final diff = DateTime.now().difference(createdAt);
+  if (diff.inMinutes < 1) return 'À l\'instant';
+  if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+  if (diff.inHours < 24) return 'Il y a ${diff.inHours} h';
+  return 'Il y a ${diff.inDays} j';
+}
 
 @RoutePage()
 class ActiveSosListPage extends ConsumerWidget {
   const ActiveSosListPage({super.key});
 
-  static const _labels = {
-    DistressType.medical: 'Médical',
-    DistressType.security: 'Agression',
-    DistressType.accident: 'Accident',
-    DistressType.fire: 'Incendie',
-    DistressType.other: 'Autre',
-  };
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sosAsync = ref.watch(activeSosStreamProvider);
+    final originAsync = ref.watch(sosOriginProvider);
     final myUid = ref.watch(currentUidProvider);
 
     return Scaffold(
@@ -37,7 +46,7 @@ class ActiveSosListPage extends ConsumerWidget {
             Icon(Icons.emergency_share_outlined, color: AppColors.sos),
             SizedBox(width: 8),
             Text(
-              'SOS à proximité',
+              'SOS actifs',
               style: TextStyle(
                 color: AppColors.primary,
                 fontWeight: FontWeight.bold,
@@ -47,60 +56,95 @@ class ActiveSosListPage extends ConsumerWidget {
           ],
         ),
       ),
-      body: sosAsync.when(
-        data: (alerts) {
-          if (alerts.isEmpty) {
-            return const _EmptyState();
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: alerts.length,
-            itemBuilder: (context, index) {
-              final sos = alerts[index];
-              // Sa propre alerte n'a pas d'action « Je réponds ».
-              final isMine = sos.userId == myUid;
-              // Déjà intervenant (présent dans le registre, avec un suivi
-              // non désisté): le bouton rouvre la fiche d'intervention au
-              // lieu de griser.
-              final alreadyResponding = sos.responderIds.contains(myUid);
-              return _SosCard(
-                sos: sos,
-                label: _labels[sos.distressType] ?? sos.distressType.name,
-                isResponding: alreadyResponding,
-                onRespond: isMine
-                    ? null
-                    : alreadyResponding
-                    ? () =>
-                          context.router.push(SosResponseDetailRoute(sosAlert: sos))
-                    : () => _respond(context, ref, sos),
-              );
-            },
-          );
-        },
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: AppColors.sos)),
-        error: (err, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Liste indisponible: $err',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.sos),
+      body: Column(
+        children: [
+          // Sans permission, la liste est globale et sans distance. Le dire,
+          // et donner le moyen de l'activer, plutôt que de titrer « à
+          // proximité » une liste qui ne l'est pas.
+          if (originAsync.hasValue && originAsync.value == null)
+            _LocationScopeNotice(onEnable: () => _enableLocation(ref)),
+          Expanded(
+            child: sosAsync.when(
+              data: (alerts) {
+                if (alerts.isEmpty) {
+                  return const _EmptyState();
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: alerts.length,
+                  itemBuilder: (context, index) {
+                    final sos = alerts[index];
+                    // Sa propre alerte n'a pas d'action « Je réponds ».
+                    final isMine = sos.userId == myUid;
+                    // Déjà intervenant (présent dans le registre, avec un suivi
+                    // non désisté): le bouton rouvre la fiche d'intervention au
+                    // lieu de griser.
+                    final alreadyResponding = sos.responderIds.contains(myUid);
+                    return _SosCard(
+                      sos: sos,
+                      isResponding: alreadyResponding,
+                      onRespond: isMine
+                          ? null
+                          : alreadyResponding
+                          ? () => context.router.push(
+                              SosResponseDetailRoute(sosAlert: sos),
+                            )
+                          : () => _respond(context, ref, sos),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.sos),
+              ),
+              error: (_, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.cloud_off_outlined,
+                        color: AppColors.inactive,
+                        size: 42,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Impossible de charger les alertes SOS.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.inactive),
+                      ),
+                      const SizedBox(height: 10),
+                      TextButton.icon(
+                        onPressed: () =>
+                            ref.invalidate(activeSosStreamProvider),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
+  }
+
+  Future<void> _enableLocation(WidgetRef ref) async {
+    await requestLocationPermission();
+    ref.invalidate(sosOriginProvider);
   }
 
   Future<void> _respond(BuildContext context, WidgetRef ref, SOSAlert sos) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(offerHelpUseCaseProvider).execute(alertId: sos.id);
-    } catch (e) {
+    } catch (_) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Impossible de répondre: $e'),
+          content: const Text('Impossible de répondre. Réessayez.'),
           backgroundColor: AppColors.sos,
         ),
       );
@@ -112,6 +156,38 @@ class ActiveSosListPage extends ConsumerWidget {
     // fiche d'information. La page suivante porte la position et les consignes.
     await context.router.push(SosResponseDetailRoute(sosAlert: sos));
   }
+}
+
+class _LocationScopeNotice extends StatelessWidget {
+  const _LocationScopeNotice({required this.onEnable});
+
+  final VoidCallback onEnable;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.secondary.withValues(alpha: .14),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.location_off_outlined,
+            color: AppColors.primary,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Localisation désactivée : toutes les alertes sont affichées, '
+              'sans distance. Activez-la pour voir les plus proches.',
+              style: TextStyle(fontSize: 12, color: AppColors.primary),
+            ),
+          ),
+          TextButton(onPressed: onEnable, child: const Text('Activer')),
+        ],
+      ),
+    ),
+  );
 }
 
 class _EmptyState extends StatelessWidget {
@@ -130,7 +206,7 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Aucune alerte active à proximité',
+            'Aucune alerte active',
             style: TextStyle(color: AppColors.inactive, fontSize: 16),
           ),
         ],
@@ -142,13 +218,11 @@ class _EmptyState extends StatelessWidget {
 class _SosCard extends StatelessWidget {
   const _SosCard({
     required this.sos,
-    required this.label,
     required this.isResponding,
     required this.onRespond,
   });
 
   final SOSAlert sos;
-  final String label;
 
   /// J'ai déjà répondu à cette alerte.
   final bool isResponding;
@@ -159,9 +233,7 @@ class _SosCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCritical =
-        sos.distressType == DistressType.medical ||
-        sos.distressType == DistressType.security;
+    final isCritical = sos.distressType.isCritical;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -184,20 +256,20 @@ class _SosCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _Badge(label: label, critical: isCritical),
+                _Badge(distressType: sos.distressType),
                 if (sos.distanceInKm != null)
                   Row(
                     children: [
                       const Icon(
                         Icons.navigation,
-                        color: AppColors.secondary,
+                        color: AppColors.secondaryText,
                         size: 14,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${sos.distanceInKm!.toStringAsFixed(2)} km',
+                        _distanceLabel(sos.distanceInKm!),
                         style: const TextStyle(
-                          color: AppColors.secondary,
+                          color: AppColors.secondaryText,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -211,8 +283,36 @@ class _SosCard extends StatelessWidget {
               sos.description ?? 'Demande d\'assistance urgente.',
               style: const TextStyle(color: AppColors.primary, fontSize: 14, height: 1.4),
             ),
+            const SizedBox(height: 6),
+            Text(
+              _ageLabel(sos.createdAt),
+              style: const TextStyle(color: AppColors.inactive, fontSize: 11),
+            ),
             const SizedBox(height: 12),
             _ResponderLine(count: sos.respondersCount),
+            if (onRespond == null && !isResponding) ...[
+              const SizedBox(height: 4),
+              const Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 15,
+                    color: AppColors.inactive,
+                  ),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'C\'est votre alerte. Suivez son avancement depuis '
+                      'l\'écran SOS.',
+                      style: TextStyle(
+                        color: AppColors.inactive,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (onRespond != null || isResponding) ...[
               const SizedBox(height: 14),
               SizedBox(
@@ -246,21 +346,29 @@ class _SosCard extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.label, required this.critical});
+  const _Badge({required this.distressType});
 
-  final String label;
-  final bool critical;
+  final DistressType distressType;
 
   @override
   Widget build(BuildContext context) {
+    // Trois niveaux plutôt que deux: incendie et accident ne sont pas du même
+    // calibre qu'« autre », mais moins immédiats que médical/agression.
+    final color = distressType.isCritical
+        ? AppColors.sos
+        : switch (distressType) {
+            DistressType.fire || DistressType.accident =>
+              AppColors.secondaryText,
+            _ => AppColors.inactive,
+          };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: critical ? AppColors.sos : AppColors.inactive,
+        color: color,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        label.toUpperCase(),
+        distressType.label.toUpperCase(),
         style: const TextStyle(
           color: Colors.white,
           fontSize: 10,

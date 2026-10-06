@@ -70,6 +70,9 @@ service cloud.firestore {
     function isCitizen() {
       return hasRole('citizen');
     }
+    function isShelterManager() {
+      return hasRole('shelterManager');
+    }
 
     function isOrganizationMember() {
       return hasRole('organizationMember')
@@ -208,41 +211,53 @@ service cloud.firestore {
     // Spec §1.1 : la liste des refuges et leur fiche (adresse, capacite,
     // ressources) se consultent sans connexion. Spec §2 : un citoyen en
     // propose un, un admin le valide.
-    match /shelters/{shelterId} {
+     match /shelters/{shelterId} {
       allow read: if true;
 
       function validShelterAvailabilityUpdate() {
-        return changedOnly(['status', 'capacityOccupied', 'updatedAt'])
-          && request.resource.data.status in [
-            'open',
-            'almostFull',
-            'full',
-            'closed'
-          ]
+        return changedOnly(['capacityOccupied', 'status', 'updatedAt'])
           && request.resource.data.capacityOccupied is int
           && request.resource.data.capacityOccupied >= 0
           && request.resource.data.capacityOccupied <= resource.data.capacityTotal
-          && request.resource.data.updatedAt is timestamp;
+          && request.resource.data.status in ['open', 'almostFull', 'full', 'closed'];
       }
 
-      // Les citoyens soumettent une proposition en attente. L'admin peut
-      // ajouter directement un refuge officiel déjà validé.
       allow create: if isAdmin()
+        // Proposition citoyenne : en attente, sans organisation, SANS gestionnaire
+        // désigné (un citoyen ne peut pas imposer un refuge à un tiers).
         || (isCitizen()
-        && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdBy == request.auth.uid
           && (!request.resource.data.keys().hasAny(['organizationId'])
             || request.resource.data.organizationId == null)
-          && request.resource.data.validationStatus == 'pending');
+          && (!request.resource.data.keys().hasAny(['managedBy'])
+            || request.resource.data.managedBy == null)
+          && request.resource.data.validationStatus == 'pending')
+        // Gestionnaire : refuge à son nom, vide, en attente de validation.
+        || (isShelterManager()
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.managedBy == request.auth.uid
+          && (!request.resource.data.keys().hasAny(['organizationId'])
+            || request.resource.data.organizationId == null)
+          && request.resource.data.validationStatus == 'pending'
+          && request.resource.data.capacityOccupied == 0
+          && request.resource.data.capacityTotal is int
+          && request.resource.data.capacityTotal > 0
+          && validGeoPoint(request.resource.data.location));
 
-      // L'organisation peut trancher une proposition sans modifier les autres
-      // informations du refuge. La gestion globale appartient à l'admin.
       allow update: if isAdmin()
+        // Organisation : tranche une proposition (inchangé).
         || (isOrganizationMember()
           && resource.data.organizationId == myOrganizationId()
           && resource.data.validationStatus == 'pending'
           && changedOnly(['validationStatus', 'validatedBy'])
           && request.resource.data.validationStatus in ['validated', 'rejected']
           && request.resource.data.validatedBy == request.auth.uid)
+        // Gestionnaire : occupation, statut et ressources de SON refuge.
+        || (isShelterManager()
+          && resource.data.managedBy == request.auth.uid
+          && changedOnly(['capacityOccupied', 'status', 'resources', 'updatedAt'])
+          && request.resource.data.capacityOccupied >= 0
+          && request.resource.data.capacityOccupied <= resource.data.capacityTotal)
         || (isOrganizationMember()
           && resource.data.organizationId == myOrganizationId()
           && resource.data.validationStatus == 'validated'
@@ -250,6 +265,7 @@ service cloud.firestore {
 
       allow delete: if isAdmin();
     }
+
 
     // =========================================================================
     // organizations

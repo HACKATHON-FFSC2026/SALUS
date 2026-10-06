@@ -368,9 +368,6 @@ class _RecommendationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final shelter = item.shelter;
     final available = shelter.availablePlaces;
-    final progress = shelter.capacityTotal == 0
-        ? 0.0
-        : (available / shelter.capacityTotal).clamp(0.0, 1.0);
     final capacityColor = shelter.availabilityColor;
     final capacityTextColor = capacityColor == AppColors.secondary
         ? AppColors.primary
@@ -457,12 +454,12 @@ class _RecommendationCard extends StatelessWidget {
                       children: [
                         const Expanded(
                           child: Text(
-                            'Capacité disponible',
+                            'Occupation',
                             style: TextStyle(fontSize: 12),
                           ),
                         ),
                         Text(
-                          '$available / ${shelter.capacityTotal} places',
+                          '${shelter.capacityOccupied}/${shelter.capacityTotal} · $available libres',
                           style: TextStyle(
                             color: capacityTextColor,
                             fontWeight: FontWeight.bold,
@@ -473,7 +470,7 @@ class _RecommendationCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 7),
                     LinearProgressIndicator(
-                      value: progress,
+                      value: shelter.occupancyRatio,
                       minHeight: 5,
                       borderRadius: BorderRadius.circular(5),
                       color: capacityColor,
@@ -517,9 +514,6 @@ class _ShelterTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final shelter = item.shelter;
     final available = shelter.availablePlaces;
-    final progress = shelter.capacityTotal == 0
-        ? 0.0
-        : (available / shelter.capacityTotal).clamp(0.0, 1.0);
     final capacityColor = shelter.availabilityColor;
     return Card(
       margin: EdgeInsets.zero,
@@ -555,6 +549,24 @@ class _ShelterTile extends StatelessWidget {
                   ShelterValidationChip(
                     status: shelter.validationStatus,
                     prominent: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  ShelterStatusText(status: shelter.status),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      shelter.address,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.inactive,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -626,7 +638,7 @@ class _ShelterTile extends StatelessWidget {
                       children: [
                         const Expanded(
                           child: Text(
-                            'Capacité disponible',
+                            'Occupation',
                             style: TextStyle(
                               color: AppColors.inactive,
                               fontSize: 12,
@@ -634,7 +646,7 @@ class _ShelterTile extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '$available / ${shelter.capacityTotal} places',
+                          '${shelter.capacityOccupied}/${shelter.capacityTotal} · $available libres',
                           style: TextStyle(
                             color: capacityColor,
                             fontWeight: FontWeight.w700,
@@ -647,7 +659,7 @@ class _ShelterTile extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: LinearProgressIndicator(
-                        value: progress,
+                        value: shelter.occupancyRatio,
                         minHeight: 5,
                         color: capacityColor,
                         backgroundColor: Colors.black.withValues(alpha: 0.08),

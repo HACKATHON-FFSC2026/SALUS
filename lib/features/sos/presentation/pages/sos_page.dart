@@ -175,9 +175,7 @@ class _SendSosView extends StatelessWidget {
                 isEnabled: canSend,
                 onHold: onSend,
               ),
-              CallEmergencyButton(
-                numbers: EmergencyNumbers.forCountry('Madagascar'),
-              ),
+              CallEmergencyButton(numbers: _emergencyNumbersForDevice()),
               const SizedBox(height: 20),
             ],
           ),
@@ -185,6 +183,18 @@ class _SendSosView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Numéros du pays de l'appareil quand il est connu, sinon Madagascar
+/// (marché principal). Le 112 est toujours ajouté par [CallEmergencyButton].
+///
+/// ponytail: proxy par locale, pas de géocodage. Un appareil configuré en
+/// anglais à Madagascar retombe sur Madagascar + 112. Passer au pays déduit
+/// de la position si ça devient un vrai besoin.
+EmergencyNumbers _emergencyNumbersForDevice() {
+  final code = WidgetsBinding.instance.platformDispatcher.locale.countryCode;
+  return EmergencyNumbers.forCountryCode(code) ??
+      EmergencyNumbers.forCountry('Madagascar');
 }
 
 /// Alerte ouverte: suivi du statut et annulation.
@@ -221,6 +231,10 @@ class _ActiveSosView extends StatelessWidget {
               const SizedBox(height: 20),
               _RespondersPanel(alert: currentAlert),
             ],
+            // Une alerte active ne doit jamais retirer l'accès aux secours:
+            // la victime doit pouvoir appeler sans annuler son SOS.
+            const SizedBox(height: 24),
+            CallEmergencyButton(numbers: _emergencyNumbersForDevice()),
             const SizedBox(height: 28),
             CancelSosButton(
               isBusy: isCancelling,

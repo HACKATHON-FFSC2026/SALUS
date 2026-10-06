@@ -137,7 +137,8 @@ class _OrganizationMembershipDialogState
               ),
               const SizedBox(height: 12),
               const Text(
-                'Le rôle organizationMember sera ajouté au compte et son organisation associée. Son rôle citoyen sera conservé.',
+                'Le rôle Secouriste sera ajouté au compte et son organisation '
+                'associée. Son rôle citoyen sera conservé.',
                 style: TextStyle(color: AppColors.inactive, fontSize: 12),
               ),
               if (_error != null) ...[

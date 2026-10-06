@@ -21,18 +21,17 @@ class AlertsPage extends ConsumerWidget {
       if (!next.hasError) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Impossible de charger les alertes lues : ${next.error}'),
+          content: Text(
+            'Impossible de charger les alertes lues : ${next.error}',
+          ),
         ),
       );
     });
     final position = ref.watch(locationProvider.select((s) => s.position));
-    final locationStatus = ref.watch(
-      locationProvider.select((s) => s.status),
-    );
+    final locationStatus = ref.watch(locationProvider.select((s) => s.status));
     final externalZones = ref.watch(riskZonesProvider);
     final firestoreZones = ref.watch(activeRiskZonesProvider);
-    final hasZones =
-        externalZones.hasValue || firestoreZones.hasValue;
+    final hasZones = externalZones.hasValue || firestoreZones.hasValue;
     final zonesUnavailable =
         !hasZones && externalZones.hasError && firestoreZones.hasError;
 
@@ -90,11 +89,7 @@ class AlertsPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _markRead(
-    BuildContext context,
-    WidgetRef ref,
-    String id,
-  ) async {
+  Future<void> _markRead(BuildContext context, WidgetRef ref, String id) async {
     try {
       await ref.read(readAlertIdsProvider.notifier).markRead([id]);
     } catch (error) {
@@ -188,7 +183,10 @@ class _DisasterAlertCard extends StatelessWidget {
                         color: AppColors.secondary,
                       ),
                     if (alert.userInsideZone)
-                      const _AlertBadge(label: 'DANS LA ZONE', color: AppColors.sos),
+                      const _AlertBadge(
+                        label: 'DANS LA ZONE',
+                        color: AppColors.sos,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -238,11 +236,7 @@ class _AlertBadge extends StatelessWidget {
     ),
     child: Text(
       label,
-      style: TextStyle(
-        color: color,
-        fontSize: 9,
-        fontWeight: FontWeight.w800,
-      ),
+      style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800),
     ),
   );
 }

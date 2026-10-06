@@ -132,9 +132,6 @@ class ShelterDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final available = shelter.availablePlaces;
-    final progress = shelter.capacityTotal == 0
-        ? 0.0
-        : available / shelter.capacityTotal;
     final canNavigate = shelter.canStartNavigation && onStartRoute != null;
 
     return Column(
@@ -242,10 +239,36 @@ class ShelterDetailSheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
+              // La barre montre l'occupation (barre pleine = plein), donc on
+              // l'étiquette explicitement pour ne pas la confondre avec le
+              // nombre de places libres affiché au-dessus.
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Occupation',
+                      style: TextStyle(
+                        color: AppColors.inactive,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${shelter.capacityOccupied} / ${shelter.capacityTotal}',
+                    style: const TextStyle(
+                      color: AppColors.inactive,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
-                  value: progress.clamp(0.0, 1.0),
+                  value: shelter.occupancyRatio,
                   minHeight: 7,
                   color: shelter.availabilityColor,
                   backgroundColor: Colors.white.withValues(alpha: .8),

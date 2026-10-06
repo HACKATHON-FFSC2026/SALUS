@@ -77,6 +77,33 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
     widget.onHold();
   }
 
+  /// L'action d'accessibilité (double-tap d'un lecteur d'écran, switch access)
+  /// ne peut pas « maintenir ». Branchée directement sur l'envoi, elle
+  /// contournait la protection anti-appui accidentel et déclenchait une alerte
+  /// irréversible. On demande donc une confirmation explicite.
+  Future<void> _confirmAccessibleSend() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Envoyer l\'alerte SOS ?'),
+        content: const Text(
+          'Votre position sera transmise aux secours. L\'envoi est immédiat.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Envoyer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) _send();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
@@ -84,7 +111,9 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
       enabled: widget.isEnabled && !widget.isLoading,
       label: 'Envoyer une alerte SOS',
       hint: 'Maintenez appuyé deux secondes pour envoyer votre position',
-      onTap: widget.isEnabled && !widget.isLoading ? widget.onHold : null,
+      onTap: widget.isEnabled && !widget.isLoading
+          ? () => _confirmAccessibleSend()
+          : null,
       child: Listener(
         // `opaque` est nécessaire : le sous-arbre est une chaîne de
         // DecoratedBox et de Stack qui ne rapportent aucun hit au test de
@@ -123,7 +152,7 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
                         value: _controller.value,
                         strokeWidth: 8,
                         valueColor: const AlwaysStoppedAnimation(
-                          AppColors.secondary,
+                          AppColors.secondaryText,
                         ),
                         backgroundColor: Colors.transparent,
                       ),

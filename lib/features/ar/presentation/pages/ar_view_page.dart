@@ -19,10 +19,12 @@ class ArViewPage extends ConsumerStatefulWidget {
   ConsumerState<ArViewPage> createState() => _ArViewPageState();
 }
 
-class _ArViewPageState extends ConsumerState<ArViewPage> {
+class _ArViewPageState extends ConsumerState<ArViewPage>
+    with SingleTickerProviderStateMixin {
   // ponytail: clé forcée pour « Réessayer » après refus de permission;
   // ArLocationWidget possèdera son flux capteurs et doit être recréé.
   int _sessionKey = 0;
+  late final AnimationController _pulseController;
 
   /// Filtres par type. Zones à risque masquées par défaut: sur le terrain,
   /// on cherche d'abord où aller, pas où ne pas aller (spec §1.1).
@@ -31,14 +33,43 @@ class _ArViewPageState extends ConsumerState<ArViewPage> {
   bool _showRiskZones = false;
 
   @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.of(context).disableAnimations) {
+      _pulseController
+        ..stop()
+        ..value = 0;
+    } else if (!_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final annotations = ref
         .watch(arAnnotationsProvider)
-        .where((a) => switch (a.poi.type) {
-              ArPoiType.shelter => _showShelters,
-              ArPoiType.safeZone => _showSafeZones,
-              ArPoiType.riskZone => _showRiskZones,
-            })
+        .where(
+          (a) => switch (a.poi.type) {
+            ArPoiType.shelter => _showShelters,
+            ArPoiType.safeZone => _showSafeZones,
+            ArPoiType.riskZone => _showRiskZones,
+          },
+        )
         .toList();
     final sheltersLoading = ref.watch(
       validatedSheltersProvider.select((a) => a.isLoading),
@@ -49,118 +80,192 @@ class _ArViewPageState extends ConsumerState<ArViewPage> {
         key: ValueKey(_sessionKey),
         annotations: annotations,
         showDebugInfoSensor: false,
-        annotationWidth: 210,
-        annotationHeight: 62,
+        annotationWidth: ArAnnotationCard.width,
+        annotationHeight: ArAnnotationCard.height,
         yOffsetOverlap: 12,
         maxVisibleDistance: 2000,
         scaleWithDistance: false,
-        radarPosition: RadarPosition.topRight,
-        radarWidth: 140,
+        showRadar: false,
         isLoading: sheltersLoading,
         onLocationChange: (_) {},
-        annotationViewBuilder: (context, annotation) =>
-            ArAnnotationCard(annotation: annotation as SalusArAnnotation),
+        annotationViewBuilder: (context, annotation) => ArAnnotationCard(
+          annotation: annotation as SalusArAnnotation,
+          pulse: _pulseController,
+        ),
         accessory: SafeArea(
-          child: Align(
-            alignment: Alignment.topLeft,
+          minimum: const EdgeInsets.all(16),
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.topLeft,
+                child: FloatingActionButton.small(
+                  heroTag: 'ar_close_fab',
+                  backgroundColor: Colors.black.withValues(alpha: 0.72),
+                  foregroundColor: Colors.white,
+                  onPressed: () => context.router.maybePop(),
+                  tooltip: 'Fermer la vue AR',
+                  child: const Icon(Icons.close),
+                ),
+              ),
+              Align(
+                alignment: Alignment.topRight,
+                child: Semantics(
+                  label: '${annotations.length} points d’intérêt visibles',
+                  child: CircleAvatar(
+                    radius: 25,
+                    backgroundColor: Colors.white,
+                    child: Text(
+                      '${annotations.length}',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ArFilterButton(
+                      label: 'Refuges',
+                      icon: Icons.night_shelter_outlined,
+                      selected: _showShelters,
+                      onPressed: () =>
+                          setState(() => _showShelters = !_showShelters),
+                    ),
+                    const SizedBox(width: 18),
+                    _ArFilterButton(
+                      label: 'Zones sûres',
+                      icon: Icons.health_and_safety_outlined,
+                      selected: _showSafeZones,
+                      onPressed: () =>
+                          setState(() => _showSafeZones = !_showSafeZones),
+                    ),
+                    const SizedBox(width: 18),
+                    _ArFilterButton(
+                      label: 'Zones à risque',
+                      icon: Icons.warning_amber_rounded,
+                      selected: _showRiskZones,
+                      onPressed: () =>
+                          setState(() => _showRiskZones = !_showRiskZones),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        sensorErrorBuilder: (context, error) {
+          final message = switch (error.type) {
+            ArSensorErrorType.permissionDenied ||
+            ArSensorErrorType.permissionPermanentlyDenied =>
+              'Autorisez la localisation pour orienter les points autour de vous.',
+            ArSensorErrorType.locationServiceDisabled =>
+              'Activez le GPS pour utiliser la vue AR.',
+            ArSensorErrorType.unknown =>
+              'Capteurs indisponibles pour la vue AR.',
+          };
+          return Center(
             child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  FloatingActionButton.small(
-                    heroTag: 'ar_close_fab',
-                    backgroundColor: Colors.black54,
-                    foregroundColor: Colors.white,
-                    onPressed: () => context.router.maybePop(),
-                    child: const Icon(Icons.close),
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  const SizedBox(height: 6),
-                  _ArFilterChip(
-                    label: 'Refuges',
-                    selected: _showShelters,
-                    onSelected: (v) => setState(() => _showShelters = v),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.location_searching,
+                          color: AppColors.secondary,
+                          size: 32,
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Vue AR indisponible',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          message,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        FilledButton(
+                          onPressed: () => setState(() => _sessionKey++),
+                          child: const Text('Réessayer'),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  _ArFilterChip(
-                    label: 'Zones sûres',
-                    selected: _showSafeZones,
-                    onSelected: (v) => setState(() => _showSafeZones = v),
-                  ),
-                  const SizedBox(height: 6),
-                  _ArFilterChip(
-                    label: 'Zones à risque',
-                    selected: _showRiskZones,
-                    onSelected: (v) => setState(() => _showRiskZones = v),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-        sensorErrorBuilder: (context, error) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  switch (error.type) {
-                    ArSensorErrorType.permissionDenied ||
-                    ArSensorErrorType.permissionPermanentlyDenied =>
-                      'Autorisez la localisation pour orienter les points autour de vous.',
-                    ArSensorErrorType.locationServiceDisabled =>
-                      'Activez le GPS pour utiliser la vue AR.',
-                    ArSensorErrorType.unknown =>
-                      'Capteurs indisponibles pour la vue AR.',
-                  },
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () => setState(() => _sessionKey++),
-                  child: const Text('Réessayer'),
-                ),
-              ],
-            ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 }
 
-/// Chip de filtre lisible sur la caméra: fond translucide, sélection ambre.
-class _ArFilterChip extends StatelessWidget {
-  const _ArFilterChip({
+class _ArFilterButton extends StatelessWidget {
+  const _ArFilterButton({
     required this.label,
+    required this.icon,
     required this.selected,
-    required this.onSelected,
+    required this.onPressed,
   });
 
   final String label;
+  final IconData icon;
   final bool selected;
-  final ValueChanged<bool> onSelected;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      backgroundColor: Colors.black54,
-      checkmarkColor: Colors.white,
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : Colors.white70,
-        fontWeight: FontWeight.bold,
+    return Tooltip(
+      message: '$label ${selected ? 'activés' : 'masqués'}',
+      child: Semantics(
+        label: label,
+        button: true,
+        toggled: selected,
+        child: Material(
+          color: selected
+              ? AppColors.secondary
+              : Colors.black.withValues(alpha: 0.72),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: SizedBox(
+              width: 58,
+              height: 58,
+              child: Icon(
+                icon,
+                color: selected ? Colors.black : Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
+        ),
       ),
-      selectedColor: AppColors.secondary.withValues(alpha: 0.85),
-      side: BorderSide(
-        color: selected ? Colors.transparent : Colors.white38,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      label: Text(label),
-      selected: selected,
-      onSelected: onSelected,
     );
   }
 }

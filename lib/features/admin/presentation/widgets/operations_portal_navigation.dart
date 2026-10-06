@@ -154,18 +154,82 @@ class OperationsPortalBottomNavigation extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelect;
 
+  // La NavigationBar Material n'est pas prévue pour 7 destinations: sous
+  // 900 px les libellés se tronquent et se chevauchent. Une barre défilante
+  // garde les 7 sections atteignables quelle que soit la largeur.
   @override
-  Widget build(BuildContext context) => NavigationBar(
-    selectedIndex: selectedIndex,
-    onDestinationSelected: onSelect,
-    destinations: [
-      for (var i = 0; i < sections.length; i++)
-        NavigationDestination(
-          icon: Icon(_sectionIcon(sections[i])),
-          label: sections[i],
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    elevation: 8,
+    child: SafeArea(
+      top: false,
+      child: SizedBox(
+        height: 66,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              for (var i = 0; i < sections.length; i++)
+                _PortalNavItem(
+                  label: sections[i],
+                  selected: selectedIndex == i,
+                  onTap: () => onSelect(i),
+                ),
+            ],
+          ),
         ),
-    ],
+      ),
+    ),
   );
+}
+
+class _PortalNavItem extends StatelessWidget {
+  const _PortalNavItem({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.primary : AppColors.inactive;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 88,
+        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withValues(alpha: 0.08) : null,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(_sectionIcon(label), size: 22, color: color),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 IconData _sectionIcon(String section) => switch (section) {

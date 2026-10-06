@@ -12,6 +12,7 @@ import 'package:salus/features/risks/domain/repositories/safe_zone.dart';
 import 'package:salus/features/risks/presentation/providers/providers/risk_provider.dart';
 import 'package:salus/features/map/presentation/providers/area_name_provider.dart';
 import 'package:salus/features/map/presentation/providers/risk_zones_provider.dart';
+import 'package:salus/features/sos/presentation/providers/active_sos_provider.dart';
 import 'package:salus/features/shelters/data/shelter_repository.dart';
 import 'package:salus/features/shelters/presentation/widgets/shelter_marker_pin.dart';
 import 'package:salus/features/risks/presentation/widgets/disaster_marker_pin.dart';
@@ -119,6 +120,11 @@ Future<void> _pumpMap(
         safeZoneRepositoryProvider.overrideWithValue(_StubSafeZoneRepository()),
         // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
         areaNameProvider.overrideWith((ref, _) async => null),
+        // La carte watch aussi les SOS actifs: stub pour ne pas toucher
+        // Firestore en test.
+        activeSosStreamProvider.overrideWith(
+          (ref) => Stream.value(const <SOSAlert>[]),
+        ),
       ],
       child: _mapApp(),
     ),
@@ -252,6 +258,12 @@ void main() {
           ),
           // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
           areaNameProvider.overrideWith((ref, _) async => null),
+          myRoadIncidentsProvider.overrideWith(
+            (ref) => Stream.value(const <RoadIncident>[]),
+          ),
+          activeSosStreamProvider.overrideWith(
+            (ref) => Stream.value(const <SOSAlert>[]),
+          ),
         ],
         child: _mapApp(),
       ),
@@ -284,6 +296,12 @@ void main() {
           ),
           // Le nom du lieu passe par Nominatim (réseau): stub pour les tests.
           areaNameProvider.overrideWith((ref, _) async => null),
+          myRoadIncidentsProvider.overrideWith(
+            (ref) => Stream.value(const <RoadIncident>[]),
+          ),
+          activeSosStreamProvider.overrideWith(
+            (ref) => Stream.value(const <SOSAlert>[]),
+          ),
         ],
         child: _mapApp(),
       ),
@@ -330,5 +348,43 @@ void main() {
     expect(find.text('Refuge Mahamasina'), findsOneWidget);
     expect(find.text('38 places disponibles'), findsOneWidget);
     expect(find.text('Voir le refuge'), findsOneWidget);
+  });
+
+  testWidgets('affiche un marqueur SOS pour une alerte active', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          shelterRepositoryProvider.overrideWithValue(_StubShelterRepository()),
+          riskZonesProvider.overrideWith((ref) async => const <Zone>[]),
+          activeRiskZonesProvider.overrideWith(
+            (ref) => Stream.value(const <Zone>[]),
+          ),
+          safeZoneRepositoryProvider.overrideWithValue(
+            _StubSafeZoneRepository(),
+          ),
+          areaNameProvider.overrideWith((ref, _) async => null),
+          activeSosStreamProvider.overrideWith(
+            (ref) => Stream.value([
+              SOSAlert(
+                id: 'sos-1',
+                userId: 'u1',
+                location: GeoPoint(-18.8792, 47.5079),
+                distressType: DistressType.medical,
+                status: SOSStatus.waiting,
+                createdAt: DateTime(2026, 1, 1),
+              ),
+            ]),
+          ),
+          myRoadIncidentsProvider.overrideWith(
+            (ref) => Stream.value(const <RoadIncident>[]),
+          ),
+        ],
+        child: _mapApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byIcon(Icons.sos), findsOneWidget);
   });
 }
