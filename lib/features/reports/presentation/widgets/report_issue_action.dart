@@ -210,86 +210,205 @@ class _ReportIssueDialogState extends ConsumerState<_ReportIssueDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(
-      widget.targetType == ReportTarget.road
-          ? 'Signaler un incident routier'
-          : 'Signaler un problème',
-    ),
-    content: Form(
-      key: _formKey,
-      child: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.targetLocation != null) ...[
-              const Text(
-                'La position choisie sur la carte sera jointe à ce signalement.',
-              ),
-              const SizedBox(height: 12),
-            ],
-            DropdownButtonFormField<ReportReason>(
-              initialValue: _reason,
-              decoration: const InputDecoration(labelText: 'Motif'),
-              items: const [
-                DropdownMenuItem(
-                  value: ReportReason.unsafe,
-                  child: Text('Dangereux'),
+  Widget build(BuildContext context) => Dialog(
+    insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 460),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.sos.withValues(alpha: .12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.report_problem_outlined,
+                        color: AppColors.sos,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.targetType == ReportTarget.road
+                            ? 'Signaler un incident routier'
+                            : 'Signaler un problème',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Annuler',
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
                 ),
-                DropdownMenuItem(
-                  value: ReportReason.unavailable,
-                  child: Text('Indisponible'),
+                if (widget.targetLocation != null) ...[
+                  const SizedBox(height: 4),
+                  const _LocationNote(),
+                ],
+                const SizedBox(height: 18),
+                const _FieldLabel('Motif'),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final reason in ReportReason.values)
+                      _ReasonChip(
+                        reason: reason,
+                        selected: _reason == reason,
+                        enabled: !_isSubmitting,
+                        onSelected: () => setState(() => _reason = reason),
+                      ),
+                  ],
                 ),
-                DropdownMenuItem(
-                  value: ReportReason.blocked,
-                  child: Text('Bloqué'),
+                const SizedBox(height: 20),
+                const _FieldLabel('Précisions (facultatif)'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _descriptionController,
+                  enabled: !_isSubmitting,
+                  maxLines: 4,
+                  maxLength: 4000,
+                  decoration: const InputDecoration(
+                    hintText: 'Décrivez la situation…',
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (value) => (value?.length ?? 0) > 4000
+                      ? 'Maximum 4 000 caractères.'
+                      : null,
                 ),
-                DropdownMenuItem(
-                  value: ReportReason.other,
-                  child: Text('Autre'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      child: const Text('Annuler'),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: _isSubmitting ? null : _submit,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Envoyer'),
+                    ),
+                  ],
                 ),
               ],
-              onChanged: _isSubmitting
-                  ? null
-                  : (value) {
-                      if (value != null) setState(() => _reason = value);
-                    },
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descriptionController,
-              enabled: !_isSubmitting,
-              maxLines: 4,
-              maxLength: 4000,
-              decoration: const InputDecoration(
-                labelText: 'Précisions (facultatif)',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) => (value?.length ?? 0) > 4000
-                  ? 'Maximum 4 000 caractères.'
-                  : null,
-            ),
-          ],
+          ),
         ),
       ),
     ),
-    actions: [
-      TextButton(
-        onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-        child: const Text('Annuler'),
-      ),
-      FilledButton(
-        onPressed: _isSubmitting ? null : _submit,
-        child: _isSubmitting
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Text('Envoyer'),
-      ),
-    ],
   );
+}
+
+/// Titre de champ du formulaire de signalement.
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: const TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+      color: AppColors.primary,
+    ),
+  );
+}
+
+/// Rappel que la position choisie sur la carte est jointe au signalement.
+class _LocationNote extends StatelessWidget {
+  const _LocationNote();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: AppColors.secondary.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: const Row(
+      children: [
+        Icon(Icons.place_outlined, size: 18, color: AppColors.secondaryText),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'La position choisie sur la carte sera jointe à ce signalement.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.primary),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Motif du signalement, sélectionnable parmi quelques choix.
+class _ReasonChip extends StatelessWidget {
+  const _ReasonChip({
+    required this.reason,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final ReportReason reason;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) => ChoiceChip(
+    label: Text(_label(reason)),
+    selected: selected,
+    showCheckmark: false,
+    onSelected: enabled ? (_) => onSelected() : null,
+    labelStyle: TextStyle(
+      fontWeight: FontWeight.w600,
+      color: selected ? Colors.white : AppColors.primary,
+    ),
+    selectedColor: AppColors.primary,
+    backgroundColor: AppColors.surface,
+    side: BorderSide(
+      color: selected
+          ? AppColors.primary
+          : AppColors.inactive.withValues(alpha: .3),
+    ),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  );
+
+  static String _label(ReportReason reason) => switch (reason) {
+    ReportReason.unsafe => 'Dangereux',
+    ReportReason.unavailable => 'Indisponible',
+    ReportReason.blocked => 'Bloqué',
+    ReportReason.other => 'Autre',
+  };
 }

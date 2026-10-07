@@ -43,6 +43,22 @@ class ArViewRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [AssistantPage]
+class AssistantRoute extends PageRouteInfo<void> {
+  const AssistantRoute({List<PageRouteInfo>? children})
+    : super(AssistantRoute.name, initialChildren: children);
+
+  static const String name = 'AssistantRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const AssistantPage();
+    },
+  );
+}
+
+/// generated route for
 /// [CreateShelterPage]
 class CreateShelterRoute extends PageRouteInfo<void> {
   const CreateShelterRoute({List<PageRouteInfo>? children})

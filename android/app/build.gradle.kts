@@ -63,6 +63,10 @@ android {
 
             release {
                 signingConfig = signingConfigs.getByName(signingName)
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro",
+                )
             }
         } else {
             debug {
@@ -74,4 +78,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("net.java.dev.jna:jna:5.15.0@aar")
+    implementation("com.alphacephei:vosk-android:0.3.75@aar")
 }

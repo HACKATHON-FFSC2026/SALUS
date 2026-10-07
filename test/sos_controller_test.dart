@@ -37,6 +37,7 @@ class _FakeSosRepository implements ISosRepository {
   final cancelled = <String>[];
   final sharedLocations = <Map<String, double>>[];
   final helpStatuses = <String, HelpResponseStatus>{};
+  List<SOSAlert> activeAlerts = const [];
   int offers = 0;
   int sent = 0;
   Object? sendThrows;
@@ -73,7 +74,7 @@ class _FakeSosRepository implements ISosRepository {
 
   @override
   Stream<List<SOSAlert>> watchMyActiveSosAlerts() =>
-      Stream.value(List<SOSAlert>.empty());
+      Stream.value(activeAlerts);
 
   @override
   Future<void> respondToSos(String alertId) async {}
@@ -169,6 +170,16 @@ void main() {
     expect(state().alertId, 'alert-1');
     expect(state().hasActiveAlert, isTrue);
     expect(state().status, SosStatus.success);
+  });
+
+  test('restaure une alerte active avant d\'autoriser un nouveau SOS', () async {
+    fake.activeAlerts = [_alert()];
+
+    await controller().triggerSos();
+
+    expect(fake.sent, 0);
+    expect(state().hasActiveAlert, isTrue);
+    expect(state().isRestoring, isFalse);
   });
 
   // L5: deux maintiens successifs ne doivent pas créer deux alertes.

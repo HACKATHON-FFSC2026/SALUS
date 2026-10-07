@@ -23,6 +23,7 @@ dependencies:
   json_annotation: ^4.12.0
   logger: ^2.8.0
   pretty_dio_logger: ^1.4.0
+  permission_handler: ^12.0.3
   riverpod: ^3.4.3
   toastification: ^3.0.3
   flutter_map: 8.2.2              
@@ -34,6 +35,7 @@ dependencies:
   turf: ^0.0.9                    
   shared_preferences: ^2.5.5   
   ar_location_view: ^3.0.0
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:

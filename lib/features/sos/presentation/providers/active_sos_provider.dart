@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/utils/geo_grid.dart';
 import 'package:salus/app/di/app_dependencies.dart';
+import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 
 /// Position de référence si la permission est déjà accordée.
 ///
@@ -14,6 +15,22 @@ final sosOriginProvider = FutureProvider.autoDispose<Position?>(
   (ref) => _permittedPosition(),
 );
 
+/// Portée de la liste SOS.
+///
+/// `false` (défaut) : toutes les alertes. `true` : limitée aux cellules proches
+/// de l'utilisateur. La vue « proche » peut être vide alors que des alertes
+/// existent ailleurs — le basculement évite d'y rester coincé.
+class SosNearbyScope extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void setNearby(bool value) => state = value;
+}
+
+final sosNearbyScopeProvider = NotifierProvider<SosNearbyScope, bool>(
+  SosNearbyScope.new,
+);
+
 /// Alertes SOS actives, triées par proximité quand la position est connue.
 ///
 /// La permission de localisation n'est jamais demandée ici : une liste qui
@@ -22,13 +39,21 @@ final sosOriginProvider = FutureProvider.autoDispose<Position?>(
 final activeSosStreamProvider = StreamProvider.autoDispose<List<SOSAlert>>((
   ref,
 ) async* {
+  // Invité : Firestore refuse la lecture des alertes SOS. Ne pas lancer la
+  // requête, la liste resterait vide de toute façon.
+  if (ref.watch(currentUidProvider) == null) {
+    yield const <SOSAlert>[];
+    return;
+  }
+
   final repository = ref.watch(sosRepositoryProvider);
   final origin = await ref.watch(sosOriginProvider.future);
+  final nearbyOnly = ref.watch(sosNearbyScopeProvider);
 
   await for (final alerts in repository.watchActiveSosAlerts(
-    geoCells: origin == null
-        ? null
-        : GeoGrid.cellsAround(origin.latitude, origin.longitude),
+    geoCells: nearbyOnly && origin != null
+        ? GeoGrid.cellsAround(origin.latitude, origin.longitude)
+        : null,
   )) {
     if (origin == null) {
       yield alerts;

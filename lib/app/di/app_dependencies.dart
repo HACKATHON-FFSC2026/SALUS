@@ -1,9 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/sources/firestore_client.dart';
 import 'package:salus/core/sources/remote_client.dart';
 import 'package:salus/features/admin/data/firestore_admin_portal_repository.dart';
 import 'package:salus/features/admin/domain/admin_portal_repository.dart';
+import 'package:salus/features/assistant/data/assistant_api.dart';
 import 'package:salus/features/alerts/data/repositories/alert_read_repository.dart';
 import 'package:salus/features/alerts/data/repositories/shared_prefs_alert_read_repository.dart';
 import 'package:salus/features/auth/data/firebase_auth_repository.dart';
@@ -59,6 +62,26 @@ final geocodingServiceProvider = Provider<GeocodingService>(
   (ref) => GeocodingService(ref.watch(remoteClientProvider)),
 );
 final dioProvider = Provider<Dio>((ref) => Dio());
+
+/// Surchargeable au build : `--dart-define=SALUS_BACKEND_URL=http://192.168.1.20:8080`.
+/// Prioritaire sur `.env` pour viser l'IP LAN d'un vrai device sans éditer de fichier.
+const _backendUrlDefine = String.fromEnvironment('SALUS_BACKEND_URL');
+
+final assistantApiProvider = Provider<AssistantApi>((ref) {
+  final backendUrl = _backendUrlDefine.isNotEmpty
+      ? _backendUrlDefine
+      : (dotenv.env['SALUS_BACKEND_URL'] ?? '');
+  return AssistantApi(
+    Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 45),
+      ),
+    ),
+    backendUrl,
+    FirebaseAuth.instance,
+  );
+});
 final gdacsApiServiceProvider =
     Provider((ref) => GdacsApiService(ref.watch(dioProvider)));
 final riskZoneRepositoryProvider = Provider<RiskZoneRepository>(

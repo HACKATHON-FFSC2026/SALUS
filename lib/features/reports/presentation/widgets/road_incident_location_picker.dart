@@ -47,15 +47,18 @@ class _RoadIncidentLocationPickerState
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.sizeOf(context);
+    final selected = _selectedLocation;
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: SizedBox(
         width: screenSize.width,
         height: screenSize.height * 0.82,
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              padding: const EdgeInsets.fromLTRB(20, 16, 8, 6),
               child: Row(
                 children: [
                   const Expanded(
@@ -64,7 +67,7 @@ class _RoadIncidentLocationPickerState
                       style: TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w700,
-                        fontSize: 18,
+                        fontSize: 19,
                       ),
                     ),
                   ),
@@ -77,81 +80,130 @@ class _RoadIncidentLocationPickerState
               ),
             ),
             const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: Text(
-                'Touchez la carte pour placer le repère à l’endroit concerné.',
-              ),
-            ),
-            Expanded(
-              child: FlutterMap(
-                options: MapOptions(
-                  initialCenter: _initialLocation,
-                  initialZoom: 16,
-                  onTap: (_, point) => setState(() {
-                    _selectedLocation = point;
-                  }),
-                ),
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Row(
                 children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.salus.app',
-                    tileProvider: widget.tileProvider,
+                  Icon(
+                    Icons.touch_app_outlined,
+                    size: 18,
+                    color: AppColors.inactive,
                   ),
-                  MarkerLayer(
-                    markers: [
-                      if (_selectedLocation case final selected?)
-                        Marker(
-                          point: selected,
-                          width: 46,
-                          height: 46,
-                          child: const Icon(
-                            Icons.location_pin,
-                            color: AppColors.sos,
-                            size: 44,
-                          ),
-                        ),
-                    ],
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Touchez la carte pour placer le repère à l’endroit '
+                      'concerné.',
+                      style: TextStyle(color: AppColors.inactive, fontSize: 13),
+                    ),
                   ),
                 ],
               ),
             ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.inactive.withValues(alpha: .2),
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: FlutterMap(
+                      options: MapOptions(
+                        initialCenter: _initialLocation,
+                        initialZoom: 16,
+                        onTap: (_, point) =>
+                            setState(() => _selectedLocation = point),
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.salus.app',
+                          tileProvider: widget.tileProvider,
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            if (selected != null)
+                              Marker(
+                                point: selected,
+                                width: 48,
+                                height: 48,
+                                child: const Icon(
+                                  Icons.location_pin,
+                                  color: AppColors.sos,
+                                  size: 46,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black45,
+                                      blurRadius: 6,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-              child: SizedBox(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (widget.gpsUnavailable)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'GPS indisponible. La carte est centrée sur Antananarivo ; choisissez le point exact manuellement.',
-                          style: TextStyle(color: AppColors.sos, fontSize: 12),
-                          textAlign: TextAlign.center,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (widget.gpsUnavailable)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 10),
+                      child: _GpsWarning(),
+                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        selected == null
+                            ? Icons.location_off_outlined
+                            : Icons.location_on,
+                        size: 18,
+                        color: selected == null
+                            ? AppColors.inactive
+                            : Colors.green.shade700,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        selected == null
+                            ? 'Aucun point sélectionné'
+                            : 'Point sélectionné',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: selected == null
+                              ? AppColors.inactive
+                              : AppColors.primary,
                         ),
                       ),
-                    Text(
-                      _selectedLocation == null
-                          ? 'Aucun point sélectionné'
-                          : 'Point sélectionné',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed: _selectedLocation == null
-                          ? null
-                          : () => Navigator.of(context).pop(
-                              GeoPoint(
-                                latitude: _selectedLocation!.latitude,
-                                longitude: _selectedLocation!.longitude,
-                              ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: selected == null
+                        ? null
+                        : () => Navigator.of(context).pop(
+                            GeoPoint(
+                              latitude: selected.latitude,
+                              longitude: selected.longitude,
                             ),
-                      icon: const Icon(Icons.check),
-                      label: const Text('Utiliser ce point'),
-                    ),
-                  ],
-                ),
+                          ),
+                    icon: const Icon(Icons.check),
+                    label: const Text('Utiliser ce point'),
+                  ),
+                ],
               ),
             ),
           ],
@@ -159,4 +211,30 @@ class _RoadIncidentLocationPickerState
       ),
     );
   }
+}
+
+class _GpsWarning extends StatelessWidget {
+  const _GpsWarning();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: AppColors.sos.withValues(alpha: .10),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: const Row(
+      children: [
+        Icon(Icons.gps_off_outlined, size: 18, color: AppColors.sos),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'GPS indisponible. La carte est centrée sur Antananarivo ; '
+            'choisissez le point exact manuellement.',
+            style: TextStyle(color: AppColors.sos, fontSize: 12),
+          ),
+        ),
+      ],
+    ),
+  );
 }

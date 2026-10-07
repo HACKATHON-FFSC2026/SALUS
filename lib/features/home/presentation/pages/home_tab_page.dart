@@ -63,6 +63,25 @@ class HomeTabPage extends ConsumerWidget {
               dangerZones: dangerZones,
             ),
           ),
+          Positioned(
+            right: 16,
+            // Aligné sur la rangée d'outils de la carte et au-dessus de la
+            // protrusion du FAB SOS central.
+            bottom: 48,
+            child: FloatingActionButton.extended(
+              heroTag: 'assistant_fab',
+              onPressed: () => context.router.push(const AssistantRoute()),
+              backgroundColor: AppColors.secondary,
+              foregroundColor: AppColors.primary,
+              elevation: 6,
+              extendedPadding: const EdgeInsets.symmetric(horizontal: 20),
+              icon: const Icon(Icons.auto_awesome, size: 24),
+              label: const Text(
+                'Copilote IA',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+            ),
+          ),
         ],
       ),
     );

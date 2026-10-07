@@ -1,0 +1,4 @@
+The bundled vosk-model-small-fr-0.22 model is distributed under the Apache
+License, Version 2.0. Its source and license information are available at
+https://alphacephei.com/vosk/models. The license text is in
+LICENSE-Apache-2.0.txt.

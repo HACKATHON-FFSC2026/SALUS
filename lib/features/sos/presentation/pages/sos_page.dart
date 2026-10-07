@@ -12,6 +12,7 @@ import 'package:salus/core/entities/location_share_entity.dart';
 import '../../domain/usecases/send_sos_usecase.dart';
 import '../providers/responder_controller.dart';
 import '../providers/sos_provider.dart';
+import '../voice_sos.dart';
 import '../widgets/call_emergency_button.dart';
 import '../widgets/cancel_sos_button.dart';
 import '../widgets/sos_button.dart';
@@ -36,7 +37,9 @@ class _SosPageState extends ConsumerState<SosPage> {
     // puis à une erreur, alors que l'utilisateur vient de signaler une
     // détresse: si le dialogue est refusé ou la géolocalisation coupée,
     // aucune alerte n'est jamais envoyée.
-    WidgetsBinding.instance.addPostFrameCallback((_) => requestLocationPermission());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => requestLocationPermission(),
+    );
   }
 
   @override
@@ -46,7 +49,15 @@ class _SosPageState extends ConsumerState<SosPage> {
 
     // Un SOS est une action sensible: le spec impose une identité vérifiée.
     // Un invité n'a pas d'uid Firebase, l'écriture serait refusée.
-    final canSend = auth.status == AuthStatus.authenticated && auth.user != null;
+    final canSend =
+        auth.status == AuthStatus.authenticated && auth.user != null;
+    final voiceConsent = canSend && isVoiceSosSupported
+        ? ref.watch(voiceSosProvider).setupChoice
+        : VoiceSosSetupChoice.accepted;
+    final showVoiceSetup =
+        voiceConsent == VoiceSosSetupChoice.needsPrompt ||
+        voiceConsent == VoiceSosSetupChoice.postponed;
+    final alertActive = sosState.hasActiveAlert;
 
     ref.listen<SosState>(sosControllerProvider, (previous, next) {
       if (next.status == SosStatus.error) {
@@ -67,13 +78,18 @@ class _SosPageState extends ConsumerState<SosPage> {
         foregroundColor: AppColors.primary,
         elevation: 0,
         centerTitle: false,
-        title: const Row(
+        // L'en-tête suit l'état: « Besoin d'aide ? » restait affiché alors que
+        // l'alerte était déjà partie, ce qui contredisait l'écran.
+        title: Row(
           children: [
-            Icon(Icons.shield_outlined, color: AppColors.primary),
-            SizedBox(width: 8),
+            Icon(
+              alertActive ? Icons.sos : Icons.shield_outlined,
+              color: alertActive ? AppColors.sos : AppColors.primary,
+            ),
+            const SizedBox(width: 8),
             Text(
-              "Besoin d'aide ?",
-              style: TextStyle(
+              alertActive ? 'Alerte SOS en cours' : "Besoin d'aide ?",
+              style: const TextStyle(
                 color: AppColors.primary,
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
@@ -83,11 +99,15 @@ class _SosPageState extends ConsumerState<SosPage> {
         ),
       ),
       body: SafeArea(
-        child: sosState.hasActiveAlert
+        child: alertActive
             ? _ActiveSosView(alert: sosState.alert)
             : _SendSosView(
                 canSend: canSend,
-                isSending: sosState.status == SosStatus.sending,
+                isSending:
+                    sosState.status == SosStatus.sending ||
+                    sosState.isRestoring,
+                showVoiceSetup: showVoiceSetup,
+                onVoiceSetup: () => requestVoiceSosSetup(context, ref),
                 distressType: _distressType,
                 onDistressTypeChanged: (type) =>
                     setState(() => _distressType = type),
@@ -105,6 +125,8 @@ class _SendSosView extends StatelessWidget {
   const _SendSosView({
     required this.canSend,
     required this.isSending,
+    required this.showVoiceSetup,
+    required this.onVoiceSetup,
     required this.distressType,
     required this.onDistressTypeChanged,
     required this.onSend,
@@ -112,6 +134,8 @@ class _SendSosView extends StatelessWidget {
 
   final bool canSend;
   final bool isSending;
+  final bool showVoiceSetup;
+  final VoidCallback onVoiceSetup;
   final DistressType distressType;
   final ValueChanged<DistressType> onDistressTypeChanged;
   final VoidCallback onSend;
@@ -170,6 +194,25 @@ class _SendSosView extends StatelessWidget {
               // pouvoir appeler quelqu'un même sans compte, et le compte
               // n'est pas l'urgence.
               if (!canSend) const _SignInHint(),
+              if (showVoiceSetup)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Le modèle français (40,3 Mio) est inclus dans Salus. '
+                        'Préparez-le avant une urgence.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.inactive),
+                      ),
+                      TextButton.icon(
+                        onPressed: onVoiceSetup,
+                        icon: const Icon(Icons.mic),
+                        label: const Text('Préparer et activer le SOS vocal'),
+                      ),
+                    ],
+                  ),
+                ),
               SosButton(
                 isLoading: isSending,
                 isEnabled: canSend,
@@ -212,28 +255,19 @@ class _ActiveSosView extends StatelessWidget {
             SosStatus.loading;
         final currentAlert = alert;
 
+        // Un rythme vertical constant (24) entre les blocs, et 28 avant
+        // l'action destructive pour la séparer des blocs d'information.
         return ListView(
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.only(top: 20, bottom: 32),
           children: [
             SosStatusCard(alert: currentAlert),
+            const SizedBox(height: 24),
             if (currentAlert != null) ...[
-              const SizedBox(height: 8),
-              Center(
-                child: Text(
-                  'Votre position est partagée en temps réel avec les '
-                  'secouristes.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.inactive,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
               _RespondersPanel(alert: currentAlert),
+              const SizedBox(height: 24),
             ],
             // Une alerte active ne doit jamais retirer l'accès aux secours:
             // la victime doit pouvoir appeler sans annuler son SOS.
-            const SizedBox(height: 24),
             CallEmergencyButton(numbers: _emergencyNumbersForDevice()),
             const SizedBox(height: 28),
             CancelSosButton(
@@ -241,7 +275,6 @@ class _ActiveSosView extends StatelessWidget {
               onConfirmCancel: () =>
                   ref.read(sosControllerProvider.notifier).cancelSos(),
             ),
-            const SizedBox(height: 24),
           ],
         );
       },
@@ -271,10 +304,13 @@ class _RespondersPanel extends ConsumerWidget {
       data: (items) {
         final locationByUid = locations.asData?.value ?? const {};
         return Card(
+          // Même retrait que la carte de statut: sans cela le panneau
+          // s'étalait d'un bord à l'autre et cassait l'alignement.
+          margin: const EdgeInsets.symmetric(horizontal: 24),
           color: AppColors.surface,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             side: BorderSide(color: AppColors.inactive.withValues(alpha: 0.25)),
           ),
           child: Padding(
@@ -352,7 +388,9 @@ class _ResponderRow extends StatelessWidget {
           Icon(
             onSite ? Icons.where_to_vote : Icons.directions_walk,
             size: 20,
-            color: onSite ? Colors.green : AppColors.secondary,
+            // `AppColors.secondary` (#FCA311) tombait sous 3:1 sur blanc pour
+            // une icône porteuse de sens; `secondaryText` est lisible.
+            color: onSite ? Colors.green.shade700 : AppColors.secondaryText,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -369,7 +407,10 @@ class _ResponderRow extends StatelessWidget {
                 ),
                 Text(
                   isFrozen ? '$distance (position figée)' : distance,
-                  style: const TextStyle(color: AppColors.inactive, fontSize: 12),
+                  style: const TextStyle(
+                    color: AppColors.inactive,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -393,17 +434,20 @@ class _DistressTypePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      children: [
-        for (final type in DistressType.values)
-          ChoiceChip(
-            label: Text(labels[type] ?? type.name),
-            selected: type == selected,
-            onSelected: (_) => onChanged(type),
-          ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 8,
+        children: [
+          for (final type in DistressType.values)
+            ChoiceChip(
+              label: Text(labels[type] ?? type.name),
+              selected: type == selected,
+              onSelected: (_) => onChanged(type),
+            ),
+        ],
+      ),
     );
   }
 }

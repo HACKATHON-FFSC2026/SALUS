@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:toastification/toastification.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/features/sos/presentation/voice_sos.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -23,6 +24,8 @@ class _MyAppState extends State<MyApp> {
           title: 'Salus',
           theme: buildAppTheme(),
           routerConfig: _appRouter.config(),
+          builder: (context, child) =>
+              VoiceSosHost(child: child ?? const SizedBox.shrink()),
         ),
       ),
     );

@@ -1,11 +1,15 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/alerts/presentation/pages/alerts_page.dart';
 import 'package:salus/features/help/presentation/pages/help_page.dart';
 import 'package:salus/features/home/presentation/pages/home_tab_page.dart';
 import 'package:salus/features/shelters/presentation/pages/shelters_page.dart';
+import 'package:salus/features/sos/presentation/providers/sos_provider.dart';
+import 'package:salus/features/sos/presentation/voice_sos.dart';
 
 /// Un onglet = un icône, un libellé, une page. Ajouter un onglet ne touche
 /// que cette liste.
@@ -19,14 +23,14 @@ class _Tab {
 }
 
 @RoutePage()
-class MainPage extends StatefulWidget {
+class MainPage extends ConsumerStatefulWidget {
   const MainPage({super.key});
 
   @override
-  State<MainPage> createState() => _MainPageState();
+  ConsumerState<MainPage> createState() => _MainPageState();
 }
 
-class _MainPageState extends State<MainPage> {
+class _MainPageState extends ConsumerState<MainPage> {
   static const _tabs = <_Tab>[
     _Tab(Icons.map_outlined, 'ACCUEIL', HomeTabPage()),
     _Tab(Icons.warning_amber_rounded, 'ALERTES', AlertsPage()),
@@ -38,6 +42,46 @@ class _MainPageState extends State<MainPage> {
   static const _notchAfter = 2;
 
   int _index = 0;
+  bool _consentPromptQueued = false;
+  bool _consentDialogOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _queueVoiceConsentPrompt();
+  }
+
+  void _queueVoiceConsentPrompt() {
+    if (_consentPromptQueued) return;
+    _consentPromptQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _consentPromptQueued = false;
+      _maybePromptVoiceConsent();
+    });
+  }
+
+  Future<void> _maybePromptVoiceConsent() async {
+    if (_consentDialogOpen ||
+        !mounted ||
+        !isVoiceSosSupported ||
+        ref.read(authProvider).user == null) {
+      return;
+    }
+    final voice = ref.read(voiceSosProvider);
+    if (voice.setupChoice != VoiceSosSetupChoice.needsPrompt) return;
+    final sos = ref.read(sosControllerProvider);
+    if (sos.isRestoring ||
+        sos.hasActiveAlert ||
+        sos.status == SosStatus.sending) {
+      return;
+    }
+    _consentDialogOpen = true;
+    try {
+      await requestVoiceSosSetup(context, ref);
+    } finally {
+      _consentDialogOpen = false;
+    }
+  }
 
   void _select(int index) => setState(() => _index = index);
 
@@ -47,6 +91,23 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authProvider, (_, next) {
+      if (next.user != null) _queueVoiceConsentPrompt();
+    });
+    final auth = ref.watch(authProvider);
+    if (isVoiceSosSupported && auth.user != null) {
+      ref.listen(voiceSosProvider, (_, next) {
+        if (next.setupChoice == VoiceSosSetupChoice.needsPrompt) {
+          _queueVoiceConsentPrompt();
+        }
+      });
+      ref.listen(sosControllerProvider, (_, next) {
+        if (!next.isRestoring && !next.hasActiveAlert) {
+          _queueVoiceConsentPrompt();
+        }
+      });
+    }
+
     return Scaffold(
       body: IndexedStack(
         index: _index,

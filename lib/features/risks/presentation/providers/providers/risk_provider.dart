@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/app/di/app_dependencies.dart';
 import 'package:salus/core/entities/zone_entity.dart';
 import 'package:salus/core/utils/geo_math.dart';
+import 'package:salus/features/demo/demo_scenario_provider.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/risks/domain/usecases/get_dangerous_zone.dart';
 
@@ -16,7 +17,13 @@ final getDangerousZonesProvider = Provider(
 final riskZonesProvider = FutureProvider<List<Zone>>((ref) async {
   final timer = Timer(const Duration(minutes: 15), ref.invalidateSelf);
   ref.onDispose(timer.cancel);
-  return ref.watch(riskZoneRepositoryProvider).getActiveRiskZones();
+  // ponytail: zones fictives de démonstration, aucune tant que le GPS est
+  // inconnu. Les ids `demo-` sont dédupliqués côté carte/accueil.
+  final demo = ref.watch(demoScenarioProvider)?.zones ?? const <Zone>[];
+  final zones = await ref
+      .watch(riskZoneRepositoryProvider)
+      .getActiveRiskZones();
+  return demo.isEmpty ? zones : [...zones, ...demo];
 });
 
 /// Zones sûres brutes : recalculées seulement si l'utilisateur bouge de ~1 km.

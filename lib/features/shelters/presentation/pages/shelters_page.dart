@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/entities/entities.dart';
 import 'package:salus/core/themes/app_theme.dart';
+import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/map/domain/location.dart';
 import 'package:salus/features/map/presentation/providers/location_provider.dart';
 import 'package:salus/features/map/presentation/state/location_state.dart';
@@ -31,6 +32,8 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
   @override
   Widget build(BuildContext context) {
     final shelters = ref.watch(allSheltersProvider);
+    // Un invité n'a pas d'uid Firebase : la création de refuge serait refusée.
+    final isGuest = ref.watch(currentUidProvider) == null;
     final location = ref.watch(locationProvider);
     final externalRisks = ref.watch(riskZonesProvider);
     final firestoreRisks = ref.watch(activeRiskZonesProvider);
@@ -128,18 +131,23 @@ class _SheltersPageState extends ConsumerState<SheltersPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    FilledButton.icon(
-                      onPressed: () =>
-                          context.router.push(const CreateShelterRoute()),
-                      icon: const Icon(Icons.add_home_work_outlined, size: 17),
-                      label: const Text('Créer'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.secondary,
-                        foregroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                    if (!isGuest) ...[
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: () =>
+                            context.router.push(const CreateShelterRoute()),
+                        icon: const Icon(
+                          Icons.add_home_work_outlined,
+                          size: 17,
+                        ),
+                        label: const Text('Créer'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.secondary,
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
                 if (location.status == LocationStatus.loading)

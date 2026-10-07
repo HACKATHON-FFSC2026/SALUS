@@ -6,6 +6,7 @@ import 'package:salus/features/ar/presentation/pages/ar_view_page.dart';
 import 'package:salus/features/auth/presentation/pages/login_page.dart';
 import 'package:salus/features/home/presentation/pages/main_page.dart';
 import 'package:salus/features/admin/presentation/pages/operations_portal_page.dart';
+import 'package:salus/features/assistant/presentation/pages/assistant_page.dart';
 import 'package:salus/features/shelter_manager/presentation/pages/shelter_manager_page.dart';
 import 'package:salus/features/shelters/presentation/pages/create_shelter_page.dart';
 import 'package:salus/features/shelters/presentation/pages/shelter_location_picker_page.dart';
@@ -27,6 +28,7 @@ class AppRouter extends RootStackRouter {
     AutoRoute(page: SplashRoute.page, initial: true),
     AutoRoute(page: LoginRoute.page),
     AutoRoute(page: MainRoute.page),
+    AutoRoute(page: AssistantRoute.page),
 AutoRoute(page: OperationsPortalRoute.page),
     AutoRoute(page: SosRoute.page),
     AutoRoute(page: ActiveSosListRoute.page),

@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/app/routes/app_router.dart';
 import 'package:salus/core/themes/app_theme.dart';
 import 'package:salus/app/di/app_dependencies.dart';
+import 'package:salus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:salus/features/help/domain/entities/public_organization.dart';
+import 'package:salus/features/sos/presentation/voice_sos.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HelpPage extends ConsumerWidget {
@@ -16,6 +18,8 @@ class HelpPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final organizations = ref.watch(publicOrganizationsProvider);
+    // Mode invité : proposer de se connecter pour débloquer SOS, refuges, etc.
+    final isGuest = ref.watch(authProvider).user == null;
     return Scaffold(
       appBar: AppBar(title: const Text('Aide')),
       body: ListView(
@@ -49,6 +53,16 @@ class HelpPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
+          if (isGuest) ...[
+            _GuestSignInCard(
+              onTap: () => context.router.push(const LoginRoute()),
+            ),
+            const SizedBox(height: 16),
+          ],
+          _AssistantEntry(
+            onTap: () => context.router.push(const AssistantRoute()),
+          ),
+          const SizedBox(height: 16),
           // Contenu hors connexion du spec §1.1 : premier secours + mode
           // évacuation. Toujours en premier, l'annuaire demande le réseau.
           Row(
@@ -70,6 +84,10 @@ class HelpPage extends ConsumerWidget {
               ),
             ],
           ),
+          if (isVoiceSosSupported) ...[
+            const SizedBox(height: 16),
+            const _VoiceSosKeywords(),
+          ],
           const SizedBox(height: 24),
           const Text(
             'Organisations disponibles',
@@ -113,6 +131,106 @@ class HelpPage extends ConsumerWidget {
   }
 }
 
+/// Carte affichée aux invités : les invite à créer/associer un compte.
+class _GuestSignInCard extends StatelessWidget {
+  const _GuestSignInCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.secondary.withValues(alpha: .14),
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.login, color: AppColors.secondaryText, size: 26),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vous êtes en mode invité',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Connectez-vous pour envoyer un SOS, proposer un refuge '
+                    'et signaler un incident.',
+                    style: TextStyle(color: AppColors.inactive, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: AppColors.secondaryText),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _AssistantEntry extends StatelessWidget {
+  const _AssistantEntry({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.secondary.withValues(alpha: 0.18),
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.auto_awesome,
+              color: AppColors.secondaryText,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Copilote de crise',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Décrivez la situation, obtenez des consignes et écoutez la réponse.',
+                    style: TextStyle(color: AppColors.inactive, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: AppColors.primary),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _OrganizationCard extends StatelessWidget {
   const _OrganizationCard(this.organization);
 
@@ -146,7 +264,11 @@ class _OrganizationCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(Icons.verified, color: AppColors.secondaryText, size: 19),
+              const Icon(
+                Icons.verified,
+                color: AppColors.secondaryText,
+                size: 19,
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -279,6 +401,93 @@ String _organizationType(String value) => switch (value) {
   'emergencyServices' => 'Services d’urgence',
   _ => 'Organisation de secours',
 };
+
+/// Info: phrases reconnues par le SOS vocal. La liste vient de
+/// `voiceSosPhrases` (feature SOS) pour ne jamais diverger de la grammaire.
+class _VoiceSosKeywords extends StatelessWidget {
+  const _VoiceSosKeywords();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      color: AppColors.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.inactive.withValues(alpha: 0.25)),
+      ),
+      child: ExpansionTile(
+        shape: const Border(),
+        collapsedShape: const Border(),
+        leading: const Icon(
+          Icons.record_voice_over_outlined,
+          color: AppColors.primary,
+        ),
+        title: const Text(
+          'Mots-clés du SOS vocal',
+          style: TextStyle(
+            color: AppColors.primary,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
+        ),
+        subtitle: const Text(
+          'Phrases reconnues à la voix',
+          style: TextStyle(color: AppColors.inactive, fontSize: 13),
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Quand l’écoute est active, dites l’une de ces phrases pour '
+              'envoyer un SOS sans toucher l’écran. La reconnaissance est '
+              'locale et fonctionne hors connexion.',
+              style: TextStyle(color: AppColors.inactive, fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final phrase in voiceSosPhrases) _KeywordChip(phrase),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KeywordChip extends StatelessWidget {
+  const _KeywordChip(this.phrase);
+
+  final String phrase;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.secondary.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        phrase,
+        style: const TextStyle(
+          color: AppColors.secondaryText,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
 
 class _OfflineGuideTile extends StatelessWidget {
   const _OfflineGuideTile({

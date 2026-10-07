@@ -25,9 +25,16 @@ class LoginPage extends ConsumerWidget {
         if (next.warningMessage != null) {
           _notify(context, next.warningMessage!, ToastificationType.warning);
         }
-        context.router.replace(
-          kIsWeb ? const OperationsPortalRoute() : const MainRoute(),
-        );
+        // Connexion déclenchée depuis l'app (mode invité) : on revient à
+        // l'écran précédent. Depuis le splash, la page est racine : on
+        // remplace, comme avant.
+        if (context.router.canPop()) {
+          context.router.pop();
+        } else {
+          context.router.replace(
+            kIsWeb ? const OperationsPortalRoute() : const MainRoute(),
+          );
+        }
         return;
       }
       if (next.status == AuthStatus.failure && next.errorMessage != null) {

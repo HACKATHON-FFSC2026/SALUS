@@ -19,6 +19,7 @@ class SosState {
     this.alertId,
     this.alert,
     this.sharingLocation = false,
+    this.isRestoring = false,
   });
 
   /// Résultat de la dernière action (envoyer / annuler).
@@ -34,6 +35,9 @@ class SosState {
   /// Le partage de position temps réel tourne.
   final bool sharingLocation;
 
+  /// Restauration terminée avant d'autoriser un nouvel SOS.
+  final bool isRestoring;
+
   /// Une alerte existe et n'est ni résolue ni annulée.
   bool get hasActiveAlert => alertId != null && (alert?.isActive ?? true);
 
@@ -43,6 +47,7 @@ class SosState {
     String? alertId,
     SOSAlert? alert,
     bool? sharingLocation,
+    bool? isRestoring,
     bool clearError = false,
   }) {
     return SosState(
@@ -51,6 +56,7 @@ class SosState {
       alertId: alertId ?? this.alertId,
       alert: alert ?? this.alert,
       sharingLocation: sharingLocation ?? this.sharingLocation,
+      isRestoring: isRestoring ?? this.isRestoring,
     );
   }
 }
@@ -85,6 +91,7 @@ class SosController extends Notifier<SosState> {
   StreamSubscription<SOSAlert?>? _alertSub;
   StreamSubscription<Position>? _positionSub;
   DateTime? _lastSharedAt;
+  Future<void>? _restoreFuture;
 
   @override
   SosState build() {
@@ -92,14 +99,15 @@ class SosController extends Notifier<SosState> {
     // Rattrapage après un redémarrage: sans cela, un citizen qui rouvre
     // l'app en plein incident repart avec un écran SOS vide et peut envoyer
     // une seconde alerte pour la même détresse.
-    Future.microtask(_resumeMyActiveAlert);
-    return const SosState();
+    _restoreFuture = Future.microtask(_resumeMyActiveAlert);
+    return const SosState(isRestoring: true);
   }
 
   Future<void> triggerSos({
     DistressType distressType = DistressType.other,
     String? description,
   }) async {
+    if (state.isRestoring) await _restoreFuture;
     // Deux gardes, pas une. `hasActiveAlert` ne dépend que d'`alertId`, qui
     // n'est renseigné qu'après l'écriture : pendant l'envoi en vol il reste
     // nul et la garde passerait, créant une seconde alerte. `sending` ferme la
@@ -158,15 +166,23 @@ class SosController extends Notifier<SosState> {
           .read(sosRepositoryProvider)
           .watchMyActiveSosAlerts()
           .first;
-      if (mine.isEmpty) return;
+      if (mine.isEmpty) {
+        state = state.copyWith(isRestoring: false);
+        return;
+      }
 
       final alert = mine.first;
-      state = state.copyWith(alertId: alert.id, alert: alert);
+      state = state.copyWith(
+        alertId: alert.id,
+        alert: alert,
+        isRestoring: false,
+      );
       _track(alert.id);
       _startSharingLocation(alert.id);
     } catch (e) {
       // Rattrapage opportuniste: son échec ne doit rien casser.
       Log.warning('Impossible de restaurer l alerte SOS en cours: $e');
+      state = state.copyWith(isRestoring: false);
     }
   }
 

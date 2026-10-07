@@ -67,4 +67,45 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('bottom map controls clear the central SOS button', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(411, 891);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          riskZonesProvider.overrideWith((ref) async => const <Zone>[]),
+          safeZoneRepositoryProvider.overrideWithValue(
+            _StubSafeZoneRepository(),
+          ),
+          activeRiskZonesProvider.overrideWith(
+            (ref) => Stream.value(const <Zone>[]),
+          ),
+          activeSosStreamProvider.overrideWith(
+            (ref) => Stream.value(const <SOSAlert>[]),
+          ),
+          validatedSheltersProvider.overrideWith(
+            (ref) => Stream.value(const <Shelter>[]),
+          ),
+          publicOrganizationsProvider.overrideWith(
+            (ref) => Stream.value(const <PublicOrganization>[]),
+          ),
+        ],
+        child: const MaterialApp(home: MainPage()),
+      ),
+    );
+    await tester.pump();
+
+    final copilot = tester.getRect(find.text('Copilote IA'));
+    final ar = tester.getRect(find.byIcon(Icons.view_in_ar_outlined));
+    final sos = tester.getRect(find.text('SOS'));
+
+    // Les contrôles bas sont remontés au-dessus de la protrusion du FAB SOS.
+    expect(copilot.overlaps(sos), isFalse, reason: 'Copilote IA chevauche SOS');
+    expect(ar.overlaps(sos), isFalse, reason: 'AR chevauche SOS');
+  });
 }

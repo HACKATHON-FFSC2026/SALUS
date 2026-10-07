@@ -49,6 +49,10 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
   // Sans ça, double-tap = 2 tickers sur SingleTickerProvider = crash.
   AnimationController? _anim;
 
+  // La carte se centre une seule fois sur la première fixation GPS. Recentrer
+  // à chaque mise à jour empêcherait de naviguer librement après coup.
+  bool _centeredOnFix = false;
+
   // Position par défaut (Antananarivo) avant la première fixation GPS
   static const LatLng _defaultLocation = LatLng(-18.8792, 47.5079);
 
@@ -59,7 +63,7 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
       backgroundColor: AppColors.surface,
       builder: (context) => const SafeArea(
         child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: EdgeInsets.fromLTRB(20, 4, 20, 28),
           child: _MapLegend(),
         ),
       ),
@@ -72,27 +76,44 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
       showDragHandle: true,
       backgroundColor: AppColors.surface,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.report_problem_outlined),
-              title: const Text('Signaler un incident routier'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                launchRoadIncidentReport(context, ref);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('Comprendre la carte'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _showMapLegend();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Outils de la carte',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _MapActionTile(
+                icon: Icons.report_problem_outlined,
+                color: AppColors.sos,
+                title: 'Signaler un incident routier',
+                subtitle: 'Prévenir d\'un danger sur la route',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  launchRoadIncidentReport(context, ref);
+                },
+              ),
+              const SizedBox(height: 10),
+              _MapActionTile(
+                icon: Icons.info_outline,
+                color: AppColors.primary,
+                title: 'Comprendre la carte',
+                subtitle: 'Légende des symboles et des couleurs',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showMapLegend();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -160,6 +181,19 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
       locationProvider.select((s) => s.position),
     );
     final locationStatus = ref.watch(locationProvider.select((s) => s.status));
+
+    // Premier point GPS connu : on recentre la carte dessus, une fois.
+    // Post-frame pour que le MapController soit attaché au FlutterMap.
+    if (locationPosition != null && !_centeredOnFix) {
+      _centeredOnFix = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _mapController.move(
+          LatLng(locationPosition.latitude, locationPosition.longitude),
+          16.0,
+        );
+      });
+    }
     final roadIncidentsAsync = ref.watch(myRoadIncidentsProvider);
     final roadIncidents = roadIncidentsAsync.value ?? const [];
     final sheltersAsync = ref.watch(validatedSheltersProvider);
@@ -339,7 +373,8 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
           Positioned(
             left: 16,
             right: 16,
-            bottom: 100,
+            // Au-dessus des contrôles bas (rangée d'outils + bouton IA).
+            bottom: 110,
             child: _mapStatusBanner(
               sheltersAsync,
               hasShelterNotice:
@@ -352,7 +387,9 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
 
         Positioned(
           left: 16,
-          bottom: 24,
+          // Même ligne de base que le bouton « Copilote IA » et au-dessus de la
+          // protrusion du FAB SOS central.
+          bottom: 48,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -364,7 +401,7 @@ class _SalusMapWidgetState extends ConsumerState<SalusMapWidget>
                 onPressed: () => context.router.push(const ArViewRoute()),
                 child: const Icon(Icons.view_in_ar_outlined),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               FloatingActionButton.small(
                 heroTag: 'map_actions_fab',
                 backgroundColor: AppColors.surface,
@@ -491,6 +528,75 @@ class _SosMarkerPin extends StatelessWidget {
   );
 }
 
+/// Action du menu secondaire de la carte : pastille d'icône, titre, sous-titre
+/// et chevron.
+class _MapActionTile extends StatelessWidget {
+  const _MapActionTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.background,
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.inactive,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.inactive),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _MapLegend extends StatelessWidget {
   const _MapLegend();
 
@@ -508,52 +614,102 @@ class _MapLegend extends StatelessWidget {
       Severity.high: 'Risque élevé',
       Severity.critical: 'Risque critique',
     };
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width - 90,
-      ),
-      child: Card(
-        color: AppColors.surface.withValues(alpha: 0.92),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 4,
-            children: [
-              const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.sos, size: 13, color: AppColors.sos),
-                  SizedBox(width: 4),
-                  Text('SOS actif', style: TextStyle(fontSize: 11)),
-                ],
-              ),
-              for (final entry in severities.entries)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.warning_amber_rounded,
-                      size: 13,
-                      color: _zoneColor(entry.key),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(entry.value, style: const TextStyle(fontSize: 11)),
-                  ],
-                ),
-              for (final status in statuses)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(status.icon, size: 13, color: status.foregroundColor),
-                    const SizedBox(width: 4),
-                    Text(status.label, style: const TextStyle(fontSize: 11)),
-                  ],
-                ),
-            ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Légende de la carte',
+          style: TextStyle(
+            fontSize: 19,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
           ),
         ),
-      ),
+        const SizedBox(height: 20),
+        const _LegendSection('DANGERS'),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 22,
+          runSpacing: 16,
+          children: [
+            const _LegendEntry(
+              icon: Icons.sos,
+              color: AppColors.sos,
+              label: 'SOS actif',
+            ),
+            for (final entry in severities.entries)
+              _LegendEntry(
+                icon: Icons.warning_amber_rounded,
+                color: _zoneColor(entry.key),
+                label: entry.value,
+              ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const _LegendSection('REFUGES'),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 22,
+          runSpacing: 16,
+          children: [
+            for (final status in statuses)
+              _LegendEntry(
+                icon: status.icon,
+                color: status.foregroundColor,
+                label: status.label,
+              ),
+          ],
+        ),
+      ],
     );
   }
+}
+
+/// Intitulé de section de la légende (DANGERS, REFUGES...).
+class _LegendSection extends StatelessWidget {
+  const _LegendSection(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: const TextStyle(
+      fontSize: 12,
+      letterSpacing: 1,
+      fontWeight: FontWeight.bold,
+      color: AppColors.inactive,
+    ),
+  );
+}
+
+/// Une entrée de la légende : pictogramme + libellé.
+class _LegendEntry extends StatelessWidget {
+  const _LegendEntry({
+    required this.icon,
+    required this.color,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 20, color: color),
+      const SizedBox(width: 8),
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: AppColors.primary,
+        ),
+      ),
+    ],
+  );
 }

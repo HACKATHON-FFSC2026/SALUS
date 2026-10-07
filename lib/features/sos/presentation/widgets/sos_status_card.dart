@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:salus/core/entities/sos_alert_entity.dart';
 import 'package:salus/core/providers/public_organization_provider.dart';
 import 'package:salus/core/themes/app_theme.dart';
-import 'package:salus/features/sos/presentation/providers/responder_controller.dart';
 
+/// État de l'alerte en cours.
+///
+/// Le statut est porté par le **texte**, en couleur primaire lisible. La
+/// pastille colorée n'est qu'un repère secondaire : colorer le titre en
+/// orange/bleu/vert sur blanc tombait sous le seuil de contraste AA.
 class SosStatusCard extends ConsumerWidget {
   const SosStatusCard({super.key, this.alert});
 
@@ -12,22 +16,22 @@ class SosStatusCard extends ConsumerWidget {
   /// quand même l'état « en attente » plutôt qu'un trou dans l'écran.
   final SOSAlert? alert;
 
-  Color _getStatusColor(SOSStatus status) {
+  Color _statusColor(SOSStatus status) {
     switch (status) {
       case SOSStatus.waiting:
-        return Colors.orange;
+        return Colors.orange.shade700;
       case SOSStatus.assigned:
-        return Colors.deepPurple;
+        return Colors.deepPurple.shade600;
       case SOSStatus.inProgress:
-        return Colors.blue;
+        return Colors.blue.shade700;
       case SOSStatus.resolved:
-        return Colors.green;
+        return Colors.green.shade700;
       case SOSStatus.cancelled:
         return AppColors.inactive;
     }
   }
 
-  String _getStatusText(SOSStatus status) {
+  String _statusText(SOSStatus status) {
     switch (status) {
       case SOSStatus.waiting:
         // « En attente de secours » laissait croire que des secours étaient
@@ -48,43 +52,29 @@ class SosStatusCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentAlert = alert;
     final status = currentAlert?.status ?? SOSStatus.waiting;
-    // Compté depuis les suivis actifs, pas depuis `respondersCount`: ce dernier
-    // vient du registre append-only qui garde les intervenants retirés, et
-    // gonflait le nombre affiché à la victime.
-    final responders = currentAlert == null
-        ? 0
-        : ref
-              .watch(respondersProvider(currentAlert.id))
-              .maybeWhen(
-                data: (items) => items.length,
-                orElse: () => currentAlert.respondersCount,
-              );
-    final statusColor = _getStatusColor(status);
+    final statusColor = _statusColor(status);
     final organizationId = currentAlert?.assignedOrganizationId;
     final organizationName = organizationId == null
         ? null
         : ref.watch(publicOrganizationNameProvider(organizationId));
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.inactive.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
-            color: statusColor.withValues(alpha: 0.15),
-            blurRadius: 15,
-            spreadRadius: 2,
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(
-          color: statusColor.withValues(alpha: 0.4),
-          width: 1.5,
-        ),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -99,19 +89,27 @@ class SosStatusCard extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  _getStatusText(status),
-                  style: TextStyle(
+                  _statusText(status),
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: statusColor,
+                    color: AppColors.primary,
                   ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          const _InfoRow(
+            icon: Icons.my_location,
+            text:
+                'Votre position est partagée en temps réel avec les '
+                'secouristes.',
+          ),
           if (organizationId != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Icon(
                   Icons.apartment_outlined,
@@ -119,60 +117,53 @@ class SosStatusCard extends ConsumerWidget {
                   size: 18,
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Organisation :',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: 6),
                 Expanded(
-                  child: organizationName == null
-                      ? const Text('Assignée')
-                      : organizationName.when(
-                          data: (name) => Text(name ?? 'Assignée'),
-                          loading: () => const Text('Chargement…'),
-                          error: (_, _) => const Text('Assignée'),
-                        ),
+                  child: Text(
+                    organizationName == null
+                        ? 'Organisation assignée'
+                        : organizationName.when(
+                            data: (name) =>
+                                'Organisation : ${name ?? "assignée"}',
+                            loading: () => 'Organisation : chargement…',
+                            error: (_, _) => 'Organisation assignée',
+                          ),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ],
             ),
           ],
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Personnes en route :',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$responders',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, color: AppColors.inactive, size: 18),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: AppColors.inactive,
+            fontSize: 13,
+            height: 1.3,
+          ),
+        ),
+      ),
+    ],
+  );
 }

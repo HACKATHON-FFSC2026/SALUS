@@ -32,6 +32,7 @@ class ActiveSosListPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sosAsync = ref.watch(activeSosStreamProvider);
     final originAsync = ref.watch(sosOriginProvider);
+    final nearbyOnly = ref.watch(sosNearbyScopeProvider);
     final myUid = ref.watch(currentUidProvider);
 
     return Scaffold(
@@ -56,18 +57,39 @@ class ActiveSosListPage extends ConsumerWidget {
           ],
         ),
       ),
-      body: Column(
+      body: myUid == null
+          ? _GuestPrompt(
+              onSignIn: () => context.router.push(const LoginRoute()),
+            )
+          : Column(
         children: [
           // Sans permission, la liste est globale et sans distance. Le dire,
           // et donner le moyen de l'activer, plutôt que de titrer « à
           // proximité » une liste qui ne l'est pas.
           if (originAsync.hasValue && originAsync.value == null)
-            _LocationScopeNotice(onEnable: () => _enableLocation(ref)),
+            _LocationScopeNotice(onEnable: () => _enableLocation(ref))
+          // Une fois la position connue, on peut rester coincé sur une vue
+          // « proche » vide : garder le sélecteur pour revenir à la liste
+          // globale.
+          else if (originAsync.hasValue)
+            _ScopeSelector(
+              nearbyOnly: nearbyOnly,
+              onChanged: (value) =>
+                  ref.read(sosNearbyScopeProvider.notifier).setNearby(value),
+            ),
           Expanded(
             child: sosAsync.when(
               data: (alerts) {
                 if (alerts.isEmpty) {
-                  return const _EmptyState();
+                  final nearby = nearbyOnly && originAsync.value != null;
+                  return _EmptyState(
+                    nearbyOnly: nearby,
+                    onShowAll: nearby
+                        ? () => ref
+                              .read(sosNearbyScopeProvider.notifier)
+                              .setNearby(false)
+                        : null,
+                  );
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -190,26 +212,195 @@ class _LocationScopeNotice extends StatelessWidget {
   );
 }
 
+/// Bascule entre la liste « près de moi » et la liste globale. Visible tant que
+/// la position est connue, pour ne jamais enfermer l'utilisateur dans une vue
+/// filtrée vide.
+class _ScopeSelector extends StatelessWidget {
+  const _ScopeSelector({required this.nearbyOnly, required this.onChanged});
+
+  final bool nearbyOnly;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+    child: Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: .10),
+        ),
+      ),
+      child: Row(
+        children: [
+          _ScopeOption(
+            selected: !nearbyOnly,
+            icon: Icons.public,
+            label: 'Toutes',
+            onTap: () => onChanged(false),
+          ),
+          _ScopeOption(
+            selected: nearbyOnly,
+            icon: Icons.my_location,
+            label: 'Près de moi',
+            onTap: () => onChanged(true),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ScopeOption extends StatelessWidget {
+  const _ScopeOption({
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Semantics(
+      button: true,
+      selected: selected,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: .22),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(11),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: selected ? Colors.white : AppColors.inactive,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? Colors.white : AppColors.inactive,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Invité : la lecture des alertes SOS exige un compte. On ne requête rien et
+/// on propose de se connecter.
+class _GuestPrompt extends StatelessWidget {
+  const _GuestPrompt({required this.onSignIn});
+
+  final VoidCallback onSignIn;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.lock_outline, size: 48, color: AppColors.primary),
+          const SizedBox(height: 16),
+          const Text(
+            'Connectez-vous pour voir les alertes SOS',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Les alertes SOS sont réservées aux comptes connectés. '
+            'En urgence immédiate, appelez le 112.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.inactive, height: 1.35),
+          ),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: onSignIn,
+            icon: const Icon(Icons.login),
+            label: const Text('Se connecter'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({this.nearbyOnly = false, this.onShowAll});
+
+  /// Vue filtrée par proximité : des alertes peuvent exister plus loin.
+  final bool nearbyOnly;
+  final VoidCallback? onShowAll;
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.check_circle_outline,
-            color: Colors.green.shade600,
-            size: 64,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Aucune alerte active',
-            style: TextStyle(color: AppColors.inactive, fontSize: 16),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              color: Colors.green.shade600,
+              size: 64,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              nearbyOnly ? 'Aucune alerte à proximité' : 'Aucune alerte active',
+              style: const TextStyle(color: AppColors.inactive, fontSize: 16),
+            ),
+            if (nearbyOnly && onShowAll != null) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: onShowAll,
+                icon: const Icon(Icons.public, size: 18),
+                label: const Text('Voir toutes les alertes'),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
